@@ -3,20 +3,21 @@
 Mission Airsoft Control
 
 This paper describes common flows in Mission Airsoft Control, developed by _TODO_ in Germany.
-All messages include the following field ```"meta"``` with the message type in lower case:
+All messages include the following field ```"meta"``` with the message type in lower case and with hyphens instead of spaces:
 ```json
 {
   "type": "the_message_type",
   "id": "the_sender_id"
 }
 ```
-If an errors occurs during handling messages, or the message contains invalid data, an **ERROR** message with the specific error code:
+If an error occurs during handling messages, or the message contains invalid data, an **ERROR** message with the specific error code:
 ```json
 {
   "error_code": 0,
   "message": "the_error_message"
 }
 ``` 
+Otherwise an **OK** message is being sent.
 If not stated otherwise, **dvc** references the client.
 
 ## Gatekeeping
@@ -49,14 +50,14 @@ Flow:
 ## Scheduling
 Flows for scheduling games and retrieving schedules.
 ### Retrieve scheduling
-Unfinished games get retrieved by the **dvc** via **GET_SCHEDULE**:
+Unfinished games get retrieved by the **dvc** via **GET SCHEDULE**:
 ```json
 {}
 ```
 The **srv** responds via **SCHEDULE**:
 ```json
 {
-  "schedule": [
+  "events": [
     {
       "id": "the_event_id",
       "type": "game",
@@ -69,4 +70,35 @@ The **srv** responds via **SCHEDULE**:
   ]
 }
 ```
-
+The ```event_id``` for games is the same as the game id.
+### Post event
+Posting an event happens by **dvc** via ***POST EVENT*** message:
+```json
+{
+  "event": {
+    "type": "game",
+    "title": "the_title",
+    "description": "the_description",
+    "start_time": "the_events_start_time",
+    "end_time": "the_events_end_time"
+  }
+}
+```
+### Update event
+Updating an event happens by **dvc** via ***UPDATE EVENT** message:
+```json
+{
+  "event": {}
+}
+```
+### Delete event
+Deleting an event happens by **dvc** via ***DELETE EVENT*** message:
+```json
+{
+  "event_id": "the_event_id"
+}
+```
+## Games
+All stuff related to games. Should follow mainly the order of the chapters here.
+### Set up
+TODO

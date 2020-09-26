@@ -14,6 +14,8 @@ type Message interface {
 	MessageId()
 }
 
+const MsgTypeOk = "ok"
+
 // MessageMeta provides basic information that is used in each message.
 type MessageMeta struct {
 	Type string    `json:"type"` // The message type
