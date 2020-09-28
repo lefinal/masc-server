@@ -50,7 +50,7 @@ Flow:
 ## Scheduling
 Flows for scheduling games and retrieving schedules.
 ### Retrieve scheduling
-Unfinished games get retrieved by the **dvc** via **GET SCHEDULE**:
+Events get retrieved by the **dvc** via **GET SCHEDULE**:
 ```json
 {}
 ```
@@ -60,7 +60,7 @@ The **srv** responds via **SCHEDULE**:
   "events": [
     {
       "id": "the_event_id",
-      "type": "game",
+      "type": "match",
       "title": "the_title",
       "description": "the_description",
       "start_time": "the_events_start_time",
@@ -70,7 +70,7 @@ The **srv** responds via **SCHEDULE**:
   ]
 }
 ```
-The ```event_id``` for games is the same as the game id.
+The ```event_id``` for matches are _not_ the same as the match id as they are treated separately for allowing spontaneous matches and so on.
 ### Post event
 Posting an event happens by **dvc** via ***POST EVENT*** message:
 ```json
@@ -92,7 +92,7 @@ Updating an event happens by **dvc** via ***UPDATE EVENT** message:
 }
 ```
 ### Delete event
-Deleting an event happens by **dvc** via ***DELETE EVENT*** message:
+Deleting an event happens by **dvc** via **DELETE EVENT** message:
 ```json
 {
   "event_id": "the_event_id"
@@ -101,4 +101,9 @@ Deleting an event happens by **dvc** via ***DELETE EVENT*** message:
 ## Games
 All stuff related to games. Should follow mainly the order of the chapters here.
 ### Set up
-TODO
+Each match has to be setup although default configurations should be available. The **dvc** starts the setup via **SETUP MATCH** message:
+```json
+{
+  "event_id": "the_event_id"
+}
+```

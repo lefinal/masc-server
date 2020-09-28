@@ -17,7 +17,7 @@ const (
 type EventType string
 
 const (
-	EventTypeGame EventType = "game"
+	EventTypeMatch EventType = "match"
 )
 
 // Common scheduling errors
