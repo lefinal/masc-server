@@ -3,15 +3,7 @@ package scheduling
 import (
 	"github.com/google/uuid"
 	"masc-server/pkg/errors"
-	"masc-server/pkg/networking"
 	"time"
-)
-
-// The message types
-const (
-	MsgTypeGetSchedule   networking.MessageType = "get-schedule"
-	MsgTypeSchedule      networking.MessageType = "schedule"
-	MsgTypeScheduleEvent networking.MessageType = "schedule-event"
 )
 
 type EventType string
@@ -40,24 +32,4 @@ type Event struct {
 
 func (e *Event) Identify() uuid.UUID {
 	return e.Id
-}
-
-// ScheduleMessage is sent as a response to the GetEventsMessage
-type ScheduleMessage struct {
-	events []Event
-}
-
-// PostEventMessage is sent by the client if an event should be scheduled.
-type PostEventMessage struct {
-	Event Event `json:"event"`
-}
-
-// UpdateEventMessage is sent by the client if an event needs to be updated.
-type UpdateEventMessage struct {
-	Event Event `json:"event"`
-}
-
-// DeleteEventMessage is sent by the client if an event should be deleted.
-type DeleteEventMessage struct {
-	EventId uuid.UUID `json:"event_id"`
 }

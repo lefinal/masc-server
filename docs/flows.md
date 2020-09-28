@@ -104,6 +104,6 @@ All stuff related to games. Should follow mainly the order of the chapters here.
 Each match has to be setup although default configurations should be available. The **dvc** starts the setup via **SETUP MATCH** message:
 ```json
 {
-  "event_id": "the_event_id"
+  "id": "the_match_id"
 }
 ```

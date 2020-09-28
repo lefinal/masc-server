@@ -1,6 +1,6 @@
 // Provide basic message functionality.
 
-package networking
+package messages
 
 import "github.com/google/uuid"
 

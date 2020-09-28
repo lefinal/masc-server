@@ -4,13 +4,13 @@ package gatekeeping
 
 import (
 	"masc-server/pkg/errors"
-	"masc-server/pkg/networking"
+	"masc-server/pkg/messages"
 )
 
 // The message types
 const (
-	MsgTypeHello   networking.MessageType = "hello"
-	MsgTypeWelcome networking.MessageType = "welcome"
+	MsgTypeHello   messages.MessageType = "hello"
+	MsgTypeWelcome messages.MessageType = "welcome"
 )
 
 // The error codes
@@ -20,12 +20,12 @@ const (
 
 // HelloMessage is received when a device wants to login.
 type HelloMessage struct {
-	networking.MessageMeta `json:"meta"`
-	Name                   string   `json:"name"`
-	Roles                  []string `json:"roles"`
+	messages.MessageMeta `json:"meta"`
+	Name                 string   `json:"name"`
+	Roles                []string `json:"roles"`
 }
 
 type WelcomeMessage struct {
-	networking.MessageMeta `json:"meta"`
-	ServerName             string `json:"server_name"`
+	messages.MessageMeta `json:"meta"`
+	ServerName           string `json:"server_name"`
 }
