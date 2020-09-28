@@ -1,6 +1,9 @@
-package model
+package games
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"masc-server/pkg/scheduling"
+)
 
 type GameMode string
 
@@ -11,7 +14,7 @@ const (
 )
 
 type Game struct {
-	Event Event
+	Event scheduling.Event
 	Mode  GameMode `json:"mode"`
 }
 
@@ -19,6 +22,6 @@ func (g *Game) Identify() uuid.UUID {
 	return g.Event.Id
 }
 
-func (g *Game) ProvideEvent() Event {
+func (g *Game) ProvideEvent() scheduling.Event {
 	return g.Event
 }

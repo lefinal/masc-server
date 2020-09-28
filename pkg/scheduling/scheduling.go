@@ -1,15 +1,17 @@
-package model
+package scheduling
 
 import (
 	"github.com/google/uuid"
+	"masc-server/pkg/errors"
+	"masc-server/pkg/networking"
 	"time"
 )
 
 // The message types
 const (
-	MsgTypeGetSchedule   MessageType = "get-schedule"
-	MsgTypeSchedule      MessageType = "schedule"
-	MsgTypeScheduleEvent MessageType = "schedule-event"
+	MsgTypeGetSchedule   networking.MessageType = "get-schedule"
+	MsgTypeSchedule      networking.MessageType = "schedule"
+	MsgTypeScheduleEvent networking.MessageType = "schedule-event"
 )
 
 type EventType string
@@ -20,7 +22,7 @@ const (
 
 // Common scheduling errors
 const (
-	ErrEventNotFound ErrorCode = "event.not-found"
+	ErrEventNotFound errors.ErrorCode = "event.not-found"
 )
 
 type EventProvider interface {
