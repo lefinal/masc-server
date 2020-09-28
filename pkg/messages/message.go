@@ -14,7 +14,7 @@ type Message interface {
 	MessageId()
 }
 
-const MsgTypeOk = "ok"
+const MsgTypeOk MessageType = "ok"
 
 // MessageMeta provides basic information that is used in each message.
 type MessageMeta struct {
@@ -29,4 +29,9 @@ func (meta MessageMeta) MessageType() string {
 // GeneralMessage is mainly used for checking meta information upon receiving.
 type GeneralMessage struct {
 	MessageMeta `json:"meta"`
+}
+
+type OkMessage struct {
+	MessageMeta `json:"meta"`
+	Message     string `json:"message"`
 }

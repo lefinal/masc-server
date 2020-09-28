@@ -2,7 +2,6 @@ package scheduling
 
 import (
 	"github.com/google/uuid"
-	"masc-server/pkg/errors"
 	"time"
 )
 
@@ -10,11 +9,6 @@ type EventType string
 
 const (
 	EventTypeMatch EventType = "match"
-)
-
-// Common scheduling errors
-const (
-	ErrEventNotFound errors.ErrorCode = "event.not-found"
 )
 
 type EventProvider interface {

@@ -72,7 +72,7 @@ The **srv** responds via **SCHEDULE**:
 ```
 The ```event_id``` for matches are _not_ the same as the match id as they are treated separately for allowing spontaneous matches and so on.
 ### Post event
-Posting an event happens by **dvc** via ***POST EVENT*** message:
+Posting an event happens by **dvc** via ***SCHEDULE EVENT*** message:
 ```json
 {
   "event": {
@@ -101,9 +101,20 @@ Deleting an event happens by **dvc** via **DELETE EVENT** message:
 ## Games
 All stuff related to games. Should follow mainly the order of the chapters here.
 ### Set up
-Each match has to be setup although default configurations should be available. The **dvc** starts the setup via **SETUP MATCH** message:
+Each match has to be setup although default configurations should be available.
+The **dvc** creates a new match via **NEW MATCH** message:
+```json
+{}
+```
+The **srv** responds with a **REQUEST GAME MODE** message:
 ```json
 {
-  "id": "the_match_id"
+  "match_id": "the_assigned_match_id"
+}
+```
+The **dvc** starts the setup via **SETUP MATCH** message:
+```json
+{
+  "match_id": "the_match_id"
 }
 ```

@@ -10,15 +10,21 @@ const (
 	MsgTypeGetSchedule   MessageType = "get-schedule"
 	MsgTypeSchedule      MessageType = "schedule"
 	MsgTypeScheduleEvent MessageType = "schedule-event"
+	MsgTypeUpdateEvent   MessageType = "update-event"
+	MsgTypeDeleteEvent   MessageType = "delete-event"
 )
 
-// ScheduleMessage is sent as a response to the GetEventsMessage
+// GetScheduleMessage is sent by the client if he wants to retrieve the schedule.
+type GetScheduleMessage struct {
+}
+
+// ScheduleMessage is sent as a response to the GetEventsMessage.
 type ScheduleMessage struct {
 	events []scheduling.Event
 }
 
-// PostEventMessage is sent by the client if an event should be scheduled.
-type PostEventMessage struct {
+// ScheduleEventMessage is sent by the client if an event should be scheduled.
+type ScheduleEventMessage struct {
 	Event scheduling.Event `json:"event"`
 }
 
