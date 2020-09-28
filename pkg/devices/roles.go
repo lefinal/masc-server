@@ -9,6 +9,8 @@ const (
 	RoleScheduler Role = "scheduler"
 	// RoleGameMaster sets up and controls matches
 	RoleGameMaster Role = "game-master"
+	// RoleReferee can view the current match status and specific information
+	RoleReferee Role = "ref"
 	// RoleTeamBase provides team specific information and interaction
 	RoleTeamBase Role = "team-base"
 	// RolePlayerControl provides interaction for players
