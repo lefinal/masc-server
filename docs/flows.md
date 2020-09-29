@@ -10,14 +10,14 @@ All messages include the following field ```"meta"``` with the message type in l
   "id": "the_sender_id"
 }
 ```
-If an error occurs during handling messages, or the message contains invalid data, an **ERROR** message with the specific error code:
+If an error occurs during handling messages, or the message contains invalid data, an **error** message with the specific error code:
 ```json
 {
   "error_code": 0,
   "message": "the_error_message"
 }
 ``` 
-Otherwise an **OK** message is being sent.
+Otherwise an **ok** message is being sent.
 If not stated otherwise, **dvc** references the client.
 
 ## Gatekeeping
@@ -32,7 +32,7 @@ Referring:
 
 Flow:
 
-- **nd** sends a **HELLO**-Message:
+- **nd** sends a **hello**-Message:
 
   ```json
   {
@@ -40,7 +40,7 @@ Flow:
     "roles": []
   }
   ```
-- The **srv** responds with a **WELCOME**-Message which also contains the assigned id in the ```meta``` field:
+- The **srv** responds with a **welcome**-Message which also contains the assigned id in the ```meta``` field:
 ```json
 {
   "server_name": "the_server_name"
@@ -50,11 +50,11 @@ Flow:
 ## Scheduling
 Flows for scheduling games and retrieving schedules.
 ### Retrieve scheduling
-Events get retrieved by the **dvc** via **GET SCHEDULE**:
+Events get retrieved by the **dvc** via **get-schedule**:
 ```json
 {}
 ```
-The **srv** responds via **SCHEDULE**:
+The **srv** responds via **schedule** message:
 ```json
 {
   "events": [
@@ -72,7 +72,7 @@ The **srv** responds via **SCHEDULE**:
 ```
 The ```event_id``` for matches are _not_ the same as the match id as they are treated separately for allowing spontaneous matches and so on.
 ### Post event
-Posting an event happens by **dvc** via ***SCHEDULE EVENT*** message:
+Posting an event happens by **dvc** via ***schedule-event*** message:
 ```json
 {
   "event": {
@@ -85,14 +85,14 @@ Posting an event happens by **dvc** via ***SCHEDULE EVENT*** message:
 }
 ```
 ### Update event
-Updating an event happens by **dvc** via ***UPDATE EVENT** message:
+Updating an event happens by **dvc** via ***update-event** message:
 ```json
 {
   "event": {}
 }
 ```
 ### Delete event
-Deleting an event happens by **dvc** via **DELETE EVENT** message:
+Deleting an event happens by **dvc** via **delete-event** message:
 ```json
 {
   "event_id": "the_event_id"
@@ -102,25 +102,25 @@ Deleting an event happens by **dvc** via **DELETE EVENT** message:
 All stuff related to games. Should follow mainly the order of the chapters here.
 ### Set up
 Each match has to be setup although default configurations should be available.
-The **dvc** creates a new match via **NEW MATCH** message:
+The **dvc** creates a new match via **new-match** message:
 ```json
 {}
 ```
-The **srv** responds with a **REQUEST GAME MODE** message:
+The **srv** responds with a **request-game-mode** message:
 ```json
 {
   "match_id": "the_assigned_match_id",
   "offered_game_modes": []
 }
 ```
-The **dvc** then chooses a game mode and tells the **srv** by **SET GAME MODE** message:
+The **dvc** then chooses a game mode and tells the **srv** by **set-game-mode** message:
 ```json
 {
   "match_id": "the_match_id",
   "game_mode": "the_chosen_game_mode"
 }
 ```
-The **srv** responds with a **MATCH CONFIG** message:
+The **srv** responds with a **match-config** message:
 ```json
 {
   "match_id": "the_match_id",
@@ -129,20 +129,20 @@ The **srv** responds with a **MATCH CONFIG** message:
 }
 ```
 The structure of the match config may vary from game mode to game mode.
-The **dvc** sets the match config via **SETUP MATCH** message:
+The **dvc** sets the match config via **setup-match** message:
 ```json
 {
   "match_id": "the_match_id",
   "match_config": {}
 }
 ```
-If the **dvc** wants to request prebuild presets, he can do so via **REQUEST MATCH CONFIG PRESETS** message:
+If the **dvc** wants to request prebuild presets, he can do so via **request-match-config-presets** message:
 ```json
 {
   "game_mode": "the_target_game_mode"
 }
 ```
-The response will be a **MATCH CONFIG PRESETS** message:
+The response will be a **match-config-presets** message:
 ```json
 {
   "game_mode": "the_target_game_mode",
