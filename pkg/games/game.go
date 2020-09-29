@@ -2,8 +2,8 @@ package games
 
 type GameMode string
 
+// We are currently only using one mode because all the other ones (1v1, elimination, ...) can be set
+// in through match config.
 const (
-	GameModeTeamDeathmatch GameMode = "team-deathmatch"
-	GameMode1V1            GameMode = "1v1"
-	GameModeElimination    GameMode = "elimination"
+	GameModeDeathmatch GameMode = "team-deathmatch"
 )

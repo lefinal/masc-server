@@ -109,12 +109,43 @@ The **dvc** creates a new match via **NEW MATCH** message:
 The **srv** responds with a **REQUEST GAME MODE** message:
 ```json
 {
-  "match_id": "the_assigned_match_id"
+  "match_id": "the_assigned_match_id",
+  "offered_game_modes": []
 }
 ```
-The **dvc** starts the setup via **SETUP MATCH** message:
+The **dvc** then chooses a game mode and tells the **srv** by **SET GAME MODE** message:
 ```json
 {
-  "match_id": "the_match_id"
+  "match_id": "the_match_id",
+  "game_mode": "the_chosen_game_mode"
+}
+```
+The **srv** responds with a **MATCH CONFIG** message:
+```json
+{
+  "match_id": "the_match_id",
+  "game_mode": "the_set_game_mode",
+  "match_config": {}
+}
+```
+The structure of the match config may vary from game mode to game mode.
+The **dvc** sets the match config via **SETUP MATCH** message:
+```json
+{
+  "match_id": "the_match_id",
+  "match_config": {}
+}
+```
+If the **dvc** wants to request prebuild presets, he can do so via **REQUEST MATCH CONFIG PRESETS** message:
+```json
+{
+  "game_mode": "the_target_game_mode"
+}
+```
+The response will be a **MATCH CONFIG PRESETS** message:
+```json
+{
+  "game_mode": "the_target_game_mode",
+  "presets": []
 }
 ```
