@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"masc-server/pkg/errors"
+	"github.com/LeFinal/masc-server/pkg/errors"
 )
 
 // The message types

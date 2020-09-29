@@ -1,8 +1,8 @@
 package messages
 
 import (
+	"github.com/LeFinal/masc-server/pkg/scheduling"
 	"github.com/google/uuid"
-	"masc-server/pkg/scheduling"
 )
 
 // The message types
