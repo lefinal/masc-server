@@ -9,3 +9,7 @@ type TeamConfig struct {
 	LifeCount           int       `json:"life_count"`
 	MinRespawnGroupSize int       `json:"min_respawn_group_size"`
 }
+
+type Team struct {
+	TeamConfig TeamConfig
+}

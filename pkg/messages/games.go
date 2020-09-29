@@ -1,8 +1,8 @@
 package messages
 
 import (
+	"github.com/LeFinal/masc-server/pkg/games"
 	"github.com/google/uuid"
-	"masc-server/pkg/games"
 )
 
 const (

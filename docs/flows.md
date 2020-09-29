@@ -125,6 +125,7 @@ The **srv** responds with a **match-config** message:
 {
   "match_id": "the_match_id",
   "game_mode": "the_set_game_mode",
+  "team_configs": [],
   "match_config": {}
 }
 ```
@@ -133,6 +134,7 @@ The **dvc** sets the match config via **setup-match** message:
 ```json
 {
   "match_id": "the_match_id",
+  "team_configs": {},
   "match_config": {}
 }
 ```
@@ -147,5 +149,18 @@ The response will be a **match-config-presets** message:
 {
   "game_mode": "the_target_game_mode",
   "presets": []
+}
+```
+The match config is confirmed by the **dvc** via **confirm-match-config** message:
+```json
+{
+  "match_id": "the_match_id"
+}
+```
+The **srv** then allows player login via **player-login-open** message which also holds the count of open slots per team:
+```json
+{
+  "match_id": "the_match_id",
+  "count_open_slots": 0
 }
 ```
