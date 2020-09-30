@@ -157,10 +157,55 @@ The match config is confirmed by the **dvc** via **confirm-match-config** messag
   "match_id": "the_match_id"
 }
 ```
-The **srv** then allows player login via **player-login-open** message which also holds the count of open slots per team:
+The **srv** then requests the role assignment by sending a **request-role-assignment** message:
 ```json
 {
   "match_id": "the_match_id",
-  "count_open_slots": 0
+  "roles": [
+    {
+      "role": "the_role",
+      "description": "description_for_usage_for_this_particular_match",
+      "count_required": 0,
+      "assigned_devices": [],
+      "available_devices": [
+        {
+          "id": "the_device_id",
+          "name": "the_device_name",
+          "description": "the_device_description",
+          "roles": []
+        }
+      ]
+    }
+  ]
+}
+```
+Assigning happens by the game master via **assign-role** message:
+```json
+{
+  "match_id": 
+}
+```
+The **srv** then allows player login via **player-login-status** message:
+```json
+{
+  "match_id": "the_match_id",
+  "teams": [
+    {
+      "team_config": {},
+      "players":  [
+        {
+          "user_id": "the_user_id"
+        }
+      ] 
+    }
+  ]
+}
+```
+Player login happens by **dvc** via **login-player** message:
+```json
+{
+  "match_id": "the_match_id",
+  "user_id": "the_user_id",
+  "team_id": "the_team_id"
 }
 ```

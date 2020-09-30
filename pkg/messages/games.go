@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"github.com/LeFinal/masc-server/pkg/devices"
 	"github.com/LeFinal/masc-server/pkg/games"
 	"github.com/google/uuid"
 )
@@ -60,14 +61,36 @@ type MatchConfigPresetsMessage struct {
 }
 
 // ConfirmMatchConfigMessage is sent by the game master if he wants to confirm the match config.
-// A PlayerLoginOpenMessage is then expected to be sent by the server.
+// A RequestRoleAssignmentsMessage is then expected to be sent by the server.
 type ConfirmMatchConfigMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
 }
 
-// PlayerLoginOpenMessage is sent by the server to game master and team bases in order to allow the login of players.
-// After each player login the PlayerLoginOpenMessage is sent again but with adjusted open slots count.
-type PlayerLoginOpenMessage struct {
+// RequestRoleAssignmentsMessage is sent by the server to the game master after the match config is being confirmed.
+// The game master is then expected to send several AssignRoleMessage s.
+type RequestRoleAssignmentsMessage struct {
+	MatchId uuid.UUID                     `json:"match_id"`
+	Roles   []devices.RoleAssignmentOffer `json:"roles"`
+}
+
+// AssignRoleMessage is sent by the game master for assigning devices to roles for a certain match.
+type AssignRoleMessage struct {
+	MatchId  uuid.UUID    `json:"match_id"`
+	Role     devices.Role `json:"role"`
+	DeviceId uuid.UUID    `json:"device_id"`
+}
+
+// PlayerLoginStatusMessage is sent by the server to game master and team bases in order to allow the login of players.
+// After each player login the PlayerLoginStatusMessage is sent again but with adjusted open slots count.
+type PlayerLoginStatusMessage struct {
+	MatchId uuid.UUID    `json:"match_id"`
+	Teams   []games.Team `json:"teams"`
+}
+
+// LoginPlayerMessage is sent by player controls to the server after they received a PlayerLoginStatusMessage with
+// available slots.
+type LoginPlayerMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
-	OpenSlots
+	UserId  uuid.UUID `json:"user_id"`
+	TeamId  uuid.UUID `json:"team_id"`
 }

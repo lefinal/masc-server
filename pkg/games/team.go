@@ -11,5 +11,6 @@ type TeamConfig struct {
 }
 
 type Team struct {
-	TeamConfig TeamConfig
+	TeamConfig TeamConfig `json:"team_config"`
+	Players    []Player   `json:"players"`
 }

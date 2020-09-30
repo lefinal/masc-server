@@ -19,6 +19,14 @@ const (
 	RoleMatchStatsCollector Role = "match-stats-collector"
 	// RoleGlobalInformationCollector is allowed to request global information about the system, schedules and matches
 	RoleGlobalInformationCollector Role = "global-information-collector"
-	// RoleObjective provides a functionality for certain game modes
-	RoleObjective Role = "objective"
+	// RoleObjectiveTest provides a functionality for certain game modes and will be extended later
+	RoleObjectiveTest Role = "objective-test"
 )
+
+type RoleAssignmentOffer struct {
+	Role             Role     `json:"role"`
+	Description      string   `json:"description"`
+	CountRequired    int      `json:"count_required"`
+	AssignedDevices  []Device `json:"assigned_devices"`
+	AvailableDevices []Device `json:"available_devices"`
+}
