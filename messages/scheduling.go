@@ -1,9 +1,18 @@
 package messages
 
 import (
-	"github.com/LeFinal/masc-server/scheduling"
 	"github.com/google/uuid"
+	"time"
 )
+
+type Event struct {
+	Id          uuid.UUID `json:"id"`
+	Type        string    `json:"type"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+}
 
 // The message types
 const (
@@ -20,17 +29,17 @@ type GetScheduleMessage struct {
 
 // ScheduleMessage is sent as a response to the GetEventsMessage.
 type ScheduleMessage struct {
-	events []scheduling.Event
+	events []Event
 }
 
 // ScheduleEventMessage is sent by the client if an event should be scheduled.
 type ScheduleEventMessage struct {
-	Event scheduling.Event `json:"event"`
+	Event Event `json:"event"`
 }
 
 // UpdateEventMessage is sent by the client if an event needs to be updated.
 type UpdateEventMessage struct {
-	Event scheduling.Event `json:"event"`
+	Event Event `json:"event"`
 }
 
 // DeleteEventMessage is sent by the client if an event should be deleted.

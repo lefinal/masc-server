@@ -5,8 +5,8 @@ import "github.com/google/uuid"
 type MatchId uuid.UUID
 
 type Match struct {
-	Id   MatchId  `json:"id"`
-	Mode GameMode `json:"mode"`
+	Id   MatchId
+	Mode GameMode
 }
 
 func (g *Match) Identify() uuid.UUID {

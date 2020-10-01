@@ -182,18 +182,23 @@ The **srv** then requests the role assignment by sending a **request-role-assign
   ]
 }
 ```
-Assigning happens by the game master via **assign-role** message:
+Assigning happens by the game master via **assign-roles** message:
 ```json
 {
   "match_id": "the_match_id",
-  "role": "the_role",
-  "device_id": "the_device_id"
+  "roles": [
+    {
+      "role": "the_role",
+      "device_id": "the_device_id"
+    }
+  ]
 }
 ```
 The **srv** then allows player login via **player-login-status** message:
 ```json
 {
   "match_id": "the_match_id",
+  "player-login-open": true,
   "teams": [
     {
       "team_config": {},

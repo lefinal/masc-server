@@ -16,12 +16,12 @@ type EventProvider interface {
 }
 
 type Event struct {
-	Id          uuid.UUID `json:"id"`
-	Type        EventType `json:"type"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
+	Id          uuid.UUID
+	Type        EventType
+	Title       string
+	Description string
+	StartTime   time.Time
+	EndTime     time.Time
 }
 
 func (e *Event) Identify() uuid.UUID {

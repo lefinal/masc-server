@@ -24,9 +24,13 @@ const (
 )
 
 type RoleAssignmentOffer struct {
-	Role             Role     `json:"role"`
-	Description      string   `json:"description"`
-	CountRequired    int      `json:"count_required"`
-	AssignedDevices  []Device `json:"assigned_devices"`
-	AvailableDevices []Device `json:"available_devices"`
+	Role             Role
+	Description      string
+	CountRequired    int
+	AssignedDevices  []Device
+	AvailableDevices []Device
+}
+
+type RoleAssignment struct {
+	Role Role `json:"role"`
 }

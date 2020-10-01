@@ -1,10 +1,10 @@
 package games
 
 type MatchConfigPreset struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	TeamConfigs []TeamConfig `json:"team_configs"`
-	MatchConfig interface{}  `json:"match_config"`
+	Name        string
+	Description string
+	TeamConfigs []TeamConfig
+	MatchConfig interface{}
 }
 
 type DeathmatchMatchConfig struct {

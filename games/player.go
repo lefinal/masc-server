@@ -5,7 +5,7 @@ import (
 )
 
 type Player struct {
-	UserId    users.UserId `json:"user_id"`
-	Alive     bool         `json:"alive"`
-	LifeCount int          `json:"life_count"`
+	UserId    users.UserId
+	Alive     bool
+	LifeCount int
 }
