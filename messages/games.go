@@ -1,8 +1,8 @@
 package messages
 
 import (
-	"github.com/LeFinal/masc-server/pkg/devices"
-	"github.com/LeFinal/masc-server/pkg/games"
+	"github.com/LeFinal/masc-server/devices"
+	"github.com/LeFinal/masc-server/games"
 	"github.com/google/uuid"
 )
 

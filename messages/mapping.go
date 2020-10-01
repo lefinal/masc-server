@@ -2,7 +2,7 @@ package messages
 
 import (
 	"fmt"
-	"github.com/LeFinal/masc-server/pkg/errors"
+	"github.com/LeFinal/masc-server/errors"
 )
 
 // CreateMessageContainerForType creates the correct message container for a given message type.

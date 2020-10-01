@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"github.com/LeFinal/masc-server/pkg/scheduling"
+	"github.com/LeFinal/masc-server/scheduling"
 	"github.com/google/uuid"
 )
 
