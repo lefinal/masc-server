@@ -83,29 +83,55 @@ type Device struct {
 	Id          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	Roles       []string  `json:"roles"`
+}
+
+type Performer struct {
+	Id     uuid.UUID `json:"id"`
+	Role   string    `json:"role"`
+	Device Device    `json:"device"`
+}
+
+type RoleDetails struct {
+	Role        string `json:"role"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type RoleAssignmentOffer struct {
-	Role             string   `json:"role"`
-	Description      string   `json:"description"`
-	CountRequired    int      `json:"count_required"`
-	AssignedDevices  []Device `json:"assigned_devices"`
-	AvailableDevices []Device `json:"available_devices"`
+	PerformerId      uuid.UUID   `json:"performer_id"`
+	RoleDetails      RoleDetails `json:"role_details"`
+	AvailableDevices []Device    `json:"available_devices"`
 }
 
 // RequestRoleAssignmentsMessage is sent by the server to the game master after the match config is being confirmed.
-// The game master is then expected to send several AssignRoleMessage s.
+// The game master is then expected to send several AssignRolesMessage s.
 type RequestRoleAssignmentsMessage struct {
 	MatchId uuid.UUID             `json:"match_id"`
 	Roles   []RoleAssignmentOffer `json:"roles"`
 }
 
-// AssignRoleMessage is sent by the game master for assigning devices to roles for a certain match.
-type AssignRoleMessage struct {
-	MatchId  uuid.UUID `json:"match_id"`
-	Role     string    `json:"role"`
-	DeviceId uuid.UUID `json:"device_id"`
+type RoleAssignment struct {
+	PerformerId uuid.UUID `json:"performer_id"`
+	DeviceId    uuid.UUID `json:"device_id"`
+}
+
+// AssignRolesMessage is sent by the game master for assigning devices to roles for a certain match.
+type AssignRolesMessage struct {
+	MatchId         uuid.UUID        `json:"match_id"`
+	RoleAssignments []RoleAssignment `json:"role_assignments"`
+}
+
+type Contract struct {
+	PerformerId uuid.UUID   `json:"performer_id"`
+	RoleDetails RoleDetails `json:"role_details"`
+}
+
+// YourInMessage is sent by the server to all devices which got assigned to a role for a certain match.
+type YourInMessage struct {
+	MatchId     uuid.UUID   `json:"match_id"`
+	TeamConfig  TeamConfig  `json:"team_config"`
+	MatchConfig interface{} `json:"match_config"`
+	Contracts   []Contract  `json:"contracts"`
 }
 
 type Player struct {
@@ -133,4 +159,28 @@ type LoginPlayerMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
 	UserId  uuid.UUID `json:"user_id"`
 	TeamId  uuid.UUID `json:"team_id"`
+}
+
+// ReadyForMatchStartMessage is sent by all performers after they are ready for match start. Currently this cannot be
+// undone.
+type ReadyForMatchStartMessage struct {
+	MatchId uuid.UUID `json:"match_id"`
+	RoleId  string    `json:"role_id"`
+}
+
+type ReadyState struct {
+	PerformerId uuid.UUID `json:"performer_id"`
+	Role        uuid.UUID `json:"role"`
+}
+
+type MatchStartReadyStateMessage struct {
+	MatchId uuid.UUID `json:"match_id"`
+}
+
+// StartMatchMessage is sent by the game master when he wants to start the match after each device has signaled that it
+// is ready for match start. This sends one final PlayerLoginStatusMessage with adjusted player login open indicator.
+// The server then sends a PrepareForMatchStartMessage which allows for example dimming a team display or an intro for
+// the countdown display.
+type StartMatchMessage struct {
+	MatchId uuid.UUID `json:"match_id"`
 }

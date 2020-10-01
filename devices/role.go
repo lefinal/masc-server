@@ -22,15 +22,3 @@ const (
 	// RoleObjectiveTest provides a functionality for certain game modes and will be extended later
 	RoleObjectiveTest Role = "objective-test"
 )
-
-type RoleAssignmentOffer struct {
-	Role             Role
-	Description      string
-	CountRequired    int
-	AssignedDevices  []Device
-	AvailableDevices []Device
-}
-
-type RoleAssignment struct {
-	Role Role `json:"role"`
-}

@@ -18,8 +18,8 @@ const MsgTypeOk MessageType = "ok"
 
 // MessageMeta provides basic information that is used in each message.
 type MessageMeta struct {
-	Type string    `json:"type"` // The message type
-	Id   uuid.UUID `json:"id"`   // The device's id
+	Type     string    `json:"type"`      // The message type
+	DeviceId uuid.UUID `json:"device_id"` // The device id which is used for all it's performers
 }
 
 func (meta MessageMeta) MessageType() string {
