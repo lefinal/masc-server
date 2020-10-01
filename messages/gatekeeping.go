@@ -10,12 +10,10 @@ const (
 
 // HelloMessage is received when a device wants to login.
 type HelloMessage struct {
-	MessageMeta `json:"meta"`
-	Name        string   `json:"name"`
-	Roles       []string `json:"roles"`
+	Name  string   `json:"name"`
+	Roles []string `json:"roles"`
 }
 
 type WelcomeMessage struct {
-	MessageMeta `json:"meta"`
-	ServerName  string `json:"server_name"`
+	ServerName string `json:"server_name"`
 }

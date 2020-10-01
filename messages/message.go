@@ -29,9 +29,9 @@ func (meta MessageMeta) MessageType() string {
 // GeneralMessage is mainly used for checking meta information upon receiving.
 type GeneralMessage struct {
 	MessageMeta `json:"meta"`
+	Payload     interface{} `json:"payload"`
 }
 
 type OkMessage struct {
-	MessageMeta `json:"meta"`
-	Message     string `json:"message"`
+	Message string `json:"message"`
 }

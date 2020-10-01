@@ -3,11 +3,14 @@
 Mission Airsoft Control
 
 This paper describes common flows in Mission Airsoft Control, developed by _TODO_ in Germany.
-All messages include the following field ```"meta"``` with the message type in lower case and with hyphens instead of spaces:
+All messages have the following structure:
 ```json
 {
-  "type": "the_message_type",
-  "id": "the_sender_id"
+  "meta": {
+    "type": "the_message_type",
+    "id": "the_communication_id"
+  },
+  "payload": {}
 }
 ```
 If an error occurs during handling messages, or the message contains invalid data, an **error** message with the specific error code:
@@ -182,7 +185,9 @@ The **srv** then requests the role assignment by sending a **request-role-assign
 Assigning happens by the game master via **assign-role** message:
 ```json
 {
-  "match_id": 
+  "match_id": "the_match_id",
+  "role": "the_role",
+  "device_id": "the_device_id"
 }
 ```
 The **srv** then allows player login via **player-login-status** message:

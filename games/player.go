@@ -1,9 +1,11 @@
 package games
 
-import "github.com/google/uuid"
+import (
+	"github.com/LeFinal/masc-server/users"
+)
 
 type Player struct {
-	UserId    uuid.UUID `json:"user_id"`
-	Alive     bool      `json:"alive"`
-	LifeCount int       `json:"life_count"`
+	UserId    users.UserId `json:"user_id"`
+	Alive     bool         `json:"alive"`
+	LifeCount int          `json:"life_count"`
 }

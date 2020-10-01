@@ -2,12 +2,14 @@ package games
 
 import "github.com/google/uuid"
 
+type TeamId uuid.UUID
+
 type TeamConfig struct {
-	Id                  uuid.UUID `json:"id"`
-	Name                string    `json:"name"`
-	MaxPlayers          int       `json:"max_players"`
-	LifeCount           int       `json:"life_count"`
-	MinRespawnGroupSize int       `json:"min_respawn_group_size"`
+	TeamId              TeamId `json:"team_id"`
+	Name                string `json:"name"`
+	MaxPlayers          int    `json:"max_players"`
+	LifeCount           int    `json:"life_count"`
+	MinRespawnGroupSize int    `json:"min_respawn_group_size"`
 }
 
 type Team struct {
