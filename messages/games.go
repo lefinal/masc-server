@@ -6,12 +6,24 @@ import (
 
 const (
 	MsgTypeNewMatch                  MessageType = "new-match"
-	MsgTypeRequestGameModeMessage    MessageType = "request-game-mode"
+	MsgTypeRequestGameMode           MessageType = "request-game-mode"
 	MsgTypeSetGameMode               MessageType = "set-game-mode"
 	MsgTypeMatchConfig               MessageType = "match-config"
 	MsgTypeSetupMatch                MessageType = "setup-match"
 	MsgTypeRequestMatchConfigPresets MessageType = "request-match-config-presets"
 	MsgTypeMatchConfigPresets        MessageType = "match-config-presets"
+	MsgTypeConfirmMatchConfig        MessageType = "confirm-match-config"
+	MsgTypeRequestRoleAssignments    MessageType = "request-role-assignments"
+	MsgTypeAssignRoles               MessageType = "assign-roles"
+	MsgTypeYouAreIn                  MessageType = "you-are-in"
+	MsgTypePlayerLoginStatus         MessageType = "player-login-status"
+	MsgTypeLoginPlayer               MessageType = "login-player"
+	MsgTypeReadyForMatchStart        MessageType = "ready-for-match-start"
+	MsgTypeMatchStartReadyStates     MessageType = "match-start-ready-states"
+	MsgTypeStartMatch                MessageType = "start-match"
+	MsgTypePrepareForCountdown       MessageType = "prepare-for-countdown"
+	MsgTypeCountdown                 MessageType = "countdown"
+	MsgTypeMatchStart                MessageType = "match-start"
 )
 
 // NewMatchMessage is sent by the game master if he wants to create a new match.
@@ -126,8 +138,8 @@ type Contract struct {
 	RoleDetails RoleDetails `json:"role_details"`
 }
 
-// YourInMessage is sent by the server to all devices which got assigned to a role for a certain match.
-type YourInMessage struct {
+// YouAreInMessage is sent by the server to all devices which got assigned to a role for a certain match.
+type YouAreInMessage struct {
 	MatchId     uuid.UUID   `json:"match_id"`
 	TeamConfig  TeamConfig  `json:"team_config"`
 	MatchConfig interface{} `json:"match_config"`
@@ -164,23 +176,44 @@ type LoginPlayerMessage struct {
 // ReadyForMatchStartMessage is sent by all performers after they are ready for match start. Currently this cannot be
 // undone.
 type ReadyForMatchStartMessage struct {
-	MatchId uuid.UUID `json:"match_id"`
-	RoleId  string    `json:"role_id"`
+	MatchId     uuid.UUID `json:"match_id"`
+	PerformerId uuid.UUID `json:"performer_id"`
 }
 
 type ReadyState struct {
-	PerformerId uuid.UUID `json:"performer_id"`
-	Role        uuid.UUID `json:"role"`
+	PerformerId uuid.UUID   `json:"performer_id"`
+	RoleDetails RoleDetails `json:"role_details"`
+	Ready       bool        `json:"ready"`
 }
 
-type MatchStartReadyStateMessage struct {
-	MatchId uuid.UUID `json:"match_id"`
+// MatchStartReadyStatesMessage is sent to all performers after a ReadyForMatchStartMessage is received.
+type MatchStartReadyStatesMessage struct {
+	MatchId     uuid.UUID    `json:"match_id"`
+	ReadyStates []ReadyState `json:"ready_states"`
 }
 
 // StartMatchMessage is sent by the game master when he wants to start the match after each device has signaled that it
 // is ready for match start. This sends one final PlayerLoginStatusMessage with adjusted player login open indicator.
-// The server then sends a PrepareForMatchStartMessage which allows for example dimming a team display or an intro for
-// the countdown display.
+// The server then sends a PrepareForCountdownMessage.
 type StartMatchMessage struct {
+	MatchId uuid.UUID `json:"match_id"`
+}
+
+// PrepareForCountdownMessage is sent by the server after the match has been started by the game master via
+// StartMatchMessage. Preparation time allows for example dimming a team display or an intro for the countdown display
+// and is retrieved from server config.
+type PrepareForCountdownMessage struct {
+	MatchId         uuid.UUID `json:"match_id"`
+	PreparationTime int       `json:"preparation_time"`
+}
+
+// CountdownMessage is sent by the server for the match start. The duration is retrieved from server config.
+type CountdownMessage struct {
+	MatchId  uuid.UUID `json:"match_id"`
+	Duration int       `json:"duration"`
+}
+
+// MatchStartMessage is sent by the server after the countdown has finished. Now the match has begun.
+type MatchStartMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
 }

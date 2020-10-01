@@ -34,7 +34,7 @@ func CreateMessageContainerForType(msgType MessageType) (interface{}, *errors.Ma
 	// Games
 	case MsgTypeNewMatch:
 		res = NewMatchMessage{}
-	case MsgTypeRequestGameModeMessage:
+	case MsgTypeRequestGameMode:
 		res = RequestGameModeMessage{}
 	case MsgTypeSetGameMode:
 		res = SetGameModeMessage{}
@@ -46,6 +46,30 @@ func CreateMessageContainerForType(msgType MessageType) (interface{}, *errors.Ma
 		res = RequestMatchConfigPresetsMessage{}
 	case MsgTypeMatchConfigPresets:
 		res = MatchConfigPresetsMessage{}
+	case MsgTypeConfirmMatchConfig:
+		res = ConfirmMatchConfigMessage{}
+	case MsgTypeRequestRoleAssignments:
+		res = RequestRoleAssignmentsMessage{}
+	case MsgTypeAssignRoles:
+		res = AssignRolesMessage{}
+	case MsgTypeYouAreIn:
+		res = YouAreInMessage{}
+	case MsgTypePlayerLoginStatus:
+		res = PlayerLoginStatusMessage{}
+	case MsgTypeLoginPlayer:
+		res = LoginPlayerMessage{}
+	case MsgTypeReadyForMatchStart:
+		res = ReadyForMatchStartMessage{}
+	case MsgTypeMatchStartReadyStates:
+		res = MatchStartReadyStatesMessage{}
+	case MsgTypeStartMatch:
+		res = StartMatchMessage{}
+	case MsgTypePrepareForCountdown:
+		res = PrepareForCountdownMessage{}
+	case MsgTypeCountdown:
+		res = CountdownMessage{}
+	case MsgTypeMatchStart:
+		res = MatchStartMessage{}
 	default:
 		return nil, errors.NewMascError(fmt.Sprintf("find mapping for: %v", msgType),
 			errors.UnknownMessageTypeError)

@@ -99,6 +99,9 @@ Deleting an event happens by _scheduler_ via **delete-event** message:
 ```
 ## Games
 All stuff related to games. Should follow mainly the order of the chapters here.
+
+Info: After roles have been assigned, general messages will _not_ include the ```performer_id``` field. This only applies to messages which are specific to roles/certain performers.
+
 ### Set up
 Each match has to be setup although default configurations should be available.
 The _game master_ creates a new match via **new-match** message:
@@ -199,7 +202,7 @@ Assigning happens by the _game master_ via **assign-roles** message:
   ]
 }
 ```
-The _server_ then sends to the corresponding devices a **your-in** message:
+The _server_ then sends to the corresponding devices a **you-are-in** message:
 ```json
 {
   "match_id": "the_match_id",
@@ -217,7 +220,29 @@ The _server_ then sends to the corresponding devices a **your-in** message:
   ]
 }
 ```
+The _server_ then sends a **match-start-ready-states** message:
+
+```json
+{
+    "match_id": "the_match_id",
+    "ready_states": [
+        {
+            "performer_id": "the_performer_id",
+            "role_details": {
+                "role": "the_role_key",
+                "name": "the_role_name",
+                "description": "the_role_description"
+            },
+            "ready": false
+        }
+    ]
+}
+```
+
+#### Player login
+
 The _server_ then allows player login via **player-login-status** message:
+
 ```json
 {
   "match_id": "the_match_id",
@@ -244,16 +269,50 @@ Player login happens by _player controls_ via **login-player** message:
 ```
 Performers should not request configs as everything necessary should be shipped with the match config.
 
-Each performer, in the match involved, sends a **ready-for-match-start** message if it is ready for each role! Currently, this cannot be undone.
+#### Ready for match start
+
+Each _performer_, in the match involved, sends a **ready-for-match-start** message if it is ready for each role! Currently, this cannot be undone.
 ```json
 {
   "match_id": "the_match_id",
-  "role_id": "the_role_id"
+  "performer_id": "the_performer_id"
 }
 ```
-After all performers have told that they are ready, the _server_ sends one final **player-login-status** message (see above) with adjusted player login open indicator. The _server_ then sends a **prepare-for-match-start** message which allows for example dimming a team display or an intro for the countdown display after that it waits for a certain time (set in server config):
+Every time the _server_ receives a **ready-for-match-start** message it sends an **match-start-ready-state** message to all _devices_.
+
+#### Countdown
+
+After all performers have told that they are ready, the _game master_ is allowed to send the **start-match** message:
+
 ```json
 {
-  "match_id": "the_match_id"
+    "match_id": "the_match_id"
 }
 ```
+
+The _server_ then sends a **prepare-for-countdown** message which allows for example dimming a team display or an intro for the countdown display after that it waits for a certain time (set in server config):
+
+```json
+{
+  "match_id": "the_match_id",
+  "preparation_time": 5
+}
+```
+
+Then the _server_ sends a **countdown** message with the countdown duration (set in server config):
+
+```json
+{
+    "match_id": "the_match_id",
+    "duration": 5
+}
+```
+
+After the countdown has finished, the _server_ sends the **match-start** message:
+
+```json
+{
+    "match_id": "the_match_id"
+}
+```
+
