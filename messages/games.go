@@ -147,14 +147,23 @@ type YouAreInMessage struct {
 }
 
 type Player struct {
-	UserId    uuid.UUID
-	Alive     bool
-	LifeCount int
+	UserId           uuid.UUID     `json:"user_id"`
+	PlayerDetails    PlayerDetails `json:"player_details"`
+	Alive            bool          `json:"alive"`
+	LifeCount        int           `json:"life_count"`
+	RespawnCountdown int           `json:"respawn_countdown"`
+}
+
+type PlayerDetails struct {
+	Name     string `json:"name"`
+	CallSign string `json:"call_sign"`
+	Tag      string `json:"tag"`
+	Level    string `json:"level"`
 }
 
 type Team struct {
-	TeamConfig TeamConfig
-	Players    []Player
+	TeamConfig TeamConfig `json:"team_config"`
+	Players    []Player   `json:"players"`
 }
 
 // PlayerLoginStatusMessage is sent by the server to game master and team bases in order to allow the login of players.
@@ -168,9 +177,10 @@ type PlayerLoginStatusMessage struct {
 // LoginPlayerMessage is sent by player controls to the server after they received a PlayerLoginStatusMessage with
 // available slots.
 type LoginPlayerMessage struct {
-	MatchId uuid.UUID `json:"match_id"`
-	UserId  uuid.UUID `json:"user_id"`
-	TeamId  uuid.UUID `json:"team_id"`
+	MatchId     uuid.UUID `json:"match_id"`
+	PerformerId uuid.UUID `json:"performer_id"`
+	UserId      uuid.UUID `json:"user_id"`
+	TeamId      uuid.UUID `json:"team_id"`
 }
 
 // ReadyForMatchStartMessage is sent by all performers after they are ready for match start. Currently this cannot be
@@ -196,7 +206,8 @@ type MatchStartReadyStatesMessage struct {
 // is ready for match start. This sends one final PlayerLoginStatusMessage with adjusted player login open indicator.
 // The server then sends a PrepareForCountdownMessage.
 type StartMatchMessage struct {
-	MatchId uuid.UUID `json:"match_id"`
+	MatchId     uuid.UUID `json:"match_id"`
+	PerformerId uuid.UUID `json:"performer_id"`
 }
 
 // PrepareForCountdownMessage is sent by the server after the match has been started by the game master via
@@ -216,4 +227,42 @@ type CountdownMessage struct {
 // MatchStartMessage is sent by the server after the countdown has finished. Now the match has begun.
 type MatchStartMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
+}
+
+type MatchStatusMessage struct {
+	MatchId uuid.UUID `json:"match_id"`
+	Teams   []Team    `json:"teams"`
+}
+
+// PlayerHitMessage is sent by a player control for telling the server that a player is hit and arrived at the spawn.
+type PlayerHitMessage struct {
+	MatchId     uuid.UUID `json:"match_id"`
+	PerformerId uuid.UUID `json:"performer_id"`
+	UserId      uuid.UUID `json:"user_id"`
+}
+
+// RespawnPlayersMessage is sent by the server for telling player controls that players can now respawn. As often there
+// are multiple players respawning at the same time, multiple user ids are packed in this message.
+type RespawnPlayersMessage struct {
+	MatchId uuid.UUID   `json:"match_id"`
+	UserIds []uuid.UUID `json:"user_ids"`
+}
+
+// MatchEventMessage
+type MatchEventMessage struct {
+	MatchId     uuid.UUID `json:"match_id"`
+	PerformerId uuid.UUID `json:"performer_id,omitempty"`
+	EventName   string    `json:"event_name"`
+	EventData   string    `json:"event_data"`
+}
+
+type MatchEndTeamStats struct {
+	Team     Team `json:"team"`
+	IsWinner bool `json:"is_winner"`
+}
+
+// MatchEndMessage is sent by the server when a match ends.
+type MatchEndMessage struct {
+	MatchId   uuid.UUID           `json:"match_id"`
+	TeamStats []MatchEndTeamStats `json:"team_stats"`
 }

@@ -21,7 +21,7 @@ If an error occurs during handling messages, or the message contains invalid dat
 }
 ```
 Otherwise, an **ok** message is being sent.
-If not stated otherwise, **pf** references an performer.
+Info: All Ids are UUIDs.
 
 ## Gatekeeping
 ### Login
@@ -252,7 +252,13 @@ The _server_ then allows player login via **player-login-status** message:
       "team_config": {},
       "players":  [
         {
-          "user_id": "the_user_id"
+          "user_id": "the_user_id",
+          "player_details": {
+              "name": "the_full_name",
+              "call_sign": "the_call_sign",
+              "tag": "B-00",
+              "level": 0
+          }
         }
       ] 
     }
@@ -263,6 +269,7 @@ Player login happens by _player controls_ via **login-player** message:
 ```json
 {
   "match_id": "the_match_id",
+  "performer_id": "the_player_controls_performer_id",
   "user_id": "the_user_id",
   "team_id": "the_team_id"
 }
@@ -286,7 +293,8 @@ After all performers have told that they are ready, the _game master_ is allowed
 
 ```json
 {
-    "match_id": "the_match_id"
+    "match_id": "the_match_id",
+    "performer_id": "the_performer_id"
 }
 ```
 
@@ -313,6 +321,62 @@ After the countdown has finished, the _server_ sends the **match-start** message
 ```json
 {
     "match_id": "the_match_id"
+}
+```
+
+### In game
+
+The _server_ occasionally sends a **match-status** message (normally after every event, hit and respawn):
+
+_TODO_
+
+```json
+
+```
+
+If a player calls a hit (currently at the team base), _player control_ sends a **player-hit** message:
+
+```json
+{
+    "match_id": "the_match_id",
+    "performer_id": "the_performer_id",
+    "user_id": "the_user_id_of_the_hit_player"
+}
+```
+
+For respawning players, the _server_ sends a **respawn-players** message:
+
+```json
+{
+    "match_id": "the_match_id",
+    "user_ids": []
+}
+```
+
+General events which depend on the game mode implementation are announced via **match-event** message:
+
+```json
+{
+    "match_id": "the_match_id",
+    "performer_id": "the_performer_id",
+    "event_name": "the_event_name",
+    "event_data": "additional_event_data"
+}
+```
+
+If the **match-event** message is sent by the server, the ```performer_id``` field will be omitted.
+
+### Match end
+
+When the match ends the _server_ sends a **match-end** message:
+
+```json
+{
+    "match_id": "the_match_id",
+    "team_stats": {
+        "team": {},
+        "is_winner": false
+    }
 }
 ```
 
