@@ -70,6 +70,16 @@ func CreateMessageContainerForType(msgType MessageType) (interface{}, *errors.Ma
 		res = CountdownMessage{}
 	case MsgTypeMatchStart:
 		res = MatchStartMessage{}
+	case MsgTypeMatchStatus:
+		res = MatchStatusMessage{}
+	case MsgTypePlayerHit:
+		res = PlayerHitMessage{}
+	case MsgTypeRespawnPlayer:
+		res = RespawnPlayersMessage{}
+	case MsgTypeMatchEvent:
+		res = MatchEventMessage{}
+	case MsgTypeMatchEnd:
+		res = MatchEndMessage{}
 	default:
 		return nil, errors.NewMascError(fmt.Sprintf("find mapping for: %v", msgType),
 			errors.UnknownMessageTypeError)

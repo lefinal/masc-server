@@ -2,6 +2,7 @@ package messages
 
 import (
 	"github.com/google/uuid"
+	"time"
 )
 
 const (
@@ -24,6 +25,11 @@ const (
 	MsgTypePrepareForCountdown       MessageType = "prepare-for-countdown"
 	MsgTypeCountdown                 MessageType = "countdown"
 	MsgTypeMatchStart                MessageType = "match-start"
+	MsgTypeMatchStatus               MessageType = "match-status"
+	MsgTypePlayerHit                 MessageType = "player-hit"
+	MsgTypeRespawnPlayer             MessageType = "respawn-players"
+	MsgTypeMatchEvent                MessageType = "match-event"
+	MsgTypeMatchEnd                  MessageType = "match-end"
 )
 
 // NewMatchMessage is sent by the game master if he wants to create a new match.
@@ -31,11 +37,17 @@ const (
 type NewMatchMessage struct {
 }
 
+type GameModeDetails struct {
+	GameMode    string `json:"game_mode"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 // RequestGameModeMessage is sent by the server after the game master has started a new match.
 // The server then expects a SetGameModeMessage.
 type RequestGameModeMessage struct {
-	MatchId          uuid.UUID `json:"match_id"`
-	OfferedGameModes []string  `json:"offered_game_modes"`
+	MatchId          uuid.UUID         `json:"match_id"`
+	OfferedGameModes []GameModeDetails `json:"offered_game_modes"`
 }
 
 // SetGameModeMessage is sent by the game master as a response to the RequestGameModeMessage.
@@ -140,10 +152,11 @@ type Contract struct {
 
 // YouAreInMessage is sent by the server to all devices which got assigned to a role for a certain match.
 type YouAreInMessage struct {
-	MatchId     uuid.UUID   `json:"match_id"`
-	TeamConfig  TeamConfig  `json:"team_config"`
-	MatchConfig interface{} `json:"match_config"`
-	Contracts   []Contract  `json:"contracts"`
+	MatchId         uuid.UUID       `json:"match_id"`
+	GameModeDetails GameModeDetails `json:"game_mode_details"`
+	TeamConfig      TeamConfig      `json:"team_config"`
+	MatchConfig     interface{}     `json:"match_config"`
+	Contracts       []Contract      `json:"contracts"`
 }
 
 type Player struct {
@@ -229,9 +242,14 @@ type MatchStartMessage struct {
 	MatchId uuid.UUID `json:"match_id"`
 }
 
+// MatchStatusMessage is sent occasionally by the server.
 type MatchStatusMessage struct {
-	MatchId uuid.UUID `json:"match_id"`
-	Teams   []Team    `json:"teams"`
+	MatchId            uuid.UUID       `json:"match_id"`
+	GameModeDetails    GameModeDetails `json:"game_mode_details"`
+	Teams              []Team          `json:"teams"`
+	MatchConfig        interface{}     `json:"match_config"`
+	MatchTime          time.Duration   `json:"match_time"`
+	MatchTimeRemaining time.Time       `json:"match_time_remaining"`
 }
 
 // PlayerHitMessage is sent by a player control for telling the server that a player is hit and arrived at the spawn.

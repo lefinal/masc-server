@@ -113,14 +113,20 @@ The _server_ responds with a **request-game-mode** message:
 ```json
 {
   "match_id": "the_assigned_match_id",
-  "offered_game_modes": []
+  "offered_game_modes": [
+      {
+          "game_mode": "the_mode_key",
+          "name": "the_name",
+          "description": "the_description"
+      }
+  ]
 }
 ```
 The _game master_ then chooses a game mode and tells the _server_ by **set-game-mode** message:
 ```json
 {
   "match_id": "the_match_id",
-  "game_mode": "the_chosen_game_mode"
+  "game_mode": "the_mode_key"
 }
 ```
 #### Match config
@@ -206,6 +212,11 @@ The _server_ then sends to the corresponding devices a **you-are-in** message:
 ```json
 {
   "match_id": "the_match_id",
+  "game_mode_details": {
+      "game_mode": "the_mode_key",
+      "name": "the_name",
+      "description": "the_description"
+  },
   "team_config": {},
   "match_config": {},
   "contracts": [
@@ -331,7 +342,14 @@ The _server_ occasionally sends a **match-status** message (normally after every
 _TODO_
 
 ```json
-
+{
+    "match_id": "the_match_id",
+    "game_mode_details": {},
+    "teams": [],
+    "match_config": {},
+    "match_time": "the_match_time",
+    "match_time_remaining": "the_countdown"
+}
 ```
 
 If a player calls a hit (currently at the team base), _player control_ sends a **player-hit** message:
