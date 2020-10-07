@@ -1,5 +1,7 @@
 package networking
 
+import "github.com/LeFinal/masc-server/logging"
+
 // The hub is based on https://github.com/gorilla/websocket/blob/master/examples/chat/hub.go.
 
 // Hub maintains the set of active clients and broadcasts messages to the
@@ -18,7 +20,7 @@ type Hub struct {
 	unregister chan *Client
 }
 
-func newHub() *Hub {
+func NewHub() *Hub {
 	return &Hub{
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
@@ -27,16 +29,18 @@ func newHub() *Hub {
 	}
 }
 
-func (h *Hub) run() {
+func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
 		case client := <-h.unregister:
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				close(client.send)
+			if _, ok := h.clients[client]; !ok {
+				logging.Error("client requested unregister although not registered")
+				continue
 			}
+			delete(h.clients, client)
+			close(client.send)
 		case message := <-h.broadcast:
 			for client := range h.clients {
 				select {
