@@ -11,75 +11,75 @@ func CreateMessageContainerForType(msgType MessageType) (interface{}, *errors.Ma
 	switch msgType {
 	// General
 	case MsgTypeOk:
-		res = OkMessage{}
+		res = &OkMessage{}
 	// Errors
 	case MsgTypeError:
-		res = ErrorMessage{}
+		res = &ErrorMessage{}
 	// Gatekeeping
 	case MsgTypeHello:
-		res = HelloMessage{}
+		res = &HelloMessage{}
 	case MsgTypeWelcome:
-		res = WelcomeMessage{}
+		res = &WelcomeMessage{}
 	// Scheduling
 	case MsgTypeGetSchedule:
-		res = GetScheduleMessage{}
+		res = &GetScheduleMessage{}
 	case MsgTypeSchedule:
-		res = ScheduleMessage{}
+		res = &ScheduleMessage{}
 	case MsgTypeScheduleEvent:
-		res = ScheduleEventMessage{}
+		res = &ScheduleEventMessage{}
 	case MsgTypeUpdateEvent:
-		res = UpdateEventMessage{}
+		res = &UpdateEventMessage{}
 	case MsgTypeDeleteEvent:
-		res = DeleteEventMessage{}
+		res = &DeleteEventMessage{}
 	// Games
 	case MsgTypeNewMatch:
-		res = NewMatchMessage{}
+		res = &NewMatchMessage{}
 	case MsgTypeRequestGameMode:
-		res = RequestGameModeMessage{}
+		res = &RequestGameModeMessage{}
 	case MsgTypeSetGameMode:
-		res = SetGameModeMessage{}
+		res = &SetGameModeMessage{}
 	case MsgTypeMatchConfig:
-		res = MatchConfigMessage{}
+		res = &MatchConfigMessage{}
 	case MsgTypeSetupMatch:
-		res = SetupMatchMessage{}
+		res = &SetupMatchMessage{}
 	case MsgTypeRequestMatchConfigPresets:
-		res = RequestMatchConfigPresetsMessage{}
+		res = &RequestMatchConfigPresetsMessage{}
 	case MsgTypeMatchConfigPresets:
-		res = MatchConfigPresetsMessage{}
+		res = &MatchConfigPresetsMessage{}
 	case MsgTypeConfirmMatchConfig:
-		res = ConfirmMatchConfigMessage{}
+		res = &ConfirmMatchConfigMessage{}
 	case MsgTypeRequestRoleAssignments:
-		res = RequestRoleAssignmentsMessage{}
+		res = &RequestRoleAssignmentsMessage{}
 	case MsgTypeAssignRoles:
-		res = AssignRolesMessage{}
+		res = &AssignRolesMessage{}
 	case MsgTypeYouAreIn:
-		res = YouAreInMessage{}
+		res = &YouAreInMessage{}
 	case MsgTypePlayerLoginStatus:
-		res = PlayerLoginStatusMessage{}
+		res = &PlayerLoginStatusMessage{}
 	case MsgTypeLoginPlayer:
-		res = LoginPlayerMessage{}
+		res = &LoginPlayerMessage{}
 	case MsgTypeReadyForMatchStart:
-		res = ReadyForMatchStartMessage{}
+		res = &ReadyForMatchStartMessage{}
 	case MsgTypeMatchStartReadyStates:
-		res = MatchStartReadyStatesMessage{}
+		res = &MatchStartReadyStatesMessage{}
 	case MsgTypeStartMatch:
-		res = StartMatchMessage{}
+		res = &StartMatchMessage{}
 	case MsgTypePrepareForCountdown:
-		res = PrepareForCountdownMessage{}
+		res = &PrepareForCountdownMessage{}
 	case MsgTypeCountdown:
-		res = CountdownMessage{}
+		res = &CountdownMessage{}
 	case MsgTypeMatchStart:
-		res = MatchStartMessage{}
+		res = &MatchStartMessage{}
 	case MsgTypeMatchStatus:
-		res = MatchStatusMessage{}
+		res = &MatchStatusMessage{}
 	case MsgTypePlayerHit:
-		res = PlayerHitMessage{}
+		res = &PlayerHitMessage{}
 	case MsgTypeRespawnPlayer:
-		res = RespawnPlayersMessage{}
+		res = &RespawnPlayersMessage{}
 	case MsgTypeMatchEvent:
-		res = MatchEventMessage{}
+		res = &MatchEventMessage{}
 	case MsgTypeMatchEnd:
-		res = MatchEndMessage{}
+		res = &MatchEndMessage{}
 	default:
 		return nil, errors.NewMascError(fmt.Sprintf("find mapping for: %v", msgType),
 			errors.UnknownMessageTypeError)

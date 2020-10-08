@@ -24,8 +24,12 @@ type Hub struct {
 
 	// New registered clients.
 	NewClients chan *Client
+
+	// The new closed clients.
+	ClosedClients chan *Client
 }
 
+// NewHub creates a new Hub using the given http server listen address.
 func NewHub(addr string) *Hub {
 	return &Hub{
 		addr:       addr,
@@ -37,6 +41,9 @@ func NewHub(addr string) *Hub {
 	}
 }
 
+// Run runs the Hub. This should be run in a go routine as the method will manage
+// all Client stuff related to registering, unregistering and handling message
+// broadcasts.
 func (h *Hub) Run() {
 	go runHubServer(h)
 	for {
@@ -44,12 +51,7 @@ func (h *Hub) Run() {
 		case client := <-h.register:
 			h.registerClient(client)
 		case client := <-h.unregister:
-			if _, ok := h.clients[client]; !ok {
-				logging.Error("client requested unregister although not registered")
-				continue
-			}
-			delete(h.clients, client)
-			close(client.send)
+			h.unregisterClient(client)
 		case message := <-h.broadcast:
 			for client := range h.clients {
 				select {
@@ -67,4 +69,15 @@ func (h *Hub) registerClient(c *Client) {
 	logging.Info("New incoming client connection.")
 	h.clients[c] = true
 	h.NewClients <- c
+}
+
+func (h *Hub) unregisterClient(c *Client) {
+	if _, ok := h.clients[c]; !ok {
+		logging.Error("client requested unregister although not registered")
+		return
+	}
+	delete(h.clients, c)
+	close(c.send)
+	logging.Info("Connection to client closed.")
+	h.ClosedClients <- c
 }

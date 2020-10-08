@@ -2,7 +2,10 @@
 
 package messages
 
-import "github.com/google/uuid"
+import (
+	"encoding/json"
+	"github.com/google/uuid"
+)
 
 type MessageType string
 
@@ -22,14 +25,14 @@ type MessageMeta struct {
 	DeviceId uuid.UUID `json:"device_id"` // The device id which is used for all it's performers
 }
 
-func (meta MessageMeta) MessageType() string {
-	return meta.Type
+func (meta MessageMeta) MessageType() MessageType {
+	return MessageType(meta.Type)
 }
 
 // GeneralMessage is mainly used for checking meta information upon receiving.
 type GeneralMessage struct {
 	MessageMeta `json:"meta"`
-	Payload     interface{} `json:"payload"`
+	Payload     json.RawMessage `json:"payload"`
 }
 
 type OkMessage struct {

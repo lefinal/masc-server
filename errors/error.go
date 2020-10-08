@@ -9,7 +9,7 @@ type MascError struct {
 	ErrorCode ErrorCode
 }
 
-// NewMascError creates a new error with where and the error code.
+// NewMascError creates a new error with given location, and the error code.
 // For propagating use PropagateMascError.
 func NewMascError(where string, errorCode ErrorCode) *MascError {
 	return &MascError{
@@ -22,6 +22,11 @@ func NewMascError(where string, errorCode ErrorCode) *MascError {
 func PropagateMascError(where string, error *MascError) *MascError {
 	error.Where = fmt.Sprintf("%s: %s", where, error.Where)
 	return error
+}
+
+// NewMascErrorFromError creates a new error with the given location, error code and an error.
+func NewMascErrorFromError(where string, errorCode ErrorCode, err error) *MascError {
+	return NewMascError(fmt.Sprintf("%s: %s", where, err), errorCode)
 }
 
 func (m *MascError) Error() string {
