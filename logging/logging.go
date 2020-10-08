@@ -33,6 +33,10 @@ func Fatalf(format string, v ...interface{}) {
 	log.Fatalf(format, v...)
 }
 
+func Fatal(err error) {
+	log.Fatal(err)
+}
+
 func Errorf(format string, v ...interface{}) {
 	printToLog(entryTypeError, fmt.Sprintf(format, v...))
 }

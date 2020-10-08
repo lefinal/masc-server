@@ -26,6 +26,26 @@ const (
 	maxMessageSize = 512
 )
 
+type ClientEventType string
+
+const (
+	ClientEventTypeIncomingMessage = "incoming-message"
+	ClientEventTypeClosed          = "closed"
+)
+
+type ClientEvent struct {
+	EventType ClientEventType
+	Message   string
+}
+
+type OutboundMessage struct {
+	Message string
+}
+
+type InboundMessage struct {
+	Message string
+}
+
 var (
 	newline = []byte{'\n'}
 	space   = []byte{' '}
@@ -43,8 +63,18 @@ type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
 
+	// Buffered channel for inbound messages.
+	Receive chan InboundMessage
+
 	// Buffered channel of outbound messages.
 	send chan []byte
+
+	ReceivedMessageCount int
+	SentMessageCount     int
+}
+
+func (c *Client) SendMessage(msg OutboundMessage) {
+	c.send <- []byte(msg.Message)
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -78,7 +108,10 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.hub.broadcast <- message
+		c.ReceivedMessageCount++
+		c.Receive <- InboundMessage{
+			Message: string(message),
+		}
 	}
 }
 
@@ -117,6 +150,8 @@ func (c *Client) writePump() {
 				logging.Errorf("could not write message to client: %s", err)
 			}
 
+			c.SentMessageCount++
+
 			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
@@ -126,6 +161,7 @@ func (c *Client) writePump() {
 				if _, err := w.Write(<-c.send); err != nil {
 					logging.Errorf("could not write queued chat message to client: %s", err)
 				}
+				c.SentMessageCount++
 			}
 
 			if err := w.Close(); err != nil {
@@ -149,7 +185,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		logging.Errorf("upgrade connection for client: %s", err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), Receive: make(chan InboundMessage, 512)}
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in

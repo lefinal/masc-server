@@ -1,17 +1,15 @@
 package devices
 
-import "github.com/LeFinal/masc-server/networking"
-
 type DeviceManager struct {
-	Hub *networking.Hub
+	Devices map[*Device]bool
 }
 
 func NewDeviceManager() *DeviceManager {
 	return &DeviceManager{
-		Hub: networking.NewHub(),
+		Devices: make(map[*Device]bool),
 	}
 }
 
-func (dm *DeviceManager) Run() {
-	dm.Hub.Run()
+func (d *DeviceManager) AcceptNewDevice(device *Device) {
+	panic("implement me")
 }
