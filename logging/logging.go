@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"github.com/LeFinal/masc-server/errors"
 	"log"
 )
 
@@ -13,38 +14,63 @@ const (
 	entryTypeError   = "[ ERR  ]"
 )
 
-func Infof(format string, v ...interface{}) {
-	printToLog(entryTypeInfo, fmt.Sprintf(format, v...))
+// Logger logs stuff.
+type Logger struct {
+	subject string
 }
 
-func Info(msg string) {
-	printToLog(entryTypeInfo, msg)
+// NewLogger creates a new Logger which uses the given subject.
+func NewLogger(subject string) Logger {
+	return Logger{
+		subject: subject,
+	}
 }
 
-func Warningf(format string, v ...interface{}) {
-	printToLog(entryTypeWarning, fmt.Sprintf(format, v...))
+// GeneralLogger creates a new Logger which uses no subject.
+func GeneralLogger() Logger {
+	return Logger{}
 }
 
-func Warning(msg string) {
-	printToLog(entryTypeWarning, msg)
+func (l Logger) Infof(format string, v ...interface{}) {
+	l.printToLog(entryTypeInfo, fmt.Sprintf(format, v...))
 }
 
-func Fatalf(format string, v ...interface{}) {
+func (l Logger) Info(msg string) {
+	l.printToLog(entryTypeInfo, msg)
+}
+
+func (l Logger) Warningf(format string, v ...interface{}) {
+	l.printToLog(entryTypeWarning, fmt.Sprintf(format, v...))
+}
+
+func (l Logger) Warning(msg string) {
+	l.printToLog(entryTypeWarning, msg)
+}
+
+func (l Logger) Fatalf(format string, v ...interface{}) {
 	log.Fatalf(format, v...)
 }
 
-func Fatal(err error) {
+func (l Logger) Fatal(err error) {
 	log.Fatal(err)
 }
 
-func Errorf(format string, v ...interface{}) {
-	printToLog(entryTypeError, fmt.Sprintf(format, v...))
+func (l Logger) Errorf(format string, v ...interface{}) {
+	l.printToLog(entryTypeError, fmt.Sprintf(format, v...))
 }
 
-func Error(msg string) {
-	printToLog(entryTypeError, msg)
+func (l Logger) Error(msg string) {
+	l.printToLog(entryTypeError, msg)
 }
 
-func printToLog(entryType logEntryType, msg string) {
-	log.Printf("%s %s", entryType, msg)
+func (l Logger) MascError(err *errors.MascError) {
+	l.Error(err.Error())
+}
+
+func (l Logger) printToLog(entryType logEntryType, msg string) {
+	var subjectInsert string
+	if l.subject != "" {
+		subjectInsert = fmt.Sprintf(" [%s] ", l.subject)
+	}
+	log.Printf("%s%s %s", entryType, subjectInsert, msg)
 }

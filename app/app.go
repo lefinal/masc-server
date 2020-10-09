@@ -11,11 +11,11 @@ type App struct {
 
 func NewApp(config config.MascConfig) *App {
 	return &App{
-		deviceManager: devices.NewDeviceManager(config.Network),
+		deviceManager: devices.NewDeviceManager(),
 	}
 }
 
 func (a *App) Boot() error {
-	a.deviceManager.Start()
+	// TODO
 	return nil
 }

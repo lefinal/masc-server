@@ -4,7 +4,6 @@ package networking
 
 import (
 	"bytes"
-	"github.com/LeFinal/masc-server/logging"
 	"log"
 	"net/http"
 	"time"
@@ -39,7 +38,7 @@ type ClientEvent struct {
 }
 
 type OutboundMessage struct {
-	Message string
+	Message []byte
 }
 
 type InboundMessage struct {
@@ -73,8 +72,9 @@ type Client struct {
 	SentMessageCount     int
 }
 
+// SendMessage sends a given message to the client's output.
 func (c *Client) SendMessage(msg OutboundMessage) {
-	c.send <- []byte(msg.Message)
+	c.send <- msg.Message
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -86,16 +86,16 @@ func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
 		if err := c.conn.Close(); err != nil {
-			logging.Error("could not close client")
+			logger.Error("could not close client")
 		}
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
 	if err := c.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-		logging.Errorf("could not sead read deadline for client: ", err)
+		logger.Errorf("could not sead read deadline for client: ", err)
 	}
 	c.conn.SetPongHandler(func(string) error {
 		if err := c.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-			logging.Errorf("could not set read deadline for client: %s", err)
+			logger.Errorf("could not set read deadline for client: %s", err)
 		}
 		return nil
 	})
@@ -125,19 +125,19 @@ func (c *Client) writePump() {
 	defer func() {
 		ticker.Stop()
 		if err := c.conn.Close(); err != nil {
-			logging.Errorf("could not close client: ", err)
+			logger.Errorf("could not close client: ", err)
 		}
 	}()
 	for {
 		select {
 		case message, ok := <-c.send:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				logging.Errorf("could not set write deadline for client: %s", err)
+				logger.Errorf("could not set write deadline for client: %s", err)
 			}
 			if !ok {
 				// The hub closed the channel.
 				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
-					logging.Errorf("could not write close message to client: %s", err)
+					logger.Errorf("could not write close message to client: %s", err)
 				}
 				return
 			}
@@ -147,7 +147,7 @@ func (c *Client) writePump() {
 				return
 			}
 			if _, errWrite := w.Write(message); errWrite != nil {
-				logging.Errorf("could not write message to client: %s", err)
+				logger.Errorf("could not write message to client: %s", err)
 			}
 
 			c.SentMessageCount++
@@ -156,10 +156,10 @@ func (c *Client) writePump() {
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				if _, err := w.Write(newline); err != nil {
-					logging.Errorf("could not write new line for queued chat messages to client: %s", err)
+					logger.Errorf("could not write new line for queued chat messages to client: %s", err)
 				}
 				if _, err := w.Write(<-c.send); err != nil {
-					logging.Errorf("could not write queued chat message to client: %s", err)
+					logger.Errorf("could not write queued chat message to client: %s", err)
 				}
 				c.SentMessageCount++
 			}
@@ -169,7 +169,7 @@ func (c *Client) writePump() {
 			}
 		case <-ticker.C:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				logging.Errorf("could not set write deadline for client: %s", err)
+				logger.Errorf("could not set write deadline for client: %s", err)
 			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
@@ -182,7 +182,7 @@ func (c *Client) writePump() {
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logging.Errorf("upgrade connection for client: %s", err)
+		logger.Errorf("upgrade connection for client: %s", err)
 		return
 	}
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), Receive: make(chan InboundMessage, 512)}

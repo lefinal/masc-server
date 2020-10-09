@@ -1,4 +1,4 @@
-package devices
+package gatekeeping
 
 import (
 	"github.com/LeFinal/masc-server/config"
@@ -6,20 +6,22 @@ import (
 	"github.com/LeFinal/masc-server/networking"
 )
 
-// GatekeepingCustomer acts as a general interface for the gatekeeper and the device manager.
-type GatekeepingCustomer interface {
-	AcceptNewDevice(*Device)
+var logger = logging.NewLogger("gatekeeping")
+
+// Employer acts as a general interface for the gatekeeper.
+type Employer interface {
+	AcceptNewGatePort(port *GatePort)
 }
 
 // Gatekeeper is responsible for managing login and ensuring that a device sends data with correct meta.
 type Gatekeeper struct {
-	Hub      *networking.Hub
-	customer GatekeepingCustomer
-	devices  []*Device
+	Hub                *networking.Hub
+	customer           Employer
+	deviceNetworkPorts []*GatePort
 }
 
 // NewGateKeeper creates a new GateKeeper using the network config.
-func NewGateKeeper(config config.NetworkConfig, customer GatekeepingCustomer) *Gatekeeper {
+func NewGateKeeper(config config.NetworkConfig, customer Employer) *Gatekeeper {
 	return &Gatekeeper{
 		Hub:      networking.NewHub(config.Address),
 		customer: customer,
@@ -37,10 +39,10 @@ func (gk *Gatekeeper) run() {
 	for {
 		select {
 		case newClient := <-gk.Hub.NewClients:
-			logging.Info("Handling new client...")
+			logger.Info("Handling new client...")
 			gk.handleNewClient(newClient)
 		case closedClient := <-gk.Hub.ClosedClients:
-			logging.Info("Handling closed client...")
+			logger.Info("Handling closed client...")
 			gk.handleClosedClient(closedClient)
 		}
 	}

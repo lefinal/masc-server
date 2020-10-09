@@ -50,3 +50,12 @@ func MarshalMessageMust(msg GeneralMessage) []byte {
 	}
 	return b
 }
+
+// MarshalPayload converts the passed payload to a JSON raw message.
+func MarshalPayload(payload interface{}) (json.RawMessage, *errors.MascError) {
+	marshalledPayload, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errors.NewMascErrorFromError("marshal", errors.MarshalPayloadErrorError, err)
+	}
+	return marshalledPayload, nil
+}

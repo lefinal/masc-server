@@ -35,6 +35,26 @@ type GeneralMessage struct {
 	Payload     json.RawMessage `json:"payload"`
 }
 
+// MessageContainer is a container for outbound messages that also holds the message type. This makes it faster
+// for the DeviceNetworkPort to build the meta data as the type is already known.
+type MessageContainer struct {
+	MessageType MessageType
+	Payload     interface{}
+}
+
+// NewMessageContainerForError creates a new message container with message type MsgTypeError and the given
+// payload.
+func NewMessageContainerForError(payload interface{}) MessageContainer {
+	return MessageContainer{
+		MessageType: MsgTypeError,
+		Payload:     payload,
+	}
+}
+
 type OkMessage struct {
 	Message string `json:"message"`
+}
+
+func (t MessageType) String() string {
+	return string(t)
 }

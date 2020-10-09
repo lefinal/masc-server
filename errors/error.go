@@ -7,6 +7,7 @@ type ErrorCode string
 type MascError struct {
 	Where     string
 	ErrorCode ErrorCode
+	Message   string
 }
 
 // NewMascError creates a new error with given location, and the error code.
@@ -15,6 +16,16 @@ func NewMascError(where string, errorCode ErrorCode) *MascError {
 	return &MascError{
 		Where:     where,
 		ErrorCode: errorCode,
+	}
+}
+
+// NewMascErrorWithMessage creates a new error with given location, error code and a message containing more details.
+// For propagating use PropagateMascError.
+func NewMascErrorWithMessage(where string, errorCode ErrorCode, message string) *MascError {
+	return &MascError{
+		Where:     where,
+		ErrorCode: errorCode,
+		Message:   message,
 	}
 }
 
@@ -31,4 +42,8 @@ func NewMascErrorFromError(where string, errorCode ErrorCode, err error) *MascEr
 
 func (m *MascError) Error() string {
 	return fmt.Sprintf("%s: %v", m.Where, m.ErrorCode)
+}
+
+func (ec ErrorCode) String() string {
+	return string(ec)
 }
