@@ -12,38 +12,43 @@ type Hub struct {
 	// Server address
 	addr string
 
+	// Whether to run a websocket server.
+	socketMode bool
+
 	// Registered clients.
-	clients map[*Client]bool
+	clients map[*NetClient]bool
 
 	// Register requests from the clients.
-	register chan *Client
+	register chan *NetClient
 
 	// Unregister requests from clients.
 	unregister chan util.Identifiable
 
 	// New registered clients.
-	NewClients chan *Client
+	NewClients chan *NetClient
 
 	// The new closed clients.
-	ClosedClients chan *Client
+	ClosedClients chan *NetClient
 }
 
 // NewHub creates a new Hub using the given http server listen address.
-func NewHub(addr string) *Hub {
+func NewHub(addr string, socketMode bool) *Hub {
 	return &Hub{
 		addr:       addr,
-		register:   make(chan *Client),
+		register:   make(chan *NetClient),
 		unregister: make(chan util.Identifiable),
-		clients:    make(map[*Client]bool),
-		NewClients: make(chan *Client),
+		clients:    make(map[*NetClient]bool),
+		NewClients: make(chan *NetClient, 16),
 	}
 }
 
 // Run runs the Hub. This should be run in a go routine as the method will manage
-// all Client stuff related to registering, unregistering and handling message
+// all NetClient stuff related to registering, unregistering and handling message
 // broadcasts.
 func (h *Hub) Run() {
-	go runHubServer(h)
+	if h.socketMode {
+		go runHubServer(h)
+	}
 	for {
 		select {
 		case client := <-h.register:
@@ -54,7 +59,7 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) registerClient(c *Client) {
+func (h *Hub) registerClient(c *NetClient) {
 	hubLogger.Info("New incoming client connection.")
 	h.clients[c] = true
 	h.NewClients <- c
@@ -62,7 +67,7 @@ func (h *Hub) registerClient(c *Client) {
 
 func (h *Hub) unregisterClient(i util.Identifiable) {
 	// Find the client by id.
-	var client *Client
+	var client *NetClient
 	for c, _ := range h.clients {
 		if c.net.Identify() == i.Identify() {
 			client = c

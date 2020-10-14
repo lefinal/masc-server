@@ -57,7 +57,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-type messagePort interface {
+type MessagePort interface {
 	util.Identifiable
 	sendMessage(msg OutboundMessage)
 	run()
@@ -84,15 +84,30 @@ type ClientSocketPort struct {
 	sentMessageCount     int
 }
 
-// Client is a middleman between the websocket connection and the hub.
-type Client struct {
-	net messagePort
+type Client interface {
+	SendMessage(msg OutboundMessage)
+	Inbox() chan InboundMessage
+}
+
+// NetClient is a middleman between the websocket connection and the hub.
+type NetClient struct {
+	net MessagePort
 
 	// Buffered channel for inbound messages.
 	Receive chan InboundMessage
 
 	ReceivedMessageCount int
 	SentMessageCount     int
+}
+
+// NewClient creates a new client with given message port.
+func NewClient(port MessagePort) *NetClient {
+	return &NetClient{
+		net:                  port,
+		Receive:              make(chan InboundMessage, 256),
+		ReceivedMessageCount: 0,
+		SentMessageCount:     0,
+	}
 }
 
 func (sp *ClientSocketPort) sendMessage(msg OutboundMessage) {
@@ -115,11 +130,15 @@ func (sp *ClientSocketPort) close() {
 }
 
 // SendMessage sends a message to the network port.
-func (c *Client) SendMessage(msg OutboundMessage) {
+func (c *NetClient) SendMessage(msg OutboundMessage) {
 	c.net.sendMessage(msg)
 }
 
-func (c *Client) receiveMessage(msg InboundMessage) {
+func (c *NetClient) Inbox() chan InboundMessage {
+	return c.Receive
+}
+
+func (c *NetClient) receiveMessage(msg InboundMessage) {
 	c.Receive <- msg
 }
 
@@ -236,10 +255,6 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		conn: conn,
 		send: make(chan []byte, 256),
 	}
-	client := &Client{
-		net:     socketPort,
-		Receive: make(chan InboundMessage),
-	}
-	socketPort.hub.register <- client
+	socketPort.hub.register <- NewClient(socketPort)
 	go socketPort.run()
 }

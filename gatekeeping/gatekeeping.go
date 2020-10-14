@@ -16,15 +16,15 @@ type Employer interface {
 // Gatekeeper is responsible for managing login and ensuring that a device sends data with correct meta.
 type Gatekeeper struct {
 	Hub                *networking.Hub
-	customer           Employer
+	employer           Employer
 	deviceNetworkPorts []*GatePort
 }
 
 // NewGateKeeper creates a new GateKeeper using the network config.
-func NewGateKeeper(config config.NetworkConfig, customer Employer) *Gatekeeper {
+func NewGateKeeper(config config.NetworkConfig, employer Employer, socketMode bool) *Gatekeeper {
 	return &Gatekeeper{
-		Hub:      networking.NewHub(config.Address),
-		customer: customer,
+		Hub:      networking.NewHub(config.Address, socketMode),
+		employer: employer,
 	}
 }
 
@@ -48,10 +48,10 @@ func (gk *Gatekeeper) run() {
 	}
 }
 
-func (gk *Gatekeeper) handleNewClient(c *networking.Client) {
+func (gk *Gatekeeper) handleNewClient(c *networking.NetClient) {
 	// TODO create a new go routine for every device which does the checking and parsing stuff and then passes to manager
 }
 
-func (gk *Gatekeeper) handleClosedClient(c *networking.Client) {
+func (gk *Gatekeeper) handleClosedClient(c *networking.NetClient) {
 	// TODO
 }

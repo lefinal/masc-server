@@ -12,24 +12,24 @@ import (
 // GatePort is the port which holds the client as well as receive and send channels for the device itself.
 // The port is run in a separate go routine and ensures message parsing as well as gatekeeping.
 type GatePort struct {
-	logger          logging.Logger
-	AllowedMessages *messages.AllowedMessageCollection
-	DeviceId        uuid.UUID
-	client          *networking.Client
-	firstMessage    bool
-	Receive         chan messages.MessageContainer
-	Send            chan messages.MessageContainer
+	logger               logging.Logger
+	AllowedMessages      *messages.AllowedMessageCollection
+	DeviceId             uuid.UUID
+	client               networking.Client
+	receivedFirstMessage bool
+	Receive              chan messages.MessageContainer
+	Send                 chan messages.MessageContainer
 }
 
-func newGatePort(c *networking.Client) *GatePort {
+func newGatePort(c networking.Client) *GatePort {
 	newUUID := uuid.New()
 	return &GatePort{
 		logger:          logging.NewLogger(fmt.Sprintf("GATE_PORT-%s", newUUID)),
 		AllowedMessages: messages.NewAllowedMessageCollection(messages.AllowedMessagesLoggedOut),
 		DeviceId:        newUUID,
 		client:          c,
-		Receive:         make(chan messages.MessageContainer),
-		Send:            make(chan messages.MessageContainer),
+		Receive:         make(chan messages.MessageContainer, 256),
+		Send:            make(chan messages.MessageContainer, 256),
 	}
 }
 
@@ -40,7 +40,7 @@ func (port *GatePort) run() {
 	port.logger.Info("Up and running!")
 	for {
 		select {
-		case msg := <-port.client.Receive:
+		case msg := <-port.client.Inbox():
 			port.handleReceivedMessage(msg)
 		case container := <-port.Send:
 			port.handleMessageToBeSent(container)
@@ -68,10 +68,7 @@ func (port *GatePort) handleReceivedMessage(message networking.InboundMessage) {
 		return
 	}
 	// Check if logged in.
-	if port.firstMessage {
-		port.firstMessage = true
-		port.logger.Info("First contact with client.")
-	} else {
+	if port.receivedFirstMessage {
 		// Check device id.
 		if port.DeviceId != meta.DeviceId {
 			mascErr := errors.NewMascError("check device id", errors.InvalidDeviceIdError)
@@ -79,6 +76,9 @@ func (port *GatePort) handleReceivedMessage(message networking.InboundMessage) {
 			port.handleMessageToBeSent(messages.NewMessageContainerForError(messages.NewErrorMessageFromMascError(mascErr)))
 			return
 		}
+	} else {
+		port.receivedFirstMessage = true
+		port.logger.Info("First contact with client.")
 	}
 	// Forward to device.
 	port.Receive <- messages.MessageContainer{
