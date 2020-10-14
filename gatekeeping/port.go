@@ -111,7 +111,7 @@ func (port *GatePort) handleMessageToBeSent(container messages.MessageContainer)
 			errors.MarshalMessageErrorError, err))
 		return
 	}
-	// Send message to client.
+	// sendMessage message to client.
 	port.client.SendMessage(networking.OutboundMessage{
 		Message: message,
 	})

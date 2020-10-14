@@ -1,6 +1,8 @@
 package networking
 
-import "github.com/LeFinal/masc-server/logging"
+import (
+	"github.com/LeFinal/masc-server/util"
+)
 
 // The hub is based on https://github.com/gorilla/websocket/blob/master/examples/chat/hub.go.
 
@@ -13,14 +15,11 @@ type Hub struct {
 	// Registered clients.
 	clients map[*Client]bool
 
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
 	// Register requests from the clients.
 	register chan *Client
 
 	// Unregister requests from clients.
-	unregister chan *Client
+	unregister chan util.Identifiable
 
 	// New registered clients.
 	NewClients chan *Client
@@ -33,9 +32,8 @@ type Hub struct {
 func NewHub(addr string) *Hub {
 	return &Hub{
 		addr:       addr,
-		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		unregister: make(chan util.Identifiable),
 		clients:    make(map[*Client]bool),
 		NewClients: make(chan *Client),
 	}
@@ -50,34 +48,33 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.registerClient(client)
-		case client := <-h.unregister:
-			h.unregisterClient(client)
-		case message := <-h.broadcast:
-			for client := range h.clients {
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
-				}
-			}
+		case identifiable := <-h.unregister:
+			h.unregisterClient(identifiable)
 		}
 	}
 }
 
 func (h *Hub) registerClient(c *Client) {
-	logging.Info("New incoming client connection.")
+	hubLogger.Info("New incoming client connection.")
 	h.clients[c] = true
 	h.NewClients <- c
 }
 
-func (h *Hub) unregisterClient(c *Client) {
-	if _, ok := h.clients[c]; !ok {
-		logging.Error("client requested unregister although not registered")
+func (h *Hub) unregisterClient(i util.Identifiable) {
+	// Find the client by id.
+	var client *Client
+	for c, _ := range h.clients {
+		if c.net.Identify() == i.Identify() {
+			client = c
+			break
+		}
+	}
+	if client == nil {
+		hubLogger.Error("client requested unregister although not registered")
 		return
 	}
-	delete(h.clients, c)
-	close(c.send)
-	logging.Info("Connection to client closed.")
-	h.ClosedClients <- c
+	delete(h.clients, client)
+	client.net.close()
+	hubLogger.Info("Connection to client closed.")
+	h.ClosedClients <- client
 }

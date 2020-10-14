@@ -1,7 +1,6 @@
 package networking
 
 import (
-	"github.com/LeFinal/masc-server/logging"
 	"github.com/gorilla/mux"
 	"net/http"
 	"time"
@@ -14,8 +13,8 @@ func runHubServer(hub *Hub) {
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
-	logging.Infof("Running hub server on %s", srv.Addr)
-	logging.Fatal(srv.ListenAndServe())
+	serverLogger.Infof("Running hub server on %s", srv.Addr)
+	serverLogger.Fatal(srv.ListenAndServe())
 }
 
 // createRouter creates the router that is used by the hub server.
