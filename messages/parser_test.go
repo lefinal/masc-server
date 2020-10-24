@@ -1,17 +1,11 @@
 package messages
 
 import (
-	"encoding/json"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/google/uuid"
 	"reflect"
 	"testing"
 )
-
-func convertToRawMessage(i interface{}) json.RawMessage {
-	msg, _ := json.Marshal(i)
-	return msg
-}
 
 func TestParseMessage(t *testing.T) {
 	helloMessageMeta := MessageMeta{

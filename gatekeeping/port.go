@@ -17,24 +17,27 @@ type GatePort struct {
 	DeviceId             uuid.UUID
 	client               networking.Client
 	receivedFirstMessage bool
-	Receive              chan messages.MessageContainer
+	messageAcceptor      MessageAcceptor
 	Send                 chan messages.MessageContainer
+	interrupt            chan bool
+	SentErrorMessages    int
 }
 
-func newGatePort(c networking.Client) *GatePort {
+func newGatePort(c networking.Client, messageAcceptor MessageAcceptor) *GatePort {
 	newUUID := uuid.New()
 	return &GatePort{
 		logger:          logging.NewLogger(fmt.Sprintf("GATE_PORT-%s", newUUID)),
 		AllowedMessages: messages.NewAllowedMessageCollection(messages.AllowedMessagesLoggedOut),
 		DeviceId:        newUUID,
 		client:          c,
-		Receive:         make(chan messages.MessageContainer, 256),
+		messageAcceptor: messageAcceptor,
 		Send:            make(chan messages.MessageContainer, 256),
+		interrupt:       make(chan bool),
 	}
 }
 
 // run should be run in a separate go routine and manages incoming and outgoing
-// communication of a gate port. This includes checking for meta data and
+// communication of a GatePort. This includes checking for meta data and
 // building messages.
 func (port *GatePort) run() {
 	port.logger.Info("Up and running!")
@@ -44,8 +47,17 @@ func (port *GatePort) run() {
 			port.handleReceivedMessage(msg)
 		case container := <-port.Send:
 			port.handleMessageToBeSent(container)
+		case _ = <-port.interrupt:
+			port.logger.Info("Stopped.")
+			return
 		}
 	}
+}
+
+// stop stops the running GatePort.
+func (port *GatePort) stop() {
+	port.interrupt <- true
+	close(port.interrupt)
 }
 
 func (port *GatePort) handleReceivedMessage(message networking.InboundMessage) {
@@ -80,11 +92,11 @@ func (port *GatePort) handleReceivedMessage(message networking.InboundMessage) {
 		port.receivedFirstMessage = true
 		port.logger.Info("First contact with client.")
 	}
-	// Forward to device.
-	port.Receive <- messages.MessageContainer{
+	// Forward to acceptor.
+	port.messageAcceptor.AcceptNewMessage(messages.MessageContainer{
 		MessageType: meta.MessageType(),
 		Payload:     payload,
-	}
+	})
 }
 
 func (port *GatePort) isAllowedMessage(messageType messages.MessageType) bool {
@@ -115,4 +127,8 @@ func (port *GatePort) handleMessageToBeSent(container messages.MessageContainer)
 	port.client.SendMessage(networking.OutboundMessage{
 		Message: message,
 	})
+	// Check for error message for incrementing counter.
+	if container.MessageType == messages.MsgTypeError {
+		port.SentErrorMessages++
+	}
 }

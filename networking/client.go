@@ -100,8 +100,8 @@ type NetClient struct {
 	SentMessageCount     int
 }
 
-// NewClient creates a new client with given message port.
-func NewClient(port MessagePort) *NetClient {
+// NewNetClient creates a new client with given message port.
+func NewNetClient(port MessagePort) *NetClient {
 	return &NetClient{
 		net:                  port,
 		Receive:              make(chan InboundMessage, 256),
@@ -156,7 +156,7 @@ func (sp *ClientSocketPort) readPump() {
 	}()
 	sp.conn.SetReadLimit(maxMessageSize)
 	if err := sp.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-		clientLogger.Errorf("could not sead read deadline for client: ", err)
+		clientLogger.Errorf("could not sead read deadline for client: %s", err)
 	}
 	sp.conn.SetPongHandler(func(string) error {
 		if err := sp.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
@@ -190,7 +190,7 @@ func (sp *ClientSocketPort) writePump() {
 	defer func() {
 		ticker.Stop()
 		if err := sp.conn.Close(); err != nil {
-			clientLogger.Errorf("could not close client: ", err)
+			clientLogger.Errorf("could not close client: %s", err)
 		}
 	}()
 	for {
@@ -255,6 +255,6 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		conn: conn,
 		send: make(chan []byte, 256),
 	}
-	socketPort.hub.register <- NewClient(socketPort)
+	socketPort.hub.register <- NewNetClient(socketPort)
 	go socketPort.run()
 }

@@ -62,13 +62,155 @@ func TestGatePort_handleMessageToBeSent(t *testing.T) {
 				DeviceId:             tt.fields.DeviceId,
 				client:               tt.fields.client,
 				receivedFirstMessage: tt.fields.receivedFirstMessage,
-				Receive:              tt.fields.Receive,
 				Send:                 tt.fields.Send,
 			}
 			fmt.Println("now sending message")
 			port.handleMessageToBeSent(tt.args.container)
 			fmt.Println("message passed")
 			assert.NotEmpty(t, port.client.(*MockClient).Sent, "message should be sent")
+		})
+	}
+}
+
+func TestGatePort_handleReceivedMessage(t *testing.T) {
+	type args struct {
+		messages []networking.InboundMessage
+	}
+	helloMessage := messages.HelloMessage{
+		Name:        "Test client 1",
+		Description: "A test client which does absolutely nothing",
+		Roles:       []string{"hello"},
+	}
+	getScheduleMessageStr := messages.MarshalMessageFromMetaAndPayloadMust(messages.MessageMeta{
+		Type:     string(messages.MsgTypeGetSchedule),
+		DeviceId: uuid.UUID{},
+	}, messages.GetScheduleMessage{})
+	newMatchMessageStr := messages.MarshalMessageFromMetaAndPayloadMust(messages.MessageMeta{
+		Type:     string(messages.MsgTypeNewMatch),
+		DeviceId: uuid.New(),
+	}, messages.NewMatchMessage{})
+
+	tests := []struct {
+		name                 string
+		args                 args
+		wantReceivedMessages int
+		wantSentMessages     int
+		wantSentErrMessages  int
+	}{
+		{
+			name: "Send correct first message",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: messages.MarshalMessageFromMetaAndPayloadMust(messages.MessageMeta{
+						Type:     string(messages.MsgTypeHello),
+						DeviceId: uuid.UUID{},
+					}, helloMessage),
+				}},
+			},
+			wantReceivedMessages: 1,
+			wantSentMessages:     0,
+			wantSentErrMessages:  0,
+		},
+		{
+			name: "Send first message with set uuid.",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: messages.MarshalMessageFromMetaAndPayloadMust(messages.MessageMeta{
+						Type:     string(messages.MsgTypeHello),
+						DeviceId: uuid.New(),
+					}, helloMessage),
+				}},
+			},
+			wantReceivedMessages: 1,
+			wantSentMessages:     0,
+			wantSentErrMessages:  0,
+		},
+		{
+			name: "Send first message with not allowed type.",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: newMatchMessageStr,
+				}},
+			},
+			wantReceivedMessages: 0,
+			wantSentMessages:     1,
+			wantSentErrMessages:  1,
+		},
+		{
+			name: "Send first multiple not allowed messages.",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: newMatchMessageStr,
+				}, {
+					Message: getScheduleMessageStr,
+				}, {
+					Message: getScheduleMessageStr,
+				}},
+			},
+			wantReceivedMessages: 0,
+			wantSentMessages:     3,
+			wantSentErrMessages:  3,
+		},
+		{
+			name: "Send first multiple not allowed messages and then a correct one.",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: newMatchMessageStr,
+				}, {
+					Message: getScheduleMessageStr,
+				}, {
+					Message: messages.MarshalMessageFromMetaAndPayloadMust(messages.MessageMeta{
+						Type:     string(messages.MsgTypeHello),
+						DeviceId: uuid.UUID{},
+					}, helloMessage),
+				}},
+			},
+			wantReceivedMessages: 1,
+			wantSentMessages:     2,
+			wantSentErrMessages:  2,
+		},
+		{
+			name: "Send first message with incorrect JSON",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: "{hello=world}",
+				}},
+			},
+			wantReceivedMessages: 0,
+			wantSentMessages:     1,
+			wantSentErrMessages:  1,
+		},
+		{
+			name: "Send first hello message with incorrect JSON payload",
+			args: args{
+				messages: []networking.InboundMessage{{
+					Message: fmt.Sprintf("{\"meta\":{\"type\":\"%s\",\"device_id\":\"\"},\"payload\":{hello=world}}",
+						messages.MsgTypeHello),
+				}},
+			},
+			wantReceivedMessages: 0,
+			wantSentMessages:     1,
+			wantSentErrMessages:  1,
+		},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			employer := newMockEmployer()
+			client := NewMockClient()
+			port := newGatePort(client, employer)
+			for _, message := range tt.args.messages {
+				port.handleReceivedMessage(message)
+			}
+			assert.Eventuallyf(t, func() bool {
+				correctReceivedMessages := len(employer.Inbox) == tt.wantReceivedMessages
+				correctSentMessages := len(client.Sent) == tt.wantSentMessages
+				correctSentErrorMessages := port.SentErrorMessages == tt.wantSentErrMessages
+				return correctReceivedMessages && correctSentMessages && correctSentErrorMessages
+			}, WaitTimeout, TickInterval, "expected %d message(s) to be received, %d message(s) to be sent and %d "+
+				"sent error messages, but got %d received messages, %d sent messages and %d sent error messages.",
+				tt.wantReceivedMessages, tt.wantSentMessages, tt.wantSentErrMessages,
+				len(employer.Inbox), len(client.Sent), port.SentErrorMessages)
 		})
 	}
 }

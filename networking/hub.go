@@ -1,6 +1,7 @@
 package networking
 
 import (
+	"github.com/LeFinal/masc-server/config"
 	"github.com/LeFinal/masc-server/util"
 )
 
@@ -32,13 +33,14 @@ type Hub struct {
 }
 
 // NewHub creates a new Hub using the given http server listen address.
-func NewHub(addr string, socketMode bool) *Hub {
+func NewHub(config config.NetworkConfig) *Hub {
 	return &Hub{
-		addr:       addr,
+		addr:       config.Address,
 		register:   make(chan *NetClient),
 		unregister: make(chan util.Identifiable),
 		clients:    make(map[*NetClient]bool),
 		NewClients: make(chan *NetClient, 16),
+		socketMode: config.Address != "",
 	}
 }
 

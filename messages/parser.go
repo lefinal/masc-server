@@ -33,6 +33,11 @@ func parseGeneralMessage(msg []byte) (GeneralMessage, error) {
 	return generalMessage, nil
 }
 
+func convertToRawMessage(i interface{}) json.RawMessage {
+	msg, _ := json.Marshal(i)
+	return msg
+}
+
 // MarshalMessage does simple message marshalling.
 func MarshalMessage(msg GeneralMessage) ([]byte, error) {
 	b, err := json.Marshal(msg)
@@ -58,4 +63,12 @@ func MarshalPayload(payload interface{}) (json.RawMessage, *errors.MascError) {
 		return nil, errors.NewMascErrorFromError("marshal", errors.MarshalPayloadErrorError, err)
 	}
 	return marshalledPayload, nil
+}
+
+// MarshalMessageFromMetaAndPayloadMust marshals a message with given meta and payload to string.
+func MarshalMessageFromMetaAndPayloadMust(meta MessageMeta, payload interface{}) string {
+	return string(MarshalMessageMust(GeneralMessage{
+		MessageMeta: meta,
+		Payload:     convertToRawMessage(payload),
+	}))
 }

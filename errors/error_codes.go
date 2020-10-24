@@ -9,6 +9,8 @@ const (
 	MessageTypeNotAllowedError ErrorCode = "gatekeeping.message-type-not-allowed"
 	// InvalidDeviceIdError is used when a message is received containing a wrong device id.
 	InvalidDeviceIdError ErrorCode = "gatekeeping.invalid-device-id"
+	// UnknownClientError is used when a client is unknonw.
+	UnknownClientError ErrorCode = "gatekeeping.unknown-client"
 	// Messages
 	ParseMetaErrorError    ErrorCode = "messages.parse-meta-error"
 	ParsePayloadErrorError ErrorCode = "messages.parse-payload-error"
