@@ -145,7 +145,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingSend() {
 		err = actor.Hire()
 		suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
 		// Send message to device with actor id set.
-		err = actor.Send(ActorMessage{
+		err = actor.Send(ActorIncomingMessage{
 			MessageType: messages.MessageTypeHello,
 			Content:     json.RawMessage{},
 		})

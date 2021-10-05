@@ -63,9 +63,9 @@ const (
 	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
 	// MessageTypeGetDevices.
 	MessageTypeDeviceList MessageType = "device-list"
-	// MessageTypeWelcomeDevice is used with MessageWelcomeDevice for accepting new
+	// MessageTypeAcceptDevice is used with MessageAcceptDevice for accepting new
 	// devices and allowing them to communicate with MASC.
-	MessageTypeWelcomeDevice MessageType = "welcome-device"
+	MessageTypeAcceptDevice MessageType = "welcome-device"
 )
 
 // MessageError is used with MessageTypeError for errors that need to be sent to devices.
