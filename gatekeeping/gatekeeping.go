@@ -4,8 +4,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 )
 
-// Gatekeeper watches over the gate to the wide world. It handles authentication
-// as well as blocking forbidden messages.
+// Gatekeeper watches over the gate to the wide world.
 type Gatekeeper interface {
 	// WakeUpAndProtect wakes up the Gatekeeper in order to protect the passed
 	// Protected.
