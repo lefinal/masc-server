@@ -4,57 +4,92 @@ package messages
 
 import (
 	"encoding/json"
+	"github.com/LeFinal/masc-server/errors"
 	"github.com/google/uuid"
 )
 
+// MessageType is the type of message and serves for using the correct parsing
+// method.
 type MessageType string
 
-// Message is the basic interface that provides basic functionality for messages.
-// MessageType retrieves the type of the message in lowercase.
-// MessageId retrieves the id.
-type Message interface {
-	MessageType()
-	MessageId()
+// DeviceID is used to identify a Device.
+type DeviceID uuid.UUID
+
+func (id DeviceID) String() string {
+	return uuid.UUID(id).String()
 }
 
-const MsgTypeOk MessageType = "ok"
+// ActorID is used to identify an acting.Actor.
+type ActorID uuid.UUID
 
-// MessageMeta provides basic information that is used in each message.
-type MessageMeta struct {
-	Type     string    `json:"type"`      // The message type
-	DeviceId uuid.UUID `json:"device_id"` // The device id which is used for all it's performers
+func (id ActorID) String() string {
+	return uuid.UUID(id).String()
 }
 
-func (meta MessageMeta) MessageType() MessageType {
-	return MessageType(meta.Type)
-}
-
-// GeneralMessage is mainly used for checking meta information upon receiving.
-type GeneralMessage struct {
-	MessageMeta `json:"meta"`
-	Payload     json.RawMessage `json:"payload"`
-}
-
-// MessageContainer is a container for outbound messages that also holds the message type. This makes it faster
-// for the DeviceNetworkPort to build the meta data as the type is already known.
+// MessageContainer is a container for all messages that are sent and received.
+// It holds some meta information as well as the actual payload.
 type MessageContainer struct {
-	MessageType MessageType
-	Payload     interface{}
+	// MessageType is the type of the message.
+	MessageType MessageType `json:"message_type"`
+	// DeviceID is the id that is used for identifying the devices.Device the
+	// message belongs to.
+	DeviceID DeviceID `json:"device_id"`
+	// ActorID is the optional ID of the actor. This is used for concurrent
+	// communication with actors that use the same device.
+	ActorID ActorID `json:"actor_id,omitempty"`
+	// Content is the actual message content.
+	Content json.RawMessage `json:"content"`
 }
 
-// NewMessageContainerForError creates a new message container with message type MsgTypeError and the given
-// payload.
-func NewMessageContainerForError(payload interface{}) MessageContainer {
-	return MessageContainer{
-		MessageType: MsgTypeError,
-		Payload:     payload,
-	}
-}
+// All message types.
+const (
+	// MessageTypeOK is used only for confirmation of actions that do not require a
+	// detailed response.
+	MessageTypeOK MessageType = "ok"
+	// MessageTypeError is used for error messages. The content is being set to the
+	// detailed error.
+	MessageTypeError MessageType = "error"
+	// MessageTypeHello is received with MessageHello for saying hello to the
+	// server.
+	MessageTypeHello MessageType = "hello"
+	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
+	// Used with MessageWelcome.
+	MessageTypeWelcome MessageType = "welcome"
+	// MessageTypeGoAway is sent to the client when he wants to say hello with an
+	// unknown device ID.
+	MessageTypeGoAway MessageType = "go-away"
+	// MessageTypeGetDevices is received when devices are requested.
+	MessageTypeGetDevices MessageType = "get-devices"
+	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
+	// MessageTypeGetDevices.
+	MessageTypeDeviceList MessageType = "device-list"
+	// MessageTypeWelcomeDevice is used with MessageWelcomeDevice for accepting new
+	// devices and allowing them to communicate with MASC.
+	MessageTypeWelcomeDevice MessageType = "welcome-device"
+)
 
-type OkMessage struct {
+// MessageError is used with MessageTypeError for errors that need to be sent to devices.
+type MessageError struct {
+	// Code is the error code from errors.Error.
+	Code string `json:"code"`
+	// Kind is the kind code from errors.Error.
+	Kind string `json:"kind"`
+	// Err is the error from errors.Error.
+	Err string `json:"err"`
+	// Message is the message from errors.Error.
 	Message string `json:"message"`
+	// Details are error details from errors.Error.
+	Details map[string]interface{} `json:"details"`
 }
 
-func (t MessageType) String() string {
-	return string(t)
+// MessageErrorFromError creates a MessageError from the given error.
+func MessageErrorFromError(err error) MessageError {
+	e, _ := errors.Cast(err)
+	return MessageError{
+		Code:    string(e.Code),
+		Kind:    string(e.Kind),
+		Err:     e.Error(),
+		Message: e.Message,
+		Details: e.Details,
+	}
 }
