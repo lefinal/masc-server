@@ -60,7 +60,7 @@ type Agency interface {
 	Close() error
 }
 
-// ActorOutgoingMessage is a message that is sent to an Actor.
+// ActorOutgoingMessage is a message that is sent from an Actor.
 type ActorOutgoingMessage struct {
 	// MessageType is the type of the message which is added to the final message
 	// later.
@@ -69,7 +69,7 @@ type ActorOutgoingMessage struct {
 	Content interface{}
 }
 
-// ActorIncomingMessage is a message that is received from an Actor.
+// ActorIncomingMessage is a message that is received by an Actor.
 type ActorIncomingMessage struct {
 	// MessageType is the type of the message. This determines how to parse the
 	// Content.
@@ -133,6 +133,17 @@ func (a *netActor) Hire() error {
 			Details: errors.Details{"actorID": a.id},
 		}
 	}
+	// Notify actor that he was lucky.
+	err := a.Send(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeYouAreIn,
+		Content: messages.MessageYouAreIn{
+			ActorID: a.id,
+			Role:    string(a.role),
+		},
+	})
+	if err != nil {
+		return errors.Wrap(err, "notify actor")
+	}
 	a.isHired = true
 	return nil
 }
@@ -155,18 +166,31 @@ func (a *netActor) Fire() error {
 			Details: errors.Details{"actorID": a.id},
 		}
 	}
+	// Notify actor.
+	err := a.Send(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeFired,
+	})
+	if err != nil {
+		return errors.Wrap(err, "notify actor")
+	}
 	a.isHired = false
-	a.hireMutex.Unlock()
 	return nil
 }
 
 func (a *netActor) Send(message ActorOutgoingMessage) error {
-	// Check if hired.
-	if !a.isHired {
+	// Check if actor is allowed to send this message.
+	if !a.isHired && message.MessageType != messages.MessageTypeYouAreIn {
 		return errors.Error{
 			Code:    errors.ErrInternal,
 			Kind:    errors.KindActorNotHired,
-			Message: "actor must not send when not hired",
+			Message: "actor must not send when not hired or hiring",
+			Details: errors.Details{"id": a.id, "message": message},
+		}
+	} else if a.isHired && message.MessageType == messages.MessageTypeYouAreIn {
+		return errors.Error{
+			Code:    errors.ErrInternal,
+			Kind:    errors.KindActorAlreadyHired,
+			Message: "actor must not send you-are-in when already hired",
 			Details: errors.Details{"id": a.id, "message": message},
 		}
 	}
@@ -230,7 +254,7 @@ func deviceManagementMessageHandler(ctx context.Context, dm *netActorDeviceManag
 				}
 				for i, device := range devices {
 					res.Devices[i] = messages.Device{
-						ID:          device.ID.String(),
+						ID:          device.ID,
 						Name:        device.Name,
 						IsAccepted:  device.IsAccepted,
 						IsConnected: device.IsConnected,
@@ -243,13 +267,13 @@ func deviceManagementMessageHandler(ctx context.Context, dm *netActorDeviceManag
 				err := util.DecodeAsJSON(rawMessage.Content, &message)
 				if err != nil {
 					SendOrLogError(logging.ActingLogger, dm,
-						ActorErrorMessageFromError(dm.id, errors.Wrap(err, "decode message content as json")))
+						ActorErrorMessageFromError(errors.Wrap(err, "decode message content as json")))
 					return
 				}
 				// Parse device id.
 				deviceID, err := uuid.Parse(message.DeviceID)
 				if err != nil {
-					SendOrLogError(logging.ActingLogger, dm, ActorErrorMessageFromError(dm.id, errors.Error{
+					SendOrLogError(logging.ActingLogger, dm, ActorErrorMessageFromError(errors.Error{
 						Code:    errors.ErrBadRequest,
 						Kind:    errors.KindMalformedID,
 						Err:     err,
@@ -258,10 +282,10 @@ func deviceManagementMessageHandler(ctx context.Context, dm *netActorDeviceManag
 					}))
 					return
 				}
-				err = dm.gatekeeper.AcceptDevice(messages.DeviceID(deviceID), message.AssignName)
+				err = dm.gatekeeper.AcceptDevice(messages.DeviceID(deviceID.String()), message.AssignName)
 				if err != nil {
 					SendOrLogError(logging.ActingLogger, dm,
-						ActorErrorMessageFromError(dm.id, errors.Wrap(err, "accept device")))
+						ActorErrorMessageFromError(errors.Wrap(err, "accept device")))
 					return
 				}
 			// All done.
@@ -325,7 +349,7 @@ func (ad *netActorDevice) boot() error {
 	for _, role := range roles {
 		// Create new actor.
 		created := &netActor{
-			id:      messages.ActorID(uuid.New()),
+			id:      messages.ActorID(uuid.New().String()),
 			role:    role,
 			send:    ad.send,
 			receive: make(chan ActorIncomingMessage),
@@ -366,7 +390,7 @@ func (ad *netActorDevice) routeIncoming(ctx context.Context) {
 			if !ok {
 				// Actor not found. This is a bad request!
 				ad.send <- netActorDeviceOutgoingMessage{
-					message: ActorErrorMessageFromError(actor.id, errors.Error{
+					message: ActorErrorMessageFromError(errors.Error{
 						Code:    errors.ErrBadRequest,
 						Kind:    errors.KindUnknownActor,
 						Message: fmt.Sprintf("unknown actor: %s", message.ActorID),
@@ -513,17 +537,17 @@ func (a *ProtectedAgency) Close() error {
 	return nil
 }
 
-// ActorErrorMessageFromError creates a new ActorIncomingMessage for the given actor and with passed error.
-func ActorErrorMessageFromError(actorID messages.ActorID, err error) ActorOutgoingMessage {
+// ActorErrorMessageFromError creates a new ActorOutgoingMessage for the given actor and with passed error.
+func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 	return ActorOutgoingMessage{
 		MessageType: messages.MessageTypeError,
 		Content:     messages.MessageErrorFromError(err),
 	}
 }
 
-// TODO: doc
+// SendForbiddenMessageTypeErrToActorOrLogError does everything the function name already includes lol.
 func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Logger, a Actor, messageType messages.MessageType) {
-	SendOrLogError(logger, a, ActorErrorMessageFromError(a.ID(), errors.Error{
+	SendOrLogError(logger, a, ActorErrorMessageFromError(errors.Error{
 		Code:    errors.ErrProtocolViolation,
 		Kind:    errors.KindForbiddenMessage,
 		Message: fmt.Sprintf("forbidden message type: %s", messageType),
@@ -536,5 +560,19 @@ func SendOrLogError(logger *logrus.Logger, a Actor, message ActorOutgoingMessage
 	err := a.Send(message)
 	if err != nil {
 		errors.Log(logger, errors.Wrap(err, "send message"))
+	}
+}
+
+// NewForbiddenMessageError creates a new ErrProtocolViolation error with kind
+// KindForbiddenMessage.
+func NewForbiddenMessageError(messageType messages.MessageType, content json.RawMessage) error {
+	return errors.Error{
+		Code:    errors.ErrProtocolViolation,
+		Kind:    errors.KindForbiddenMessage,
+		Message: fmt.Sprintf("forbidden message type: %s", messageType),
+		Details: errors.Details{
+			"messageType": messageType,
+			"content":     content,
+		},
 	}
 }

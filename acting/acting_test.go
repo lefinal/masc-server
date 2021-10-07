@@ -17,6 +17,26 @@ import (
 
 const waitTimeout = time.Duration(3) * time.Second
 
+// expectOutgoingMessageTypes starts a new goroutine that reads from the given
+// channel and makes sure that the passed message types occur in the defined
+// order. It will also add on the given sync.WaitGroup so don't do that
+// yourself!
+func expectOutgoingMessageTypes(suite suite.Suite, ctx context.Context, wg *sync.WaitGroup, c chan ActorOutgoingMessage, types ...messages.MessageType) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i, messageType := range types {
+			select {
+			case <-ctx.Done():
+				suite.Failf("timeout", "timeout while waiting for expected message %d/%d", i+1, len(types))
+				return
+			case message := <-c:
+				suite.Equal(messageType, message.MessageType, "message type of message %d/%d should match expected", i+1, len(types))
+			}
+		}
+	}()
+}
+
 type getRoleTestSuite struct {
 	suite.Suite
 }
@@ -61,7 +81,7 @@ func (suite *netActorDeviceTestSuite) SetupTest() {
 	suite.deviceSend = make(chan messages.MessageContainer)
 	suite.deviceReceive = make(chan messages.MessageContainer)
 	suite.device = &gatekeeping.Device{
-		ID:      messages.DeviceID(uuid.New()),
+		ID:      messages.DeviceID(uuid.New().String()),
 		Name:    "Test device",
 		Roles:   []string{string(RoleGameMaster), string(RoleTeamBase), string(RoleTeamBaseMonitor)},
 		Send:    suite.deviceSend,
@@ -99,7 +119,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 			case <-ctx.Done():
 				// We do not add buffer to receive channel, so we take the message here.
 				<-suite.deviceReceive
-				suite.Failf("actor %s did not receive message", actorID.String())
+				suite.Failf("actor %s did not receive message", string(actorID))
 			case message := <-actor.Receive():
 				// Assure correct message.
 				cancel()
@@ -130,24 +150,30 @@ func (suite *netActorDeviceTestSuite) TestRoutingSend() {
 		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		go func(actorID messages.ActorID) {
 			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				// We do not add buffer to receive channel, so we take the message here.
-				<-suite.deviceSend
-				suite.Fail("device did not send message")
-			case message := <-suite.deviceSend:
-				// Assure correct message.
-				cancel()
-				suite.Assert().Equal(messages.MessageTypeHello, message.MessageType, "message type should match expected")
+			for i := 0; i < 2; i++ {
+				select {
+				case <-ctx.Done():
+					// We do not add buffer to receive channel, so we take the message here.
+					<-suite.deviceSend
+					suite.Fail("device did not send message")
+				case message := <-suite.deviceSend:
+					// Throw first message away as this will be the you-are-in message.
+					if message.MessageType == messages.MessageTypeYouAreIn {
+						continue
+					}
+					// Assure correct message.
+					cancel()
+					suite.Assert().Equal(messages.MessageTypeGetDevices, message.MessageType, "message type should match expected")
+				}
 			}
 		}(actorID)
 		// Hire actor.
 		err = actor.Hire()
 		suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
 		// Send message to device with actor id set.
-		err = actor.Send(ActorIncomingMessage{
-			MessageType: messages.MessageTypeHello,
-			Content:     json.RawMessage{},
+		err = actor.Send(ActorOutgoingMessage{
+			MessageType: messages.MessageTypeGetDevices,
+			Content:     struct{}{},
 		})
 		suite.Require().Nilf(err, "send should not fail but got: %s", errors.Prettify(err))
 	}
@@ -181,9 +207,19 @@ func (gk *mockGatekeeper) Retire() error {
 	return args.Error(0)
 }
 
+func (gk *mockGatekeeper) GetDevices() []*gatekeeping.Device {
+	args := gk.Called()
+	return args.Get(0).([]*gatekeeping.Device)
+}
+
+func (gk *mockGatekeeper) AcceptDevice(deviceID messages.DeviceID, name string) error {
+	args := gk.Called(deviceID, name)
+	return args.Error(0)
+}
+
 func (suite *ProtectedAgencyTestSuite) SetupTest() {
 	suite.device = &gatekeeping.Device{
-		ID:      messages.DeviceID(uuid.New()),
+		ID:      messages.DeviceID(uuid.New().String()),
 		Name:    "Test device",
 		Roles:   []string{string(RoleGameMaster), string(RoleTeamBase), string(RoleTeamBaseMonitor)},
 		Send:    make(chan messages.MessageContainer),
@@ -281,7 +317,7 @@ func (suite ProtectedAgencySayGoodbyeToDeviceTestSuite) AfterTest() {
 }
 
 func (suite *ProtectedAgencySayGoodbyeToDeviceTestSuite) TestUnknownDevice() {
-	err := suite.agency.SayGoodbyeToDevice(messages.DeviceID(uuid.New()))
+	err := suite.agency.SayGoodbyeToDevice(messages.DeviceID(uuid.New().String()))
 	suite.Assert().NotNil(err, "should fail because of unknown device")
 }
 
@@ -332,4 +368,125 @@ func (suite *ProtectedAgencyAvailableActorsTestSuite) TestOK() {
 
 func TestProtectedAgency_AvailableActors(t *testing.T) {
 	suite.Run(t, new(ProtectedAgencyAvailableActorsTestSuite))
+}
+
+type NetActorTestSuite struct {
+	suite.Suite
+	a          *netActor
+	fromActor  chan netActorDeviceOutgoingMessage
+	toActor    chan ActorIncomingMessage
+	actorQuits chan struct{}
+}
+
+func (suite *NetActorTestSuite) SetupTest() {
+	suite.fromActor = make(chan netActorDeviceOutgoingMessage)
+	suite.toActor = make(chan ActorIncomingMessage)
+	suite.actorQuits = make(chan struct{})
+	suite.a = &netActor{
+		id:        messages.ActorID(uuid.New().String()),
+		send:      suite.fromActor,
+		receive:   suite.toActor,
+		isHired:   false,
+		quit:      suite.actorQuits,
+		hireMutex: sync.RWMutex{},
+	}
+}
+
+func (suite *NetActorTestSuite) TestID() {
+	suite.Assert().Equal(suite.a.id, suite.a.ID(), "id should be as set")
+}
+
+func (suite *NetActorTestSuite) TestHireAlreadyHired() {
+	suite.a.isHired = true
+	err := suite.a.Hire()
+	suite.Assert().NotNil(err, "hire should fail because already hired")
+}
+
+func (suite *NetActorTestSuite) TestHireOK() {
+	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case <-ctx.Done():
+			suite.Fail("no you-are-in message received")
+		case message := <-suite.fromActor:
+			cancel()
+			suite.Assert().Equal(messages.MessageTypeYouAreIn, message.message.MessageType)
+			cMessageContent := message.message.Content.(messages.MessageYouAreIn)
+			suite.Assert().Equal(suite.a.id, cMessageContent.ActorID, "should have actor id in message content")
+			suite.Assert().Equal(string(suite.a.role), cMessageContent.Role, "should have role in message content")
+		}
+	}()
+	err := suite.a.Hire()
+	suite.Assert().Nil(err, "hire should not fail")
+	wg.Wait()
+}
+
+func (suite *NetActorTestSuite) TestFireNotHired() {
+	suite.a.isHired = false
+	err := suite.a.Fire()
+	suite.Assert().NotNil(err, "fire should fail because not hired")
+}
+
+func (suite *NetActorTestSuite) TestFireOK() {
+	suite.a.isHired = true
+	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case <-ctx.Done():
+			suite.Fail("no fired message received")
+		case message := <-suite.fromActor:
+			cancel()
+			suite.Assert().Equal(messages.MessageTypeFired, message.message.MessageType)
+		}
+	}()
+	err := suite.a.Fire()
+	suite.Assert().Nil(err, "fire should not fail")
+	suite.Assert().False(suite.a.isHired, "should not be hired anymore")
+	wg.Wait()
+}
+
+func (suite *NetActorTestSuite) TestSendNotHired() {
+	err := suite.a.Send(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeHello,
+		Content:     struct{}{},
+	})
+	suite.Assert().NotNil(err, "send should fail")
+}
+
+func (suite *NetActorTestSuite) TestSendNotHiredHire() {
+	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+	var wg sync.WaitGroup
+	c := make(chan ActorOutgoingMessage)
+	go func() {
+		for message := range suite.fromActor {
+			c <- message.message
+		}
+	}()
+	expectOutgoingMessageTypes(suite.Suite, ctx, &wg, c, messages.MessageTypeYouAreIn)
+	err := suite.a.Send(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeYouAreIn,
+		Content:     struct{}{},
+	})
+	suite.Assert().Nil(err, "send should not fail")
+	wg.Wait()
+	cancel()
+	close(c)
+}
+
+func (suite *NetActorTestSuite) TestSendFiredNotHired() {
+	err := suite.a.Send(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeFired,
+		Content:     struct{}{},
+	})
+	suite.Assert().NotNil(err, "send should fail")
+}
+
+func TestNetActor(t *testing.T) {
+	suite.Run(t, new(NetActorTestSuite))
 }

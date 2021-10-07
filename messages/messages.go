@@ -5,26 +5,17 @@ package messages
 import (
 	"encoding/json"
 	"github.com/LeFinal/masc-server/errors"
-	"github.com/google/uuid"
 )
 
 // MessageType is the type of message and serves for using the correct parsing
 // method.
 type MessageType string
 
-// DeviceID is used to identify a Device.
-type DeviceID uuid.UUID
+// DeviceID is a UUID that is used to identify a Device.
+type DeviceID string
 
-func (id DeviceID) String() string {
-	return uuid.UUID(id).String()
-}
-
-// ActorID is used to identify an acting.Actor.
-type ActorID uuid.UUID
-
-func (id ActorID) String() string {
-	return uuid.UUID(id).String()
-}
+// ActorID is a UUID that is used to identify an acting.Actor.
+type ActorID string
 
 // MessageContainer is a container for all messages that are sent and received.
 // It holds some meta information as well as the actual payload.
@@ -66,6 +57,10 @@ const (
 	// MessageTypeAcceptDevice is used with MessageAcceptDevice for accepting new
 	// devices and allowing them to communicate with MASC.
 	MessageTypeAcceptDevice MessageType = "welcome-device"
+	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that he now has a job.
+	MessageTypeYouAreIn MessageType = "you-are-in"
+	// MessageTypeFired is used when an actor is fired.
+	MessageTypeFired MessageType = "fired"
 )
 
 // MessageError is used with MessageTypeError for errors that need to be sent to devices.

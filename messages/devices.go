@@ -22,7 +22,7 @@ type MessageDeviceList struct {
 // Device contains all relevant information regarding a device.
 type Device struct {
 	// ID is the device ID.
-	ID string `json:"id"`
+	ID DeviceID `json:"id"`
 	// Name is the name of the device.
 	Name string `json:"name"`
 	// IsAccepted describes whether the device is currently accepted or not.
