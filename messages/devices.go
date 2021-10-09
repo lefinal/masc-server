@@ -30,13 +30,13 @@ type Device struct {
 	// IsConnected describes whether the device is currently connected.
 	IsConnected bool `json:"is_connected"`
 	// Roles contains all roles the device says it can satisfy.
-	Roles []string `json:"roles"`
+	Roles []Role `json:"roles"`
 }
 
 // MessageAcceptDevice is used for accepting a new device.
 type MessageAcceptDevice struct {
 	// DeviceID is the ID of the device to accept.
-	DeviceID string `json:"device_id"`
+	DeviceID DeviceID `json:"device_id"`
 	// AssignName is the name that will be assigned to the new device.
 	AssignName string `json:"name"`
 }

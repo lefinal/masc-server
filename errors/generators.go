@@ -12,3 +12,14 @@ func NewResourceNotFoundError(message string, details Details) error {
 		Details: details,
 	}
 }
+
+// NewContextAbortedError returns a new ErrAborted error with kind
+// KindContextAborted and the given operation in details.
+func NewContextAbortedError(currentOperation string) error {
+	return Error{
+		Code:    ErrAborted,
+		Kind:    KindContextAborted,
+		Message: "context aborted",
+		Details: Details{"currentOperation": currentOperation},
+	}
+}

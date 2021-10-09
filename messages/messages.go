@@ -17,6 +17,15 @@ type DeviceID string
 // ActorID is a UUID that is used to identify an acting.Actor.
 type ActorID string
 
+// UserID is a UUID that is used to identify a stores.Player.
+type UserID string
+
+// PlayerRank is the rank of a player.
+type PlayerRank int
+
+// Role is used for provided functionality.
+type Role string
+
 // MessageContainer is a container for all messages that are sent and received.
 // It holds some meta information as well as the actual payload.
 type MessageContainer struct {
@@ -34,33 +43,41 @@ type MessageContainer struct {
 
 // All message types.
 const (
-	// MessageTypeOK is used only for confirmation of actions that do not require a
-	// detailed response.
-	MessageTypeOK MessageType = "ok"
-	// MessageTypeError is used for error messages. The content is being set to the
-	// detailed error.
-	MessageTypeError MessageType = "error"
-	// MessageTypeHello is received with MessageHello for saying hello to the
-	// server.
-	MessageTypeHello MessageType = "hello"
-	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
-	// Used with MessageWelcome.
-	MessageTypeWelcome MessageType = "welcome"
-	// MessageTypeGoAway is sent to the client when he wants to say hello with an
-	// unknown device ID.
-	MessageTypeGoAway MessageType = "go-away"
-	// MessageTypeGetDevices is received when devices are requested.
-	MessageTypeGetDevices MessageType = "get-devices"
-	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
-	// MessageTypeGetDevices.
-	MessageTypeDeviceList MessageType = "device-list"
+	// MessageTypeAbortMatch is used
+	MessageTypeAbortMatch MessageType = "abort-match"
 	// MessageTypeAcceptDevice is used with MessageAcceptDevice for accepting new
 	// devices and allowing them to communicate with MASC.
 	MessageTypeAcceptDevice MessageType = "welcome-device"
-	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that he now has a job.
-	MessageTypeYouAreIn MessageType = "you-are-in"
+	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
+	// MessageTypeGetDevices.
+	MessageTypeDeviceList MessageType = "device-list"
+	// MessageTypeError is used for error messages. The content is being set to the
+	// detailed error.
+	MessageTypeError MessageType = "error"
 	// MessageTypeFired is used when an actor is fired.
 	MessageTypeFired MessageType = "fired"
+	// MessageTypeGetDevices is received when devices are requested.
+	MessageTypeGetDevices MessageType = "get-devices"
+	// MessageTypeGoAway is sent to the client when he wants to say hello with an
+	// unknown device ID.
+	MessageTypeGoAway MessageType = "go-away"
+	// MessageTypeHello is received with MessageHello for saying hello to the
+	// server.
+	MessageTypeHello MessageType = "hello"
+	// MessageTypeOK is used only for confirmation of actions that do not require a
+	// detailed response.
+	MessageTypeOK MessageType = "ok"
+	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
+	// for requesting role assignments. Usually, this is sent to a game master.
+	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"
+	// MessageTypeRoleAssignments is used with MessageRoleAssignments for when an
+	// assignment request was fulfilled.
+	MessageTypeRoleAssignments MessageType = "role-assignments"
+	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
+	// Used with MessageWelcome.
+	MessageTypeWelcome MessageType = "welcome"
+	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that he now has a job.
+	MessageTypeYouAreIn MessageType = "you-are-in"
 )
 
 // MessageError is used with MessageTypeError for errors that need to be sent to devices.

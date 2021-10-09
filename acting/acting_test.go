@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	nativeerrors "errors"
+	"fmt"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
 	"github.com/LeFinal/masc-server/messages"
@@ -42,13 +43,13 @@ type getRoleTestSuite struct {
 }
 
 func (suite *getRoleTestSuite) TestKnown() {
-	role, found := getRole(string(RoleTeamBase))
+	role, found := getRole(messages.Role(string(RoleTeamBase)))
 	suite.Require().True(found, "role should be found")
 	suite.Assert().Equal(RoleTeamBase, role, "role should match expected")
 }
 
 func (suite *getRoleTestSuite) TestUnknown() {
-	_, found := getRole(string("unknown-role"))
+	_, found := getRole(messages.Role(string("unknown-role")))
 	suite.Assert().False(found, "role should no be found")
 }
 
@@ -81,9 +82,13 @@ func (suite *netActorDeviceTestSuite) SetupTest() {
 	suite.deviceSend = make(chan messages.MessageContainer)
 	suite.deviceReceive = make(chan messages.MessageContainer)
 	suite.device = &gatekeeping.Device{
-		ID:      messages.DeviceID(uuid.New().String()),
-		Name:    "Test device",
-		Roles:   []string{string(RoleGameMaster), string(RoleTeamBase), string(RoleTeamBaseMonitor)},
+		ID:   messages.DeviceID(uuid.New().String()),
+		Name: "Test device",
+		Roles: []messages.Role{
+			messages.Role(RoleGameMaster),
+			messages.Role(RoleTeamBase),
+			messages.Role(RoleTeamBaseMonitor),
+		},
 		Send:    suite.deviceSend,
 		Receive: suite.deviceReceive,
 	}
@@ -99,7 +104,7 @@ func (suite *netActorDeviceTestSuite) TestActorCreation() {
 
 func (suite *netActorDeviceTestSuite) TestActorCreationFail() {
 	// Overwrite device roles with bs.
-	suite.device.Roles = []string{"unknown-role"}
+	suite.device.Roles = []messages.Role{"unknown-role"}
 	err := suite.actorDevice.boot()
 	suite.Require().NotNil(err, "boot should fail but got")
 }
@@ -107,10 +112,19 @@ func (suite *netActorDeviceTestSuite) TestActorCreationFail() {
 func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 	err := suite.actorDevice.boot()
 	suite.Require().Nilf(err, "boot should not fail but got: %s", errors.Prettify(err))
+	// Forget all outgoing messages.
+	go func() {
+		for range suite.deviceSend {
+		}
+	}()
 	// Test for each actor.
 	var wg sync.WaitGroup
 	for actorID, actor := range suite.actorDevice.actors {
 		wg.Add(1)
+		// Hire actor.
+		err := actor.Hire()
+		suite.Require().Nilf(err, "hiring actor should not fail but got: %s", errors.Prettify(err))
+		sub, _ := actor.SubscribeMessageType(messages.MessageTypeHello)
 		// Expect the actor to receive a message (will be sent right after).
 		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		go func(actorID messages.ActorID, actor Actor) {
@@ -120,10 +134,9 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 				// We do not add buffer to receive channel, so we take the message here.
 				<-suite.deviceReceive
 				suite.Failf("actor %s did not receive message", string(actorID))
-			case message := <-actor.Receive():
+			case _ = <-sub:
 				// Assure correct message.
 				cancel()
-				suite.Assert().Equal(messages.MessageTypeHello, message.MessageType, "message type should match expected")
 			}
 		}(actorID, actor)
 		// Send message to device with actor id set.
@@ -136,7 +149,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 	}
 	// Wait until completion.
 	wg.Wait()
-	suite.actorDevice.shutdown()
+	suite.shutdownActorDeviceAndCatchActorQuits()
 }
 
 func (suite *netActorDeviceTestSuite) TestRoutingSend() {
@@ -221,7 +234,7 @@ func (suite *ProtectedAgencyTestSuite) SetupTest() {
 	suite.device = &gatekeeping.Device{
 		ID:      messages.DeviceID(uuid.New().String()),
 		Name:    "Test device",
-		Roles:   []string{string(RoleGameMaster), string(RoleTeamBase), string(RoleTeamBaseMonitor)},
+		Roles:   []messages.Role{messages.Role(RoleGameMaster), messages.Role(RoleTeamBase), messages.Role(RoleTeamBaseMonitor)},
 		Send:    make(chan messages.MessageContainer),
 		Receive: make(chan messages.MessageContainer),
 	}
@@ -265,7 +278,7 @@ type ProtectedAgencyWelcomeDeviceTestSuite struct {
 func (suite *ProtectedAgencyWelcomeDeviceTestSuite) TestUnknownRoles() {
 	suite.gatekeeper.On("WakeUpAndProtect", mock.Anything).Return(nil)
 	suite.gatekeeper.On("Retire").Return(nil)
-	suite.device.Roles = []string{"unknown-role"}
+	suite.device.Roles = []messages.Role{"unknown-role"}
 	err := suite.agency.Open()
 	suite.Require().Nilf(err, "open should not fail but got: %s", errors.Prettify(err))
 
@@ -385,7 +398,7 @@ func (suite *NetActorTestSuite) SetupTest() {
 	suite.a = &netActor{
 		id:        messages.ActorID(uuid.New().String()),
 		send:      suite.fromActor,
-		receive:   suite.toActor,
+		receiveC:  suite.toActor,
 		isHired:   false,
 		quit:      suite.actorQuits,
 		hireMutex: sync.RWMutex{},
@@ -416,12 +429,13 @@ func (suite *NetActorTestSuite) TestHireOK() {
 			suite.Assert().Equal(messages.MessageTypeYouAreIn, message.message.MessageType)
 			cMessageContent := message.message.Content.(messages.MessageYouAreIn)
 			suite.Assert().Equal(suite.a.id, cMessageContent.ActorID, "should have actor id in message content")
-			suite.Assert().Equal(string(suite.a.role), cMessageContent.Role, "should have role in message content")
+			suite.Assert().Equal(messages.Role(suite.a.role), cMessageContent.Role, "should have role in message content")
 		}
 	}()
 	err := suite.a.Hire()
 	suite.Assert().Nil(err, "hire should not fail")
 	wg.Wait()
+	suite.Assert().NotNil(suite.a.subscriptionManager, "subscription manager should be created when hiring")
 }
 
 func (suite *NetActorTestSuite) TestFireNotHired() {
@@ -431,7 +445,13 @@ func (suite *NetActorTestSuite) TestFireNotHired() {
 }
 
 func (suite *NetActorTestSuite) TestFireOK() {
-	suite.a.isHired = true
+	// Hire.
+	go func() {
+		err := suite.a.Hire()
+		suite.Require().Nil(err, "actor hiring should not fail but got: %s", errors.Prettify(err))
+	}()
+	what := <-suite.fromActor
+	fmt.Println(what)
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 	var wg sync.WaitGroup
 	wg.Add(1)

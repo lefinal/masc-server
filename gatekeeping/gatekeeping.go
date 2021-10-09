@@ -37,7 +37,7 @@ type Device struct {
 	// Name is the name of the device.
 	Name string
 	// SelfDescription is how the device describes itself. This is used only for
-	// human readability and to differentiate between multiple unknown devices.
+	// human readability and to distinguish between multiple unknown devices.
 	SelfDescription string
 	// IsAccepted is a flag for whether the device was accepted via
 	// Gatekeeper.AcceptDevice or is already known.
@@ -46,7 +46,7 @@ type Device struct {
 	// allows also managing (removing) devices that are currently not connected.
 	IsConnected bool
 	// Roles contains all roles the device says it is able to satisfy.
-	Roles []string
+	Roles []messages.Role
 	// Send is the channel for outgoing messages.
 	Send chan<- messages.MessageContainer
 	// Receive is the channel for incoming messages.

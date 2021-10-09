@@ -37,7 +37,7 @@ const (
 )
 
 // getRole returns the Role matching the given one. If it is unknown, false will be returned.
-func getRole(role string) (Role, bool) {
+func getRole(role messages.Role) (Role, bool) {
 	r := Role(role)
 	switch r {
 	case RoleDeviceManager,
@@ -84,7 +84,8 @@ type ActorIncomingMessage struct {
 type Actor interface {
 	// ID return the ID of the actor. This is only used for verbose information.
 	ID() messages.ActorID
-	// Hire hires the actor for the given Role.
+	// Hire hires the actor for the given Role. You must call Fire when he is no
+	// longer needed!
 	Hire() error
 	// IsHired describes whether the actor is currently hired.
 	IsHired() bool
@@ -92,8 +93,16 @@ type Actor interface {
 	Fire() error
 	// Send sends the given message to the actor.
 	Send(message ActorOutgoingMessage) error
+	// SubscribeMessageType subscribes to all messages with the given
+	// messages.MessageType by returning a channel for the messages and a
+	// SubscriptionToken. Remember to unsubscribe via Unsubscribe using the created
+	// SubscriptionToken.
+	SubscribeMessageType(messageType messages.MessageType) (<-chan json.RawMessage, SubscriptionToken)
+	// Unsubscribe make the actor remove an existing subscription for the passed
+	// SubscriptionToken.
+	Unsubscribe(token SubscriptionToken) error
 	// Receive returns the channel for receiving actor messages.
-	Receive() <-chan ActorIncomingMessage
+	receive() <-chan ActorIncomingMessage
 	// Quit returns the channel for when the actor decides to quit.
 	Quit() <-chan struct{}
 }
@@ -104,9 +113,9 @@ type netActor struct {
 	id messages.ActorID
 	// send is the channel for outgoing messages. These will be handled by netActorDevice.
 	send chan netActorDeviceOutgoingMessage
-	// receive is the channel for incoming messages. These will already be routed by
+	// receiveC is the channel for incoming messages. These will already be routed by
 	// netActorDevice and really belong to this actor.
-	receive chan ActorIncomingMessage
+	receiveC chan ActorIncomingMessage
 	// isHired describes whether the actor is currently hired.
 	isHired bool
 	// role holds the Role the actor is playing.
@@ -115,6 +124,10 @@ type netActor struct {
 	quit chan struct{}
 	// hireMutex is a mutex for allowing concurrent access to isHired and role.
 	hireMutex sync.RWMutex
+	// subscriptionManager allows easy managing of calls to
+	// Actor.SubscribeMessageType and Actor.Unsubscribe. Manager will be created
+	// when Hire is called.
+	subscriptionManager *subscriptionManager
 }
 
 func (a *netActor) ID() messages.ActorID {
@@ -133,15 +146,18 @@ func (a *netActor) Hire() error {
 			Details: errors.Details{"actorID": a.id},
 		}
 	}
+	// Create subscription manager.
+	a.subscriptionManager = newSubscriptionManager()
 	// Notify actor that he was lucky.
 	err := a.Send(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeYouAreIn,
 		Content: messages.MessageYouAreIn{
 			ActorID: a.id,
-			Role:    string(a.role),
+			Role:    messages.Role(a.role),
 		},
 	})
 	if err != nil {
+		a.subscriptionManager.cancelAllSubscriptions()
 		return errors.Wrap(err, "notify actor")
 	}
 	a.isHired = true
@@ -173,6 +189,7 @@ func (a *netActor) Fire() error {
 	if err != nil {
 		return errors.Wrap(err, "notify actor")
 	}
+	a.subscriptionManager.cancelAllSubscriptions()
 	a.isHired = false
 	return nil
 }
@@ -202,12 +219,29 @@ func (a *netActor) Send(message ActorOutgoingMessage) error {
 	return nil
 }
 
-func (a *netActor) Receive() <-chan ActorIncomingMessage {
-	return a.receive
+func (a *netActor) SubscribeMessageType(messageType messages.MessageType) (<-chan json.RawMessage, SubscriptionToken) {
+	return a.subscriptionManager.subscribeMessageType(messageType)
+}
+
+func (a *netActor) Unsubscribe(token SubscriptionToken) error {
+	return a.subscriptionManager.unsubscribe(token)
+}
+
+func (a *netActor) receive() <-chan ActorIncomingMessage {
+	return a.receiveC
 }
 
 func (a *netActor) Quit() <-chan struct{} {
 	return a.quit
+}
+
+// handleIncomingMessage handles an incoming message, lol.
+func (a *netActor) handleIncomingMessage(message ActorIncomingMessage) {
+	if a.subscriptionManager.handleMessage(message) == 0 {
+		// No subscribers -> we consider this a forbidden message, because no one wants
+		// to hear it.
+		SendForbiddenMessageTypeErrToActorOrLogError(logging.ActingLogger, a, message)
+	}
 }
 
 type netActorDeviceManager struct {
@@ -226,79 +260,56 @@ func (a *netActorDeviceManager) Hire() error {
 	if err != nil {
 		return errors.Wrap(err, "hire actor")
 	}
-	// Start message handler for handling device management.
-	ctx, cancel := context.WithCancel(context.Background())
-	a.shutdownMessageHandlers = cancel
-	a.messageHandlers.Add(1)
-	go deviceManagementMessageHandler(ctx, a)
+	// Setup message handlers. We do not need to unsubscribe because this will be
+	// done when the actor is fired. Handle device retrieval.
+	go func() {
+		s, _ := SubscribeMessageTypeGetDevices(a)
+		for range s {
+			a.handleGetDevices()
+		}
+	}()
+	// Handle device accepting.
+	go func() {
+		s, _ := SubscribeMessageTypeAcceptDevice(a)
+		for message := range s {
+			a.handleAcceptDevice(message)
+		}
+	}()
 	return nil
 }
 
-// deviceManagementMessageHandler handles messages that belong to da
-// netActorDeviceManager. This includes retrieving devices as well as accepting
-// unknown ones.
-func deviceManagementMessageHandler(ctx context.Context, dm *netActorDeviceManager) {
-	defer dm.messageHandlers.Done()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case rawMessage := <-dm.Receive():
-			// Handle message.
-			switch rawMessage.MessageType {
-			case messages.MessageTypeGetDevices:
-				// Respond with all devices.
-				devices := dm.gatekeeper.GetDevices()
-				res := messages.MessageDeviceList{
-					Devices: make([]messages.Device, len(devices)),
-				}
-				for i, device := range devices {
-					res.Devices[i] = messages.Device{
-						ID:          device.ID,
-						Name:        device.Name,
-						IsAccepted:  device.IsAccepted,
-						IsConnected: device.IsConnected,
-						Roles:       device.Roles,
-					}
-				}
-			case messages.MessageTypeAcceptDevice:
-				// Accept the device.
-				var message messages.MessageAcceptDevice
-				err := util.DecodeAsJSON(rawMessage.Content, &message)
-				if err != nil {
-					SendOrLogError(logging.ActingLogger, dm,
-						ActorErrorMessageFromError(errors.Wrap(err, "decode message content as json")))
-					return
-				}
-				// Parse device id.
-				deviceID, err := uuid.Parse(message.DeviceID)
-				if err != nil {
-					SendOrLogError(logging.ActingLogger, dm, ActorErrorMessageFromError(errors.Error{
-						Code:    errors.ErrBadRequest,
-						Kind:    errors.KindMalformedID,
-						Err:     err,
-						Message: fmt.Sprintf("malformed device id"),
-						Details: errors.Details{"actor": dm.id, "deviceID": message.DeviceID},
-					}))
-					return
-				}
-				err = dm.gatekeeper.AcceptDevice(messages.DeviceID(deviceID.String()), message.AssignName)
-				if err != nil {
-					SendOrLogError(logging.ActingLogger, dm,
-						ActorErrorMessageFromError(errors.Wrap(err, "accept device")))
-					return
-				}
-			// All done.
-			default:
-				SendForbiddenMessageTypeErrToActorOrLogError(logging.ActingLogger, dm, rawMessage.MessageType)
-			}
+// handleGetDevices handles an incoming message with type
+// messages.MessageTypeGetDevices.
+func (a *netActorDeviceManager) handleGetDevices() {
+	// Respond with all devices.
+	devices := a.gatekeeper.GetDevices()
+	res := messages.MessageDeviceList{
+		Devices: make([]messages.Device, len(devices)),
+	}
+	for i, device := range devices {
+		res.Devices[i] = messages.Device{
+			ID:          device.ID,
+			Name:        device.Name,
+			IsAccepted:  device.IsAccepted,
+			IsConnected: device.IsConnected,
+			Roles:       device.Roles,
 		}
 	}
 }
 
-// netActorDeviceOutgoingMessage is a container for an ActorIncomingMessage and the id of the
-// Actor that wants to send the message. This allows using a single channel for
-// sending messages to a device.
+// handleAcceptDevice handles an incoming message with type
+// messages.MessageTypeAcceptDevice.
+func (a *netActorDeviceManager) handleAcceptDevice(message messages.MessageAcceptDevice) {
+	err := a.gatekeeper.AcceptDevice(message.DeviceID, message.AssignName)
+	if err != nil {
+		SendOrLogError(logging.ActingLogger, a, ActorErrorMessageFromError(errors.Wrap(err, "accept device")))
+		return
+	}
+}
+
+// netActorDeviceOutgoingMessage is a container for an ActorIncomingMessage and
+// the id of the Actor that wants to send the message. This allows using a
+// single channel for sending messages to a device.
 type netActorDeviceOutgoingMessage struct {
 	// actorID is the id of the netActor which will be added as field to the final
 	// message container that is passed to the device.
@@ -349,12 +360,12 @@ func (ad *netActorDevice) boot() error {
 	for _, role := range roles {
 		// Create new actor.
 		created := &netActor{
-			id:      messages.ActorID(uuid.New().String()),
-			role:    role,
-			send:    ad.send,
-			receive: make(chan ActorIncomingMessage),
-			isHired: false,
-			quit:    make(chan struct{}),
+			id:       messages.ActorID(uuid.New().String()),
+			role:     role,
+			send:     ad.send,
+			receiveC: make(chan ActorIncomingMessage),
+			isHired:  false,
+			quit:     make(chan struct{}),
 		}
 		// Append to own actor list.
 		ad.actors[created.id] = created
@@ -379,7 +390,7 @@ func (ad *netActorDevice) routeIncoming(ctx context.Context) {
 			// Close all receive channels for actors.
 			ad.actorsMutex.Lock()
 			for _, actor := range ad.actors {
-				close(actor.receive)
+				close(actor.receiveC)
 			}
 			ad.actorsMutex.Unlock()
 			return
@@ -399,10 +410,10 @@ func (ad *netActorDevice) routeIncoming(ctx context.Context) {
 				}
 			} else {
 				// Actor found -> pass message.
-				actor.receive <- ActorIncomingMessage{
+				actor.handleIncomingMessage(ActorIncomingMessage{
 					MessageType: message.MessageType,
 					Content:     message.Content,
-				}
+				})
 			}
 			ad.actorsMutex.RUnlock()
 		}
@@ -546,13 +557,9 @@ func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 }
 
 // SendForbiddenMessageTypeErrToActorOrLogError does everything the function name already includes lol.
-func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Logger, a Actor, messageType messages.MessageType) {
-	SendOrLogError(logger, a, ActorErrorMessageFromError(errors.Error{
-		Code:    errors.ErrProtocolViolation,
-		Kind:    errors.KindForbiddenMessage,
-		Message: fmt.Sprintf("forbidden message type: %s", messageType),
-		Details: errors.Details{"actor": a.ID(), "messageType": messageType},
-	}))
+func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Logger, a Actor, message ActorIncomingMessage) {
+	SendOrLogError(logger, a,
+		ActorErrorMessageFromError(NewForbiddenMessageError(message.MessageType, message.Content)))
 }
 
 // SendOrLogError sends the message to the given Actor and logs the error if delivery failed.
