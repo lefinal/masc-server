@@ -26,12 +26,12 @@ func (suite *SubscriptionManagerTestSuite) TestNew() {
 func (suite *SubscriptionManagerTestSuite) TestSubscribeOK() {
 	messageType := messages.MessageTypeHello
 	messagesToSend := int32(5)
-	sub, _ := suite.m.subscribeMessageType(messageType)
+	cMessages, _ := suite.m.subscribeMessageType(messageType)
 	// Check if receiving works.
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 	go func() {
 		received := int32(0)
-		for range sub {
+		for range cMessages {
 			received++
 		}
 		if received != messagesToSend {
@@ -59,9 +59,9 @@ func (suite *SubscriptionManagerTestSuite) TestUnsubscribeNotFound() {
 func (suite *SubscriptionManagerTestSuite) TestUnsubscribeOK() {
 	messageType := messages.MessageTypeHello
 	// Subscribe.
-	_, token := suite.m.subscribeMessageType(messageType)
+	_, sub := suite.m.subscribeMessageType(messageType)
 	// Unsubscribe.
-	err := suite.m.unsubscribe(token)
+	err := suite.m.unsubscribe(sub)
 	suite.Require().Nilf(err, "unsubscribe should not fail but got: %s", errors.Prettify(err))
 	// Try to send message, and we expect it not to block.
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)

@@ -14,6 +14,28 @@ import (
 // Actor.SubscribeMessageType. Use it for unsubscribing.
 type SubscriptionToken int
 
+// Newsletter is a container for an Actor with a created SubscriptionToken.
+// This allows easy unsubscribing as the Actor is not needed everytime.
+type Newsletter struct {
+	// actor is the Actor the subscription is for.
+	actor Actor
+	// subscriptionToken is the actual SubscriptionToken.
+	subscriptionToken SubscriptionToken
+}
+
+// GeneralNewsletter wraps Newsletter with the receive-channel for raw messages.
+type GeneralNewsletter struct {
+	Newsletter
+	Receive <-chan json.RawMessage
+}
+
+// NotifyingNewsletter wraps Newsletter with a receive-channel with empty
+// struct.
+type NotifyingNewsletter struct {
+	Newsletter
+	Receive <-chan struct{}
+}
+
 // subscription is a container for subscriptions that were created via
 // Actor.SubscribeMessageType.
 type subscription struct {
@@ -168,13 +190,40 @@ func logSubscriptionParseError(messageType messages.MessageType, err error) {
 	logging.ActingLogger.Infof("parse subscription message for type %s: %s", messageType, err)
 }
 
+// Unsubscribe uses the wrapped Actor in the given Newsletter in order to
+// unsubscribe with the contained SubscriptionToken.
+func Unsubscribe(newsletter Newsletter) error {
+	err := newsletter.actor.Unsubscribe(newsletter.subscriptionToken)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("unsubscribe message type for actor %s with token %v",
+			newsletter.actor.ID(), newsletter.subscriptionToken))
+	}
+	return nil
+}
+
+// UnsubscribeOrLogError unsubscribes the given Newsletter. If unsubscribing
+// fails, the error is logged to logging.ActingLogger.
+func UnsubscribeOrLogError(newsletter Newsletter) {
+	err := Unsubscribe(newsletter)
+	if err != nil {
+		errors.Log(logging.ActingLogger, err)
+	}
+}
+
+// NewsletterAcceptDevice wraps Newsletter with a receive-channel for
+// messages.MessageAcceptDevice.
+type NewsletterAcceptDevice struct {
+	Newsletter
+	Receive <-chan messages.MessageAcceptDevice
+}
+
 // SubscribeMessageTypeAcceptDevice subscribes message with
 // messages.MessageTypeAcceptDevice for the given Actor.
-func SubscribeMessageTypeAcceptDevice(actor Actor) (<-chan messages.MessageAcceptDevice, SubscriptionToken) {
-	sc, token := actor.SubscribeMessageType(messages.MessageTypeAcceptDevice)
+func SubscribeMessageTypeAcceptDevice(actor Actor) NewsletterAcceptDevice {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeAcceptDevice)
 	cc := make(chan messages.MessageAcceptDevice)
 	go func() {
-		for raw := range sc {
+		for raw := range newsletter.Receive {
 			var m messages.MessageAcceptDevice
 			if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeAcceptDevice, raw, &m) {
 				continue
@@ -183,30 +232,43 @@ func SubscribeMessageTypeAcceptDevice(actor Actor) (<-chan messages.MessageAccep
 		}
 		close(cc)
 	}()
-	return cc, token
+	return NewsletterAcceptDevice{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
 }
 
 // SubscribeMessageTypeGetDevices subscribes message with
 // messages.MessageTypeGetDevices for the given Actor.
-func SubscribeMessageTypeGetDevices(actor Actor) (<-chan struct{}, SubscriptionToken) {
-	sc, token := actor.SubscribeMessageType(messages.MessageTypeGetDevices)
+func SubscribeMessageTypeGetDevices(actor Actor) NotifyingNewsletter {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeGetDevices)
 	cc := make(chan struct{})
 	go func() {
-		for range sc {
+		for range newsletter.Receive {
 			cc <- struct{}{}
 		}
 		close(cc)
 	}()
-	return cc, token
+	return NotifyingNewsletter{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterRoleAssignments wraps Newsletter with a receive-channel for
+// messages.MessageRoleAssignments.
+type NewsletterRoleAssignments struct {
+	Newsletter
+	Receive <-chan messages.MessageRoleAssignments
 }
 
 // SubscribeMessageTypeRoleAssignments subscribes messages with
 // messages.MessageTypeRoleAssignments for the given Actor.
-func SubscribeMessageTypeRoleAssignments(actor Actor) (<-chan messages.MessageRoleAssignments, SubscriptionToken) {
-	sc, token := actor.SubscribeMessageType(messages.MessageTypeRoleAssignments)
+func SubscribeMessageTypeRoleAssignments(actor Actor) NewsletterRoleAssignments {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeRoleAssignments)
 	cc := make(chan messages.MessageRoleAssignments)
 	go func() {
-		for raw := range sc {
+		for raw := range newsletter.Receive {
 			var m messages.MessageRoleAssignments
 			if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeRoleAssignments, raw, &m) {
 				continue
@@ -215,5 +277,8 @@ func SubscribeMessageTypeRoleAssignments(actor Actor) (<-chan messages.MessageRo
 		}
 		close(cc)
 	}()
-	return cc, token
+	return NewsletterRoleAssignments{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
 }

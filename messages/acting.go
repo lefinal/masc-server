@@ -22,6 +22,8 @@ type RoleAssignmentOrder struct {
 	Key string `json:"key"`
 	// Role is the role type that is requested.
 	Role Role `json:"role"`
+	// IsMulti describes whether multiple actors are possible.
+	IsMulti bool `json:"is_multi"`
 }
 
 // MessageRequestRoleAssignments is used with MessageTypeRequestRoleAssignments.

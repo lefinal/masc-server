@@ -94,10 +94,9 @@ type Actor interface {
 	// Send sends the given message to the actor.
 	Send(message ActorOutgoingMessage) error
 	// SubscribeMessageType subscribes to all messages with the given
-	// messages.MessageType by returning a channel for the messages and a
-	// SubscriptionToken. Remember to unsubscribe via Unsubscribe using the created
-	// SubscriptionToken.
-	SubscribeMessageType(messageType messages.MessageType) (<-chan json.RawMessage, SubscriptionToken)
+	// messages.MessageType by returning Newsletter. Remember to unsubscribe via
+	// Unsubscribe using the created Newsletter.
+	SubscribeMessageType(messageType messages.MessageType) GeneralNewsletter
 	// Unsubscribe make the actor remove an existing subscription for the passed
 	// SubscriptionToken.
 	Unsubscribe(token SubscriptionToken) error
@@ -219,8 +218,15 @@ func (a *netActor) Send(message ActorOutgoingMessage) error {
 	return nil
 }
 
-func (a *netActor) SubscribeMessageType(messageType messages.MessageType) (<-chan json.RawMessage, SubscriptionToken) {
-	return a.subscriptionManager.subscribeMessageType(messageType)
+func (a *netActor) SubscribeMessageType(messageType messages.MessageType) GeneralNewsletter {
+	c, token := a.subscriptionManager.subscribeMessageType(messageType)
+	return GeneralNewsletter{
+		Newsletter: Newsletter{
+			actor:             a,
+			subscriptionToken: token,
+		},
+		Receive: c,
+	}
 }
 
 func (a *netActor) Unsubscribe(token SubscriptionToken) error {
@@ -263,15 +269,15 @@ func (a *netActorDeviceManager) Hire() error {
 	// Setup message handlers. We do not need to unsubscribe because this will be
 	// done when the actor is fired. Handle device retrieval.
 	go func() {
-		s, _ := SubscribeMessageTypeGetDevices(a)
-		for range s {
+		newsletter := SubscribeMessageTypeGetDevices(a)
+		for range newsletter.Receive {
 			a.handleGetDevices()
 		}
 	}()
 	// Handle device accepting.
 	go func() {
-		s, _ := SubscribeMessageTypeAcceptDevice(a)
-		for message := range s {
+		newsletter := SubscribeMessageTypeAcceptDevice(a)
+		for message := range newsletter.Receive {
 			a.handleAcceptDevice(message)
 		}
 	}()

@@ -43,13 +43,13 @@ type getRoleTestSuite struct {
 }
 
 func (suite *getRoleTestSuite) TestKnown() {
-	role, found := getRole(messages.Role(string(RoleTeamBase)))
+	role, found := getRole(messages.Role(RoleTeamBase))
 	suite.Require().True(found, "role should be found")
 	suite.Assert().Equal(RoleTeamBase, role, "role should match expected")
 }
 
 func (suite *getRoleTestSuite) TestUnknown() {
-	_, found := getRole(messages.Role(string("unknown-role")))
+	_, found := getRole(messages.Role("unknown-role"))
 	suite.Assert().False(found, "role should no be found")
 }
 
@@ -124,7 +124,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 		// Hire actor.
 		err := actor.Hire()
 		suite.Require().Nilf(err, "hiring actor should not fail but got: %s", errors.Prettify(err))
-		sub, _ := actor.SubscribeMessageType(messages.MessageTypeHello)
+		newsletter := actor.SubscribeMessageType(messages.MessageTypeHello)
 		// Expect the actor to receive a message (will be sent right after).
 		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		go func(actorID messages.ActorID, actor Actor) {
@@ -134,7 +134,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 				// We do not add buffer to receive channel, so we take the message here.
 				<-suite.deviceReceive
 				suite.Failf("actor %s did not receive message", string(actorID))
-			case _ = <-sub:
+			case _ = <-newsletter.Receive:
 				// Assure correct message.
 				cancel()
 			}
