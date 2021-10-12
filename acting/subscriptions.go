@@ -1,6 +1,7 @@
 package acting
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/LeFinal/masc-server/errors"
@@ -17,15 +18,20 @@ type SubscriptionToken int
 // Newsletter is a container for an Actor with a created SubscriptionToken.
 // This allows easy unsubscribing as the Actor is not needed everytime.
 type Newsletter struct {
-	// actor is the Actor the subscription is for.
-	actor Actor
-	// subscriptionToken is the actual SubscriptionToken.
-	subscriptionToken SubscriptionToken
+	// Actor is the Actor the subscription is for.
+	Actor Actor
+	// Subscription is the actual Subscription.
+	Subscription *subscription
 }
 
 // GeneralNewsletter wraps Newsletter with the receive-channel for raw messages.
 type GeneralNewsletter struct {
 	Newsletter
+	// Receive allows receiving messages. However, you should never read directly
+	// from this but use helper functions like SubscribeMessageTypeRoleAssignments
+	// because the Receive-channel will never be closed. If you still want to read
+	// from it, use the context in Newsletter.Subscription in order to check if the
+	// subscription is still active.
 	Receive <-chan json.RawMessage
 }
 
@@ -39,20 +45,37 @@ type NotifyingNewsletter struct {
 // subscription is a container for subscriptions that were created via
 // Actor.SubscribeMessageType.
 type subscription struct {
+	// Ctx is the context of the subscription which is done when the subscription is
+	// no longer active.
+	Ctx context.Context
+	// setInactive cancels the Ctx. This allows dropping messages to forward.
+	setInactive context.CancelFunc
 	// messageType is the messages.MessageType the subscription is for.
 	messageType messages.MessageType
 	// token is the SubscriptionToken for unsubscribing.
 	token SubscriptionToken
-	// out is the channel for received messages that matched the messageType.
-	out chan<- json.RawMessage
+	// out is the channel for received messages that matched the messageType. If the
+	// subscription is already contained in Newsletter, do not receive manually from
+	// here!
+	out chan json.RawMessage
 }
 
-// subscriptionManager allows managing subscriptions by using a channel that
+// Message is a container for messages to be handled by a SubscriptionManager.
+type Message struct {
+	// MessageType is the type of the message. This determines how to parse the
+	// Content.
+	MessageType messages.MessageType
+	// Content is the raw message content which will be parsed based on the
+	// MessageType.
+	Content json.RawMessage
+}
+
+// SubscriptionManager allows managing subscriptions by using a channel that
 // receives messages and forwarding them to subscriptions for the respective
 // messages.MessageType. Add subscriptions via subscribeMessageType and don't
 // forget to unsubscribe. If all subscriptions should be cancelled, call
 // cancelAllSubscriptions. Messages are handled by calling handleMessage.
-type subscriptionManager struct {
+type SubscriptionManager struct {
 	// subscriptionsByMessageType is used for providing quick access to subscribers
 	// when a message is received.
 	subscriptionsByMessageType map[messages.MessageType][]*subscription
@@ -67,64 +90,80 @@ type subscriptionManager struct {
 	subscriptionsMutex sync.RWMutex
 }
 
-// newSubscriptionManager creates a new subscriptionManager that is ready to
+// NewSubscriptionManager creates a new SubscriptionManager that is ready to
 // use.
-func newSubscriptionManager() *subscriptionManager {
-	return &subscriptionManager{
+func NewSubscriptionManager() *SubscriptionManager {
+	return &SubscriptionManager{
 		subscriptionsByMessageType: make(map[messages.MessageType][]*subscription),
 		subscriptionsByToken:       make(map[SubscriptionToken]*subscription),
 	}
 }
 
-// subscribeMessageType subscribes messages with the given messages.MessageType.
-func (m *subscriptionManager) subscribeMessageType(messageType messages.MessageType) (<-chan json.RawMessage, SubscriptionToken) {
+// SubscribeMessageType subscribes messages with the given messages.MessageType.
+func (m *SubscriptionManager) SubscribeMessageType(messageType messages.MessageType) *subscription {
 	m.subscriptionsMutex.Lock()
 	m.subscriptionCounter++
 	out := make(chan json.RawMessage)
-	sub := subscription{
+	ctx, setInactive := context.WithCancel(context.Background())
+	sub := &subscription{
+		Ctx:         ctx,
+		setInactive: setInactive,
 		messageType: messageType,
 		token:       SubscriptionToken(m.subscriptionCounter),
 		out:         out,
 	}
-	m.subscriptionsByToken[sub.token] = &sub
+	m.subscriptionsByToken[sub.token] = sub
 	if _, ok := m.subscriptionsByMessageType[messageType]; !ok {
 		m.subscriptionsByMessageType[messageType] = make([]*subscription, 0, 1)
 	}
-	m.subscriptionsByMessageType[messageType] = append(m.subscriptionsByMessageType[messageType], &sub)
+	m.subscriptionsByMessageType[messageType] = append(m.subscriptionsByMessageType[messageType], sub)
 	m.subscriptionsMutex.Unlock()
-	return out, sub.token
+	return sub
 }
 
-// handleMessages handles the passed ActorIncomingMessage and returns the number
+// HandleMessage handles the passed ActorIncomingMessage and returns the number
 // of subscribers the message was forwarded to.
-func (m *subscriptionManager) handleMessage(message ActorIncomingMessage) int {
+func (m *SubscriptionManager) HandleMessage(message Message) int {
 	// Handle incoming message.
 	m.subscriptionsMutex.RLock()
 	forwards := 0
 	if subscriptions, ok := m.subscriptionsByMessageType[message.MessageType]; ok {
 		// Forward to each subscriber.
 		for _, s := range subscriptions {
-			forwards++
-			s.out <- message.Content
+			select {
+			case <-s.Ctx.Done():
+				// Subscription done. We simply drop the message.
+			case s.out <- message.Content:
+				forwards++
+			}
 		}
 	}
 	m.subscriptionsMutex.RUnlock()
 	return forwards
 }
 
-// unsubscribe allows unsubscribing an ongoing subscription with the given
+// Unsubscribe allows unsubscribing an ongoing subscription with the given
 // SubscriptionToken.
-func (m *subscriptionManager) unsubscribe(token SubscriptionToken) error {
+func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
+	// Set subscription to inactive and then allowing a potential
+	// receiving abort. We will remove it from the subscriptions list afterwards.
+	m.subscriptionsMutex.RLock()
+	sub.setInactive()
+	m.subscriptionsMutex.RUnlock()
+	// Now we wait until message handling has finished in order to remove it from
+	// the list.
 	m.subscriptionsMutex.Lock()
-	sub, subFoundByToken := m.subscriptionsByToken[token]
+	defer m.subscriptionsMutex.Unlock()
+	_, subFoundByToken := m.subscriptionsByToken[sub.token]
 	if !subFoundByToken {
 		return errors.Error{
 			Code:    errors.ErrInternal,
 			Kind:    errors.KindUnknown,
-			Message: fmt.Sprintf("unknown message subscription token %v", token),
-			Details: errors.Details{"token": token},
+			Message: fmt.Sprintf("unknown message subscription token %v", sub),
+			Details: errors.Details{"token": sub},
 		}
 	}
+	close(sub.out)
 	// Find position of token in subscriptions by message type.
 	subsForMessageType, subscriptionsExistForMessageType := m.subscriptionsByMessageType[sub.messageType]
 	if !subscriptionsExistForMessageType {
@@ -133,12 +172,12 @@ func (m *subscriptionManager) unsubscribe(token SubscriptionToken) error {
 			Code:    errors.ErrInternal,
 			Kind:    errors.KindUnknown,
 			Message: "no subscriptions for token by message type although it should exist. what?",
-			Details: errors.Details{"token": token, "alreadyFoundSubscription": sub},
+			Details: errors.Details{"token": sub, "alreadyFoundSubscription": sub},
 		}
 	}
 	pos := -1
 	for i, subForMessageType := range subsForMessageType {
-		if subForMessageType.token == token {
+		if subForMessageType.token == sub.token {
 			pos = i
 			break
 		}
@@ -149,27 +188,35 @@ func (m *subscriptionManager) unsubscribe(token SubscriptionToken) error {
 			Code: errors.ErrInternal,
 			Kind: errors.KindUnknown,
 			Message: fmt.Sprintf("subscription with token %v not found in subscriptions by message type %v although it should exist. why?",
-				token, sub.messageType),
-			Details: errors.Details{"token": token, "alreadyFoundSubscription": sub},
+				sub, sub.messageType),
+			Details: errors.Details{"token": sub, "alreadyFoundSubscription": sub},
 		}
 	}
 	// Remove from subs for message type.
 	subsForMessageType[pos] = subsForMessageType[len(subsForMessageType)-1]
 	m.subscriptionsByMessageType[sub.messageType] = subsForMessageType[:len(subsForMessageType)-1]
-	m.subscriptionsMutex.Unlock()
 	return nil
 }
 
-// cancelAllSubscriptions stops the running subscriptionManager and cancels all ongoing
+// CancelAllSubscriptions stops the running SubscriptionManager and cancels all ongoing
 // subscriptions.
-func (m *subscriptionManager) cancelAllSubscriptions() {
+func (m *SubscriptionManager) CancelAllSubscriptions() {
 	m.subscriptionsMutex.Lock()
-	for _, sub := range m.subscriptionsByToken {
-		close(sub.out)
+	var wg sync.WaitGroup
+	for i := range m.subscriptionsByToken {
+		wg.Add(1)
+		go func(sub *subscription) {
+			defer wg.Done()
+			err := m.Unsubscribe(sub)
+			if err != nil {
+				errors.Log(logging.SubscriptionManagerLogger, errors.Wrap(err, "unsubscribe for cancel all"))
+			}
+		}(m.subscriptionsByToken[i])
 	}
 	m.subscriptionsByToken = make(map[SubscriptionToken]*subscription)
 	m.subscriptionsByMessageType = make(map[messages.MessageType][]*subscription)
 	m.subscriptionsMutex.Unlock()
+	wg.Wait()
 }
 
 // decodeAsJSONOrLogSubscriptionParseError decodes the passed raw JSON message
@@ -193,10 +240,9 @@ func logSubscriptionParseError(messageType messages.MessageType, err error) {
 // Unsubscribe uses the wrapped Actor in the given Newsletter in order to
 // unsubscribe with the contained SubscriptionToken.
 func Unsubscribe(newsletter Newsletter) error {
-	err := newsletter.actor.Unsubscribe(newsletter.subscriptionToken)
+	err := newsletter.Actor.Unsubscribe(newsletter.Subscription)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("unsubscribe message type for actor %s with token %v",
-			newsletter.actor.ID(), newsletter.subscriptionToken))
+		return errors.Wrap(err, fmt.Sprintf("unsubscribe message type for actor %s", newsletter.Actor.ID()))
 	}
 	return nil
 }
@@ -223,14 +269,23 @@ func SubscribeMessageTypeAcceptDevice(actor Actor) NewsletterAcceptDevice {
 	newsletter := actor.SubscribeMessageType(messages.MessageTypeAcceptDevice)
 	cc := make(chan messages.MessageAcceptDevice)
 	go func() {
-		for raw := range newsletter.Receive {
-			var m messages.MessageAcceptDevice
-			if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeAcceptDevice, raw, &m) {
-				continue
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageAcceptDevice
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeAcceptDevice, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
 			}
-			cc <- m
 		}
-		close(cc)
 	}()
 	return NewsletterAcceptDevice{
 		Newsletter: newsletter.Newsletter,
@@ -244,10 +299,19 @@ func SubscribeMessageTypeGetDevices(actor Actor) NotifyingNewsletter {
 	newsletter := actor.SubscribeMessageType(messages.MessageTypeGetDevices)
 	cc := make(chan struct{})
 	go func() {
-		for range newsletter.Receive {
-			cc <- struct{}{}
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case _ = <-newsletter.Receive:
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- struct{}{}:
+				}
+			}
 		}
-		close(cc)
 	}()
 	return NotifyingNewsletter{
 		Newsletter: newsletter.Newsletter,
@@ -268,14 +332,23 @@ func SubscribeMessageTypeRoleAssignments(actor Actor) NewsletterRoleAssignments 
 	newsletter := actor.SubscribeMessageType(messages.MessageTypeRoleAssignments)
 	cc := make(chan messages.MessageRoleAssignments)
 	go func() {
-		for raw := range newsletter.Receive {
-			var m messages.MessageRoleAssignments
-			if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeRoleAssignments, raw, &m) {
-				continue
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageRoleAssignments
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeRoleAssignments, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
 			}
-			cc <- m
 		}
-		close(cc)
 	}()
 	return NewsletterRoleAssignments{
 		Newsletter: newsletter.Newsletter,

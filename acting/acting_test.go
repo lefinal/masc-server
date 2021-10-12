@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// waitTimeout is used for timeouts in tests.
 const waitTimeout = time.Duration(3) * time.Second
 
 // expectOutgoingMessageTypes starts a new goroutine that reads from the given
@@ -49,7 +50,7 @@ func (suite *getRoleTestSuite) TestKnown() {
 }
 
 func (suite *getRoleTestSuite) TestUnknown() {
-	_, found := getRole(messages.Role("unknown-role"))
+	_, found := getRole("unknown-role")
 	suite.Assert().False(found, "role should no be found")
 }
 
@@ -157,41 +158,44 @@ func (suite *netActorDeviceTestSuite) TestRoutingSend() {
 	suite.Require().Nilf(err, "boot should not fail but got: %s", errors.Prettify(err))
 	// Test for each actor.
 	var wg sync.WaitGroup
-	for actorID, actor := range suite.actorDevice.actors {
+	for _, actor := range suite.actorDevice.actors {
 		wg.Add(1)
-		// Expect the device to send a message (will be created right after).
-		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
-		go func(actorID messages.ActorID) {
+		go func(actor *netActor) {
 			defer wg.Done()
-			for i := 0; i < 2; i++ {
-				select {
-				case <-ctx.Done():
-					// We do not add buffer to receive channel, so we take the message here.
-					<-suite.deviceSend
-					suite.Fail("device did not send message")
-				case message := <-suite.deviceSend:
-					// Throw first message away as this will be the you-are-in message.
-					if message.MessageType == messages.MessageTypeYouAreIn {
-						continue
-					}
-					// Assure correct message.
-					cancel()
-					suite.Assert().Equal(messages.MessageTypeGetDevices, message.MessageType, "message type should match expected")
+			// Hire actor.
+			err = actor.Hire()
+			suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
+			// Send message to device with actor id set.
+			err = actor.Send(ActorOutgoingMessage{
+				MessageType: messages.MessageTypeGetDevices,
+				Content:     struct{}{},
+			})
+			suite.Require().Nilf(err, "send should not fail but got: %s", errors.Prettify(err))
+		}(actor)
+		// Expect the device to send a message.
+		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+		for i := 0; i < 2; i++ {
+			select {
+			case <-ctx.Done():
+				// We do not add buffer to receive channel, so we take the message here.
+				<-suite.deviceSend
+				suite.Fail("device did not send message")
+			case message := <-suite.deviceSend:
+				// Throw first message away as this will be the you-are-in message.
+				if message.MessageType == messages.MessageTypeYouAreIn {
+					continue
+				} else if i == 0 {
+					suite.Failf("wrong message", "first message must be %s but was: %s",
+						messages.MessageTypeYouAreIn, message.MessageType)
 				}
+				// Assure correct message.
+				suite.Assert().Equal(messages.MessageTypeGetDevices, message.MessageType, "message type should match expected")
 			}
-		}(actorID)
-		// Hire actor.
-		err = actor.Hire()
-		suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
-		// Send message to device with actor id set.
-		err = actor.Send(ActorOutgoingMessage{
-			MessageType: messages.MessageTypeGetDevices,
-			Content:     struct{}{},
-		})
-		suite.Require().Nilf(err, "send should not fail but got: %s", errors.Prettify(err))
+		}
+		cancel()
+		// Wait until completion.
+		wg.Wait()
 	}
-	// Wait until completion.
-	wg.Wait()
 	suite.shutdownActorDeviceAndCatchActorQuits()
 }
 
@@ -479,7 +483,7 @@ func (suite *NetActorTestSuite) TestSendNotHired() {
 	suite.Assert().NotNil(err, "send should fail")
 }
 
-func (suite *NetActorTestSuite) TestSendNotHiredHire() {
+func (suite *NetActorTestSuite) TestForceSendNotHired() {
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 	var wg sync.WaitGroup
 	c := make(chan ActorOutgoingMessage)
@@ -488,12 +492,11 @@ func (suite *NetActorTestSuite) TestSendNotHiredHire() {
 			c <- message.message
 		}
 	}()
-	expectOutgoingMessageTypes(suite.Suite, ctx, &wg, c, messages.MessageTypeYouAreIn)
-	err := suite.a.Send(ActorOutgoingMessage{
-		MessageType: messages.MessageTypeYouAreIn,
+	expectOutgoingMessageTypes(suite.Suite, ctx, &wg, c, messages.MessageTypeGoAway)
+	suite.a.forceSend(ActorOutgoingMessage{
+		MessageType: messages.MessageTypeGoAway,
 		Content:     struct{}{},
 	})
-	suite.Assert().Nil(err, "send should not fail")
 	wg.Wait()
 	cancel()
 	close(c)

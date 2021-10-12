@@ -52,7 +52,11 @@ func getRole(role messages.Role) (Role, bool) {
 
 // Agency manages actors.
 type Agency interface {
-	// AvailableActors available actors for the given role that are currently not hired.
+	// ActorByID retrieves an Actor by its Actor.ID. Returns false when the Actor is
+	// not found.
+	ActorByID(id messages.ActorID) (Actor, bool)
+	// AvailableActors available actors for the given role that are currently not
+	// hired.
 	AvailableActors(role Role) []Actor
 	// Open opens the Agency.
 	Open() error
@@ -70,14 +74,7 @@ type ActorOutgoingMessage struct {
 }
 
 // ActorIncomingMessage is a message that is received by an Actor.
-type ActorIncomingMessage struct {
-	// MessageType is the type of the message. This determines how to parse the
-	// Content.
-	MessageType messages.MessageType
-	// Content is the raw message content which will be parsed based on the
-	// MessageType.
-	Content json.RawMessage
-}
+type ActorIncomingMessage Message
 
 // Actor performs a certain Role after being hired and therefore allows sending
 // and receiving messages.
@@ -98,10 +95,12 @@ type Actor interface {
 	// Unsubscribe using the created Newsletter.
 	SubscribeMessageType(messageType messages.MessageType) GeneralNewsletter
 	// Unsubscribe make the actor remove an existing subscription for the passed
-	// SubscriptionToken.
-	Unsubscribe(token SubscriptionToken) error
-	// Receive returns the channel for receiving actor messages.
-	receive() <-chan ActorIncomingMessage
+	// subscription.
+	Unsubscribe(subscription *subscription) error
+	// Receive returns the channel for receiving actor messages. However, you should
+	// be careful to use it in production. In most cases, a SubscriptionManager
+	// handles receiving messages.
+	Receive() <-chan ActorIncomingMessage
 	// Quit returns the channel for when the actor decides to quit.
 	Quit() <-chan struct{}
 }
@@ -126,7 +125,7 @@ type netActor struct {
 	// subscriptionManager allows easy managing of calls to
 	// Actor.SubscribeMessageType and Actor.Unsubscribe. Manager will be created
 	// when Hire is called.
-	subscriptionManager *subscriptionManager
+	subscriptionManager *SubscriptionManager
 }
 
 func (a *netActor) ID() messages.ActorID {
@@ -134,8 +133,8 @@ func (a *netActor) ID() messages.ActorID {
 }
 
 func (a *netActor) Hire() error {
-	defer a.hireMutex.Unlock()
 	a.hireMutex.Lock()
+	defer a.hireMutex.Unlock()
 	// Check if already hired.
 	if a.isHired {
 		return errors.Error{
@@ -146,19 +145,15 @@ func (a *netActor) Hire() error {
 		}
 	}
 	// Create subscription manager.
-	a.subscriptionManager = newSubscriptionManager()
+	a.subscriptionManager = NewSubscriptionManager()
 	// Notify actor that he was lucky.
-	err := a.Send(ActorOutgoingMessage{
+	a.forceSend(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeYouAreIn,
 		Content: messages.MessageYouAreIn{
 			ActorID: a.id,
 			Role:    messages.Role(a.role),
 		},
 	})
-	if err != nil {
-		a.subscriptionManager.cancelAllSubscriptions()
-		return errors.Wrap(err, "notify actor")
-	}
 	a.isHired = true
 	return nil
 }
@@ -170,8 +165,8 @@ func (a *netActor) IsHired() bool {
 }
 
 func (a *netActor) Fire() error {
-	defer a.hireMutex.Unlock()
 	a.hireMutex.Lock()
+	defer a.hireMutex.Unlock()
 	// Check if already fired or not even hired.
 	if !a.isHired {
 		return errors.Error{
@@ -182,58 +177,56 @@ func (a *netActor) Fire() error {
 		}
 	}
 	// Notify actor.
-	err := a.Send(ActorOutgoingMessage{
+	a.forceSend(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeFired,
 	})
-	if err != nil {
-		return errors.Wrap(err, "notify actor")
-	}
-	a.subscriptionManager.cancelAllSubscriptions()
+	a.subscriptionManager.CancelAllSubscriptions()
 	a.isHired = false
 	return nil
 }
 
+// forceSend sends the given message without checking if the actor is hired.
+// This used for hiring and firing the actor.
+func (a *netActor) forceSend(message ActorOutgoingMessage) {
+	// Pass to actor device.
+	a.send <- netActorDeviceOutgoingMessage{
+		actorID: a.id,
+		message: message,
+	}
+}
+
 func (a *netActor) Send(message ActorOutgoingMessage) error {
+	a.hireMutex.RLock()
+	defer a.hireMutex.RUnlock()
 	// Check if actor is allowed to send this message.
-	if !a.isHired && message.MessageType != messages.MessageTypeYouAreIn {
+	if !a.isHired {
 		return errors.Error{
 			Code:    errors.ErrInternal,
 			Kind:    errors.KindActorNotHired,
 			Message: "actor must not send when not hired or hiring",
 			Details: errors.Details{"id": a.id, "message": message},
 		}
-	} else if a.isHired && message.MessageType == messages.MessageTypeYouAreIn {
-		return errors.Error{
-			Code:    errors.ErrInternal,
-			Kind:    errors.KindActorAlreadyHired,
-			Message: "actor must not send you-are-in when already hired",
-			Details: errors.Details{"id": a.id, "message": message},
-		}
 	}
-	// Pass to actor device.
-	a.send <- netActorDeviceOutgoingMessage{
-		actorID: a.id,
-		message: message,
-	}
+	a.forceSend(message)
 	return nil
 }
 
 func (a *netActor) SubscribeMessageType(messageType messages.MessageType) GeneralNewsletter {
-	c, token := a.subscriptionManager.subscribeMessageType(messageType)
+	subscription := a.subscriptionManager.SubscribeMessageType(messageType)
 	return GeneralNewsletter{
 		Newsletter: Newsletter{
-			actor:             a,
-			subscriptionToken: token,
+			Actor:        a,
+			Subscription: subscription,
 		},
-		Receive: c,
+		Receive: subscription.out,
 	}
 }
 
-func (a *netActor) Unsubscribe(token SubscriptionToken) error {
-	return a.subscriptionManager.unsubscribe(token)
+func (a *netActor) Unsubscribe(subscription *subscription) error {
+	return a.subscriptionManager.Unsubscribe(subscription)
 }
 
-func (a *netActor) receive() <-chan ActorIncomingMessage {
+func (a *netActor) Receive() <-chan ActorIncomingMessage {
 	return a.receiveC
 }
 
@@ -243,7 +236,7 @@ func (a *netActor) Quit() <-chan struct{} {
 
 // handleIncomingMessage handles an incoming message, lol.
 func (a *netActor) handleIncomingMessage(message ActorIncomingMessage) {
-	if a.subscriptionManager.handleMessage(message) == 0 {
+	if a.subscriptionManager.HandleMessage(Message(message)) == 0 {
 		// No subscribers -> we consider this a forbidden message, because no one wants
 		// to hear it.
 		SendForbiddenMessageTypeErrToActorOrLogError(logging.ActingLogger, a, message)
@@ -515,6 +508,18 @@ func (a *ProtectedAgency) SayGoodbyeToDevice(deviceID messages.DeviceID) error {
 	return nil
 }
 
+func (a *ProtectedAgency) ActorByID(id messages.ActorID) (Actor, bool) {
+	for _, device := range a.actorDevices {
+		for actorID, actor := range device.actors {
+			if actorID == id {
+				return actor, true
+			}
+		}
+	}
+	// Not found.
+	return nil, false
+}
+
 func (a *ProtectedAgency) AvailableActors(role Role) []Actor {
 	defer a.m.RUnlock()
 	a.m.RLock()
@@ -588,4 +593,15 @@ func NewForbiddenMessageError(messageType messages.MessageType, content json.Raw
 			"content":     content,
 		},
 	}
+}
+
+// FireAllActors fires all passed actors.
+func FireAllActors(actors []Actor) error {
+	for i, actor := range actors {
+		err := actor.Fire()
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("fire actor %d of %d", i, len(actors)))
+		}
+	}
+	return nil
 }

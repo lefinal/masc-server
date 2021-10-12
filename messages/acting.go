@@ -1,5 +1,7 @@
 package messages
 
+import "github.com/gobuffalo/nulls"
+
 // MessageYouAreIn is used with MessageTypeYouAreIn.
 type MessageYouAreIn struct {
 	// ActorID is the assigned ID that the device needs to use from now on when
@@ -22,8 +24,10 @@ type RoleAssignmentOrder struct {
 	Key string `json:"key"`
 	// Role is the role type that is requested.
 	Role Role `json:"role"`
-	// IsMulti describes whether multiple actors are possible.
-	IsMulti bool `json:"is_multi"`
+	// Min is optional the minimum amount of requested actor assignments.
+	Min nulls.UInt32 `json:"min"`
+	// Max is optional the maximum amount of requested actor assignments.
+	Max nulls.UInt32 `json:"max"`
 }
 
 // MessageRequestRoleAssignments is used with MessageTypeRequestRoleAssignments.
