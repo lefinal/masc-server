@@ -1,4 +1,4 @@
-package games
+package casting
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"sync"
 )
 
-// CastingKey is the key for requested actors via casting.
-type CastingKey string
+// RequestKey is the key for requested actors via casting.
+type RequestKey string
 
 // ActorRequest orders an acting.Actor for the given Role. Order is
 // performed by calling roleAssigner.RequestActor.
@@ -20,7 +20,7 @@ type ActorRequest struct {
 	// client.
 	DisplayedName string
 	// Key is used in order to identify the request when retrieving winners.
-	Key CastingKey
+	Key RequestKey
 	// Role is the actual role the actor must satisfy.
 	Role acting.Role
 	// Min is an optional minimum count of winners.
@@ -60,7 +60,7 @@ type casting struct {
 	// stateMutex is a lock for state.
 	stateMutex sync.RWMutex
 	// winners are the hired actors from the casting.
-	winners map[CastingKey][]acting.Actor
+	winners map[RequestKey][]acting.Actor
 	// winnersMutex is a lock for winners.
 	winnersMutex sync.RWMutex
 }
@@ -339,7 +339,7 @@ func (c *casting) setWinners(messageAssignments messages.MessageRoleAssignments)
 	defer c.requestsMutex.Unlock()
 	c.winnersMutex.Lock()
 	c.requestsMutex.Lock()
-	c.winners = make(map[CastingKey][]acting.Actor)
+	c.winners = make(map[RequestKey][]acting.Actor)
 	// Create empty lists for requests.
 	for _, request := range c.requests {
 		c.winners[request.Key] = make([]acting.Actor, 0)
@@ -355,13 +355,13 @@ func (c *casting) setWinners(messageAssignments messages.MessageRoleAssignments)
 				Details: errors.Details{"actorID": assignment.ActorID},
 			}
 		}
-		c.winners[CastingKey(assignment.Key)] = append(c.winners[CastingKey(assignment.Key)], actor)
+		c.winners[RequestKey(assignment.Key)] = append(c.winners[RequestKey(assignment.Key)], actor)
 	}
 	return nil
 }
 
 // GetWinner serves as a wrapper for GetWinners that assures exactly 1 winner.
-func (c *casting) GetWinner(key CastingKey) (acting.Actor, error) {
+func (c *casting) GetWinner(key RequestKey) (acting.Actor, error) {
 	winners, err := c.GetWinners(key)
 	if err != nil {
 		return nil, err
@@ -376,8 +376,8 @@ func (c *casting) GetWinner(key CastingKey) (acting.Actor, error) {
 	return winners[0], nil
 }
 
-// GetWinners returns the winners for the given CastingKey.
-func (c *casting) GetWinners(key CastingKey) ([]acting.Actor, error) {
+// GetWinners returns the winners for the given RequestKey.
+func (c *casting) GetWinners(key RequestKey) ([]acting.Actor, error) {
 	defer c.stateMutex.Unlock()
 	c.stateMutex.Lock()
 	// Check if retrieval allowed.

@@ -1,4 +1,4 @@
-package games
+package casting
 
 import (
 	"context"
@@ -12,7 +12,10 @@ import (
 	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"
+	"time"
 )
+
+const waitTimeout = time.Duration(3) * time.Second
 
 type CastingAddRequestTestSuite struct {
 	suite.Suite
@@ -58,7 +61,7 @@ func (suite *CastingAddRequestTestSuite) TestAlreadyExistsForKey() {
 }
 
 func (suite *CastingAddRequestTestSuite) TestOK() {
-	r := ActorRequest{Key: CastingKey("hello-world")}
+	r := ActorRequest{Key: RequestKey("hello-world")}
 	err := suite.c.AddRequest(r)
 	suite.Assert().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
 }
@@ -288,7 +291,7 @@ func (suite *CastingPerformAndHireTestSuite) TestHireFail1() {
 func (suite *CastingPerformAndHireTestSuite) TestHireWinnersFailFireAllNotNeeded() {
 	actorWithHireFail := acting.NewMockActor("actor-1")
 	actorWithHireFail.HireErr = nativeerrors.New("sad life")
-	suite.c.winners = map[CastingKey][]acting.Actor{
+	suite.c.winners = map[RequestKey][]acting.Actor{
 		"hello-world": {acting.NewMockActor("actor-0"), actorWithHireFail},
 	}
 	badRequestErr, internalErr := suite.c.hireWinners()
@@ -299,7 +302,7 @@ func (suite *CastingPerformAndHireTestSuite) TestHireWinnersFailFireAllNotNeeded
 func (suite *CastingPerformAndHireTestSuite) TestHireWinnersFailFireAllOK() {
 	actorWithFireFail := acting.NewMockActor("actor-0")
 	actorWithFireFail.HireErr = nativeerrors.New("sad life")
-	suite.c.winners = map[CastingKey][]acting.Actor{
+	suite.c.winners = map[RequestKey][]acting.Actor{
 		"hello-world": {actorWithFireFail, acting.NewMockActor("actor-1")},
 	}
 	badRequestErr, internalErr := suite.c.hireWinners()
@@ -312,7 +315,7 @@ func (suite *CastingPerformAndHireTestSuite) TestHireWinnersFailFireAllFail() {
 	actorWithFireFail.FireErr = nativeerrors.New("sad life")
 	actorWithHireFail := acting.NewMockActor("actor-2")
 	actorWithHireFail.HireErr = nativeerrors.New("sad life")
-	suite.c.winners = map[CastingKey][]acting.Actor{
+	suite.c.winners = map[RequestKey][]acting.Actor{
 		"hello-world": {actorWithFireFail, actorWithHireFail},
 	}
 	badRequestErr, internalErr := suite.c.hireWinners()
@@ -450,7 +453,7 @@ type CastingGetWinnersTestSuite struct {
 func (suite *CastingGetWinnersTestSuite) SetupTest() {
 	suite.c = NewCasting(acting.NewMockAgency())
 	suite.c.state = castingStateDone
-	suite.c.winners = map[CastingKey][]acting.Actor{
+	suite.c.winners = map[RequestKey][]acting.Actor{
 		"hello-world":    {acting.NewMockActor("0"), acting.NewMockActor("1")},
 		"i-love-cookies": {acting.NewMockActor("2")},
 	}
@@ -497,7 +500,7 @@ type CastingGetWinnerTestSuite struct {
 func (suite *CastingGetWinnerTestSuite) SetupTest() {
 	suite.c = NewCasting(acting.NewMockAgency())
 	suite.c.state = castingStateDone
-	suite.c.winners = map[CastingKey][]acting.Actor{
+	suite.c.winners = map[RequestKey][]acting.Actor{
 		"hello-world":    {acting.NewMockActor("0"), acting.NewMockActor("1")},
 		"i-love-cookies": {acting.NewMockActor("2")},
 	}
