@@ -22,7 +22,7 @@ type ActorRequest struct {
 	// Key is used in order to identify the request when retrieving winners.
 	Key RequestKey
 	// Role is the actual role the actor must satisfy.
-	Role acting.Role
+	Role acting.RoleType
 	// Min is an optional minimum count of winners.
 	Min nulls.UInt32
 	// Max is an optional maximum count of winners.
@@ -274,7 +274,7 @@ func (c *casting) hireWinners() (error, error) {
 	hired := make([]acting.Actor, 0)
 	for castingKey, actors := range c.winners {
 		for _, actor := range actors {
-			if hireError := actor.Hire(); hireError != nil {
+			if hireError := actor.Hire(""); hireError != nil {
 				// Fire already hired actors.
 				if fireAllErr := acting.FireAllActors(hired); fireAllErr != nil {
 					return nil, errors.Wrap(fireAllErr, "fire all actors because of failed hire after role assignments")

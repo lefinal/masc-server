@@ -11,18 +11,18 @@ import (
 // MockAgency allows simple adding and removing of actors.
 type MockAgency struct {
 	// Actors holds the managed Actors.
-	Actors map[Role][]Actor
+	Actors map[RoleType][]Actor
 	// actorsMutex is a lock for Actors.
 	actorsMutex sync.RWMutex
 }
 
 func NewMockAgency() *MockAgency {
 	return &MockAgency{
-		Actors: make(map[Role][]Actor),
+		Actors: make(map[RoleType][]Actor),
 	}
 }
 
-func (a *MockAgency) AddActor(actor Actor, role Role) {
+func (a *MockAgency) AddActor(actor Actor, role RoleType) {
 	a.actorsMutex.Lock()
 	a.Actors[role] = append(a.Actors[role], actor)
 	a.actorsMutex.Unlock()
@@ -58,7 +58,7 @@ func (a *MockAgency) ActorByID(id messages.ActorID) (Actor, bool) {
 	return nil, false
 }
 
-func (a *MockAgency) AvailableActors(role Role) []Actor {
+func (a *MockAgency) AvailableActors(role RoleType) []Actor {
 	defer a.actorsMutex.RUnlock()
 	a.actorsMutex.RLock()
 	available := make([]Actor, 0)
@@ -82,9 +82,11 @@ func (a *MockAgency) Close() error {
 // incoming messages and recording via MessageCollector. Create one with
 // NewMockActor.
 type MockActor struct {
-	id      messages.ActorID
-	idMutex sync.RWMutex
-	quit    chan struct{}
+	id        messages.ActorID
+	idMutex   sync.RWMutex
+	name      string
+	nameMutex sync.RWMutex
+	quit      chan struct{}
 	// HireErr is the error to return when Hire is called.
 	HireErr      error
 	isHired      bool
@@ -138,17 +140,26 @@ func (a *MockActor) ID() messages.ActorID {
 	return a.id
 }
 
-func (a *MockActor) Hire() error {
+func (a *MockActor) Hire(displayedName string) error {
 	if a.HireErr != nil {
 		return a.HireErr
 	}
 	a.isHiredMutex.Lock()
 	defer a.isHiredMutex.Unlock()
 	a.isHired = true
+	a.nameMutex.Lock()
+	defer a.nameMutex.Unlock()
+	a.name = displayedName
 	return a.Send(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeYouAreIn,
 		Content:     messages.MessageYouAreIn{ActorID: a.id},
 	})
+}
+
+func (a *MockActor) Name() string {
+	a.nameMutex.RLock()
+	defer a.nameMutex.RUnlock()
+	return a.name
 }
 
 func (a *MockActor) IsHired() bool {

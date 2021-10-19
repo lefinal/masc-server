@@ -44,9 +44,9 @@ type getRoleTestSuite struct {
 }
 
 func (suite *getRoleTestSuite) TestKnown() {
-	role, found := getRole(messages.Role(RoleTeamBase))
+	role, found := getRole(messages.Role(RoleTypeTeamBase))
 	suite.Require().True(found, "role should be found")
-	suite.Assert().Equal(RoleTeamBase, role, "role should match expected")
+	suite.Assert().Equal(RoleTypeTeamBase, role, "role should match expected")
 }
 
 func (suite *getRoleTestSuite) TestUnknown() {
@@ -86,9 +86,9 @@ func (suite *netActorDeviceTestSuite) SetupTest() {
 		ID:   messages.DeviceID(uuid.New().String()),
 		Name: "Test device",
 		Roles: []messages.Role{
-			messages.Role(RoleGameMaster),
-			messages.Role(RoleTeamBase),
-			messages.Role(RoleTeamBaseMonitor),
+			messages.Role(RoleTypeGameMaster),
+			messages.Role(RoleTypeTeamBase),
+			messages.Role(RoleTypeTeamBaseMonitor),
 		},
 		Send:    suite.deviceSend,
 		Receive: suite.deviceReceive,
@@ -123,7 +123,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 	for actorID, actor := range suite.actorDevice.actors {
 		wg.Add(1)
 		// Hire actor.
-		err := actor.Hire()
+		err := actor.Hire("")
 		suite.Require().Nilf(err, "hiring actor should not fail but got: %s", errors.Prettify(err))
 		newsletter := actor.SubscribeMessageType(messages.MessageTypeHello)
 		// Expect the actor to receive a message (will be sent right after).
@@ -163,7 +163,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingSend() {
 		go func(actor *netActor) {
 			defer wg.Done()
 			// Hire actor.
-			err = actor.Hire()
+			err = actor.Hire("")
 			suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
 			// Send message to device with actor id set.
 			err = actor.Send(ActorOutgoingMessage{
@@ -238,7 +238,7 @@ func (suite *ProtectedAgencyTestSuite) SetupTest() {
 	suite.device = &gatekeeping.Device{
 		ID:      messages.DeviceID(uuid.New().String()),
 		Name:    "Test device",
-		Roles:   []messages.Role{messages.Role(RoleGameMaster), messages.Role(RoleTeamBase), messages.Role(RoleTeamBaseMonitor)},
+		Roles:   []messages.Role{messages.Role(RoleTypeGameMaster), messages.Role(RoleTypeTeamBase), messages.Role(RoleTypeTeamBaseMonitor)},
 		Send:    make(chan messages.MessageContainer),
 		Receive: make(chan messages.MessageContainer),
 	}
@@ -373,13 +373,13 @@ func (suite *ProtectedAgencyTestSuite) AfterTest() {
 
 func (suite *ProtectedAgencyAvailableActorsTestSuite) TestNoneAvailable() {
 	// Get available actors.
-	actors := suite.agency.AvailableActors(RoleGlobalMonitor) // None set.
+	actors := suite.agency.AvailableActors(RoleTypeGlobalMonitor) // None set.
 	suite.Assert().Empty(actors, "should return no actors")
 }
 
 func (suite *ProtectedAgencyAvailableActorsTestSuite) TestOK() {
 	// Get available actors.
-	actors := suite.agency.AvailableActors(RoleGameMaster) // None set.
+	actors := suite.agency.AvailableActors(RoleTypeGameMaster) // None set.
 	suite.Assert().Len(actors, 1, "should return correct actor count")
 }
 
@@ -415,7 +415,7 @@ func (suite *NetActorTestSuite) TestID() {
 
 func (suite *NetActorTestSuite) TestHireAlreadyHired() {
 	suite.a.isHired = true
-	err := suite.a.Hire()
+	err := suite.a.Hire("")
 	suite.Assert().NotNil(err, "hire should fail because already hired")
 }
 
@@ -436,7 +436,7 @@ func (suite *NetActorTestSuite) TestHireOK() {
 			suite.Assert().Equal(messages.Role(suite.a.role), cMessageContent.Role, "should have role in message content")
 		}
 	}()
-	err := suite.a.Hire()
+	err := suite.a.Hire("")
 	suite.Assert().Nil(err, "hire should not fail")
 	wg.Wait()
 	suite.Assert().NotNil(suite.a.subscriptionManager, "subscription manager should be created when hiring")
@@ -451,7 +451,7 @@ func (suite *NetActorTestSuite) TestFireNotHired() {
 func (suite *NetActorTestSuite) TestFireOK() {
 	// Hire.
 	go func() {
-		err := suite.a.Hire()
+		err := suite.a.Hire("")
 		suite.Require().Nil(err, "actor hiring should not fail but got: %s", errors.Prettify(err))
 	}()
 	what := <-suite.fromActor

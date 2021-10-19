@@ -88,7 +88,7 @@ func (suite *CastingPerformAndHireTestSuite) SetupTest() {
 	suite.agency = acting.NewMockAgency()
 	suite.c = NewCasting(suite.agency)
 	suite.jury = acting.NewMockActor("jury")
-	err := suite.jury.Hire()
+	err := suite.jury.Hire("")
 	suite.Require().Nilf(err, "hire jury should not fail but got: %s", errors.Prettify(err))
 }
 

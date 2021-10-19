@@ -23,7 +23,7 @@ func (suite *MockAgencyTestSuite) TestNew() {
 func (suite *MockAgencyTestSuite) TestAddActor() {
 	a := NewMockAgency()
 	actor := NewMockActor("what")
-	role := RoleTeamBase
+	role := RoleTypeTeamBase
 	a.AddActor(actor, role)
 	actorsForRole, ok := a.Actors[role]
 	suite.Require().True(ok, "should have added actor")
@@ -77,7 +77,7 @@ func (suite *MockAgencyTestSuite) TestRemoveActor() {
 
 func (suite *MockAgencyTestSuite) TestAvailableActors() {
 	a := NewMockAgency()
-	wantedRole := Role("speedsoft")
+	wantedRole := RoleType("speedsoft")
 	a.AddActor(NewMockActor("1"), "milsim")
 	a.AddActor(NewMockActor("2"), "milsim")
 	hired := NewMockActor("3")
@@ -153,13 +153,13 @@ func (suite *MockActorTestSuite) TestGetID() {
 func (suite *MockActorTestSuite) TestHireWithError() {
 	a := NewMockActor("")
 	a.HireErr = nativeerrors.New("sad life")
-	suite.Assert().Equal(a.HireErr, a.Hire(), "should fail with set error")
+	suite.Assert().Equal(a.HireErr, a.Hire(""), "should fail with set error")
 	suite.Assert().False(a.IsHired(), "should not be hired")
 }
 
 func (suite *MockActorTestSuite) TestHireOK() {
 	a := NewMockActor("")
-	err := a.Hire()
+	err := a.Hire("")
 	suite.Assert().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
 	suite.Assert().True(a.IsHired(), "should be hired")
 }

@@ -47,12 +47,21 @@ const (
 	// KindInvalidCastingRequest is used when an invalid games.ActorRequest is added
 	// to a casting.
 	KindInvalidCastingRequest Kind = "invalid-casting-request"
+	// KindInvalidConfigRequest is used when an invalid config is passed to match
+	// creation.
+	KindInvalidConfigRequest Kind = "invalid-config-request"
 	// KindInvalidRoleAssignments is used when an invalid assignment with
 	// messages.MessageRoleAssignments was received.
 	KindInvalidRoleAssignments Kind = "invalid-role-assignments"
+	// KindMatchAlreadyStarted is used when a games.Match is tried to be started,
+	// although it is already running.
+	KindMatchAlreadyStarted Kind = "match-already-started"
 	// KindMalformedID is used when a passed ID is not in uuid.UUID format.
 	KindMalformedID Kind = "malformed-id"
-	KindMissingID   Kind = "missing-id"
+	// KindMatchPhaseViolation is used for operations that were performed although
+	// not in the expected match phase.
+	KindMatchPhaseViolation Kind = "match-phase-violation"
+	KindMissingID           Kind = "missing-id"
 	// KindCountDoesNotMatchExpected is used when a number of entities does not
 	// match the expected count.
 	KindCountDoesNotMatchExpected Kind = "count-does-not-match-expected"

@@ -67,6 +67,16 @@ const (
 	// MessageTypeOK is used only for confirmation of actions that do not require a
 	// detailed response.
 	MessageTypeOK MessageType = "ok"
+	// MessageTypeReadyState is used with MessageReadyState for notifying that an
+	// actor is (not) ready.
+	MessageTypeReadyState MessageType = "ready-state"
+	// MessageTypeReadyAccepted is used for ending ready-state requests that were
+	// initially started with MessageTypeAreYouReady.
+	MessageTypeReadyAccepted MessageType = "ready-accepted"
+	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
+	// can send messages with MessageTypeReadyState for notifying of their current
+	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
+	MessageTypeAreYouReady MessageType = "are-you-ready"
 	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
 	// for requesting role assignments. Usually, this is sent to a game master.
 	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"

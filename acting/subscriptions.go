@@ -163,7 +163,6 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 			Details: errors.Details{"token": sub},
 		}
 	}
-	close(sub.out)
 	// Find position of token in subscriptions by message type.
 	subsForMessageType, subscriptionsExistForMessageType := m.subscriptionsByMessageType[sub.messageType]
 	if !subscriptionsExistForMessageType {
@@ -256,8 +255,8 @@ func UnsubscribeOrLogError(newsletter Newsletter) {
 	}
 }
 
-// NewsletterAcceptDevice wraps Newsletter with a receive-channel for
-// messages.MessageAcceptDevice.
+// NewsletterAcceptDevice wraps Newsletter with a self-closing receive-channel
+// for messages.MessageAcceptDevice.
 type NewsletterAcceptDevice struct {
 	Newsletter
 	Receive <-chan messages.MessageAcceptDevice
@@ -319,8 +318,8 @@ func SubscribeMessageTypeGetDevices(actor Actor) NotifyingNewsletter {
 	}
 }
 
-// NewsletterRoleAssignments wraps Newsletter with a receive-channel for
-// messages.MessageRoleAssignments.
+// NewsletterRoleAssignments wraps Newsletter with a self-closing
+// receive-channel for messages.MessageRoleAssignments.
 type NewsletterRoleAssignments struct {
 	Newsletter
 	Receive <-chan messages.MessageRoleAssignments
@@ -351,6 +350,76 @@ func SubscribeMessageTypeRoleAssignments(actor Actor) NewsletterRoleAssignments 
 		}
 	}()
 	return NewsletterRoleAssignments{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterAbortMatch wraps Newsletter with a self-closing receive-channel for
+// messages.MessageRoleAssignments.
+type NewsletterAbortMatch struct {
+	Newsletter
+	Receive <-chan struct{}
+}
+
+// SubscribeMessageTypeAbortMatch subscribes messages with
+// messages.MessageTypeAbortMatch for the given Actor.
+func SubscribeMessageTypeAbortMatch(actor Actor) NewsletterAbortMatch {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeAbortMatch)
+	cc := make(chan struct{})
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case <-newsletter.Receive:
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- struct{}{}:
+				}
+			}
+		}
+	}()
+	return NewsletterAbortMatch{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterReadyState wraps Newsletter with a self-closing receive-channel for
+// messages.MessageReadyState.
+type NewsletterReadyState struct {
+	Newsletter
+	Receive <-chan messages.MessageReadyState
+}
+
+// SubscribeMessageTypeReadyState subscribes messages with
+// messages.MessageTypeReadyState for the given Actor.
+func SubscribeMessageTypeReadyState(actor Actor) NewsletterReadyState {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeReadyState)
+	cc := make(chan messages.MessageReadyState)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageReadyState
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeReadyState, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterReadyState{
 		Newsletter: newsletter.Newsletter,
 		Receive:    cc,
 	}

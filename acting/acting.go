@@ -14,37 +14,40 @@ import (
 	"sync"
 )
 
-// Role is a set of abilities that a device can provide and so provide
+// RoleType is a set of abilities that a device can provide and so provide
 // a certain functionality.
-type Role string
+type RoleType string
 
 const (
-	// RoleDeviceManager manages devices. This also includes setting up new devices.
+	// RoleTypeDeviceManager manages devices. This also includes setting up new devices.
 	//
-	// Warning: This is the only Role that is managed within an Agency, because it
+	// Warning: This is the only RoleType that is managed within an Agency, because it
 	// needs to be able to accept new devices.
-	RoleDeviceManager Role = "device-manager"
-	// RoleGameMaster sets up and controls matches.
-	RoleGameMaster Role = "game-master"
-	// RoleTeamBase allows managing a team. Mostly used for devices that are located
+	RoleTypeDeviceManager RoleType = "device-manager"
+	// RoleTypeGameMaster sets up and controls matches.
+	RoleTypeGameMaster RoleType = "game-master"
+	// RoleTypeTeamBase allows managing a team. Mostly used for devices that are located
 	// in team bases. Also used in-game.
-	RoleTeamBase Role = "team-base"
-	// RoleTeamBaseMonitor receives status information for team bases. Allows no
+	RoleTypeTeamBase RoleType = "team-base"
+	// RoleTypeTeamBaseMonitor receives status information for team bases. Allows no
 	// interaction.
-	RoleTeamBaseMonitor Role = "team-base-spectator"
-	// RoleGlobalMonitor receives global status information. Allows no interaction.
-	RoleGlobalMonitor Role = "global-spectator"
+	RoleTypeTeamBaseMonitor RoleType = "team-base-spectator"
+	// RoleTypeMatchMonitor received status information for a specific match. Allows no
+	// interaction.
+	RoleTypeMatchMonitor RoleType = "match-monitor"
+	// RoleTypeGlobalMonitor receives global status information. Allows no interaction.
+	RoleTypeGlobalMonitor RoleType = "global-spectator"
 )
 
-// getRole returns the Role matching the given one. If it is unknown, false will be returned.
-func getRole(role messages.Role) (Role, bool) {
-	r := Role(role)
+// getRole returns the RoleType matching the given one. If it is unknown, false will be returned.
+func getRole(role messages.Role) (RoleType, bool) {
+	r := RoleType(role)
 	switch r {
-	case RoleDeviceManager,
-		RoleGameMaster,
-		RoleTeamBase,
-		RoleTeamBaseMonitor,
-		RoleGlobalMonitor:
+	case RoleTypeDeviceManager,
+		RoleTypeGameMaster,
+		RoleTypeTeamBase,
+		RoleTypeTeamBaseMonitor,
+		RoleTypeGlobalMonitor:
 		return r, true
 	}
 	return "", false
@@ -57,7 +60,7 @@ type Agency interface {
 	ActorByID(id messages.ActorID) (Actor, bool)
 	// AvailableActors available actors for the given role that are currently not
 	// hired.
-	AvailableActors(role Role) []Actor
+	AvailableActors(role RoleType) []Actor
 	// Open opens the Agency.
 	Open() error
 	// Close closes the agency.
@@ -76,14 +79,17 @@ type ActorOutgoingMessage struct {
 // ActorIncomingMessage is a message that is received by an Actor.
 type ActorIncomingMessage Message
 
-// Actor performs a certain Role after being hired and therefore allows sending
+// Actor performs a certain RoleType after being hired and therefore allows sending
 // and receiving messages.
 type Actor interface {
 	// ID return the ID of the actor. This is only used for verbose information.
 	ID() messages.ActorID
-	// Hire hires the actor for the given Role. You must call Fire when he is no
+	// Hire hires the actor for the given RoleType. You must call Fire when he is no
 	// longer needed!
-	Hire() error
+	Hire(displayedName string) error
+	// Name is a human-readable name. It is related to the role and provides a
+	// human-readable description of what the Actor is currently doing.
+	Name() string
 	// IsHired describes whether the actor is currently hired.
 	IsHired() bool
 	// Fire fires the actor. Lol.
@@ -109,18 +115,23 @@ type Actor interface {
 type netActor struct {
 	// id allows identifying the netActor.
 	id messages.ActorID
-	// send is the channel for outgoing messages. These will be handled by netActorDevice.
+	// name is a human-readable description of what the actor is currently
+	// doing.
+	name string
+	// send is the channel for outgoing messages. These will be handled by
+	// netActorDevice.
 	send chan netActorDeviceOutgoingMessage
-	// receiveC is the channel for incoming messages. These will already be routed by
-	// netActorDevice and really belong to this actor.
+	// receiveC is the channel for incoming messages. These will already be routed
+	// by netActorDevice and really belong to this actor.
 	receiveC chan ActorIncomingMessage
 	// isHired describes whether the actor is currently hired.
 	isHired bool
-	// role holds the Role the actor is playing.
-	role Role
+	// role holds the RoleType the actor is playing.
+	role RoleType
 	// quit is the channel that is used for when the actor quits.
 	quit chan struct{}
-	// hireMutex is a mutex for allowing concurrent access to isHired and role.
+	// hireMutex is a mutex for allowing concurrent access to isHired, name
+	// and role.
 	hireMutex sync.RWMutex
 	// subscriptionManager allows easy managing of calls to
 	// Actor.SubscribeMessageType and Actor.Unsubscribe. Manager will be created
@@ -132,7 +143,7 @@ func (a *netActor) ID() messages.ActorID {
 	return a.id
 }
 
-func (a *netActor) Hire() error {
+func (a *netActor) Hire(displayedName string) error {
 	a.hireMutex.Lock()
 	defer a.hireMutex.Unlock()
 	// Check if already hired.
@@ -155,7 +166,14 @@ func (a *netActor) Hire() error {
 		},
 	})
 	a.isHired = true
+	a.name = displayedName
 	return nil
+}
+
+func (a *netActor) Name() string {
+	a.hireMutex.RLock()
+	defer a.hireMutex.RUnlock()
+	return a.name
 }
 
 func (a *netActor) IsHired() bool {
@@ -253,9 +271,9 @@ type netActorDeviceManager struct {
 	messageHandlers sync.WaitGroup
 }
 
-func (a *netActorDeviceManager) Hire() error {
+func (a *netActorDeviceManager) Hire(displayedName string) error {
 	// Hire normally.
-	err := a.netActor.Hire()
+	err := a.netActor.Hire(displayedName)
 	if err != nil {
 		return errors.Wrap(err, "hire actor")
 	}
@@ -340,7 +358,7 @@ type netActorDevice struct {
 func (ad *netActorDevice) boot() error {
 	// Check each role of the device for being known so that if one is unknown, we
 	// do not need to rollback.
-	roles := make([]Role, len(ad.device.Roles))
+	roles := make([]RoleType, len(ad.device.Roles))
 	for i, role := range ad.device.Roles {
 		r, knownRole := getRole(role)
 		if !knownRole {
@@ -520,7 +538,7 @@ func (a *ProtectedAgency) ActorByID(id messages.ActorID) (Actor, bool) {
 	return nil, false
 }
 
-func (a *ProtectedAgency) AvailableActors(role Role) []Actor {
+func (a *ProtectedAgency) AvailableActors(role RoleType) []Actor {
 	defer a.m.RUnlock()
 	a.m.RLock()
 	availableActors := make([]Actor, 0)
@@ -604,4 +622,22 @@ func FireAllActors(actors []Actor) error {
 		}
 	}
 	return nil
+}
+
+// ActorRepresentation uses the Actor id and name for creating a representation
+// that can be used by other actors as well.
+type ActorRepresentation struct {
+	// ID is the Actor.ID.
+	ID messages.ActorID
+	// Name is the Actor.Name.
+	Name string
+}
+
+// ActorRepresentationFromActor creates an ActorRepresentation from the given
+// Actor.
+func ActorRepresentationFromActor(actor Actor) ActorRepresentation {
+	return ActorRepresentation{
+		ID:   actor.ID(),
+		Name: actor.Name(),
+	}
 }

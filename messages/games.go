@@ -8,3 +8,8 @@ type MatchBase struct {
 	// MatchID is used for identifying a match.
 	MatchID MatchID `json:"match_id"`
 }
+
+// MessageReadyState is used for MessageTypeReadyState.
+type MessageReadyState struct {
+	IsReady bool `json:"is_ready"`
+}
