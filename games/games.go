@@ -3,61 +3,96 @@ package games
 import (
 	"context"
 	"github.com/LeFinal/masc-server/acting"
+	"github.com/LeFinal/masc-server/errors"
+	"github.com/LeFinal/masc-server/messages"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
 
-// GameMode is the type of game mode.
-type GameMode string
+// Match allows handling and receiving status updates from a match.
+type Match interface {
+	// Start starts the Match.
+	Start(ctx context.Context) error
+	// Status receives status information regarding the match.
+	Status() <-chan messages.MessageMatchStatus
+	// Abort aborts the match.
+	Abort(reason string) error
+	// Done receives when the match is done.
+	Done() <-chan MatchDone
+	// Logger is the match logger which contains all match information.
+	Logger() *logrus.Logger
+}
 
-// Game modes.
-const (
-	// GameModeTeamDeathmatch is the classic deathmatch where each player has a
-	// limited amount of lives and the last team surviving wins.
-	GameModeTeamDeathmatch GameMode = "team-deathmatch"
-)
+// BaseMatch holds some basic fields that every Match needs and provides the
+// Match.Status and Match.Done methods.
+type BaseMatch struct {
+	// M is a lock for the whole match state. This can be used when BaseMatch is
+	// composed with the actual match.
+	M sync.RWMutex
+	// Abort cancels the at Match.Start provided match context. This should only be
+	// used from within an actual match and not from outside. In this case use
+	// Match.Abort. The only reason why this exists is that the match can abort
+	// itself.
+	Abort context.CancelFunc
+	// GameMode is the GameMode the match uses.
+	GameMode messages.GameMode
+	// Phase is the MatchPhase the match is currently in.
+	Phase messages.MatchPhase
+	// IsActive determines whether the match is currently active. If it is inactive
+	// in can be dumped away.
+	IsActive bool
+	// Agency is where actors are hired from.
+	Agency acting.Agency
+	// GameMaster is the acting.Actor with acting.RoleTypeGameMaster. This is the one
+	// who started the match and controls it.
+	GameMaster acting.Actor
+	// StatusUpdates sends StatusUpdates updates.
+	StatusUpdates chan messages.MessageMatchStatus
+	// DoneUpdates sends when the match has finished.
+	DoneUpdates chan MatchDone
+	// Logger holds all information regarding the match.
+	Logger *logrus.Logger
+	// Start is the time when the match was started.
+	Start time.Time
+	// End is the time when the match had finished.
+	End time.Time
+}
 
-// MatchPhase is a fixed phase type for being used in matches.
-type MatchPhase string
+func (match *BaseMatch) Status() <-chan messages.MessageMatchStatus {
+	return match.StatusUpdates
+}
 
-const (
-	// MatchPhaseInit is used while the match is initializing like setting up
-	// configs.
-	MatchPhaseInit MatchPhase = "init"
-	// MatchPhaseSetup is used for players to join and assigning teams.
-	MatchPhaseSetup MatchPhase = "setup"
-	// MatchPhasePrepare is used for making last changes to the match before
-	// starting.
-	MatchPhasePrepare MatchPhase = "prepare"
-	// MatchPhaseAwaitReady waits until everybody is ready for start.
-	MatchPhaseAwaitReady MatchPhase = "await-ready"
-	// MatchPhaseRunning is used while the match is running.
-	MatchPhaseRunning MatchPhase = "running"
-	// MatchPhasePost is used for any post stuff. Currently, not used but maybe in
-	// the future.
-	MatchPhasePost MatchPhase = "post"
-	// MatchPhaseEnd is used when a match has ended.
-	MatchPhaseEnd MatchPhase = "end"
-)
+func (match *BaseMatch) Done() <-chan MatchDone {
+	return match.DoneUpdates
+}
 
-// MatchStatus is a container for status information regarding a Match. This can
-// be used for example by acting.RoleGlobalMonitor.
-type MatchStatus struct {
-	// GameMode is the mode the match uses.
-	GameMode GameMode `json:"game_mode"`
-	// MatchPhase is the phase the match is currently in.
-	MatchPhase MatchPhase `json:"match_phase"`
-	// MatchConfig is an optional configuration that may be of interest.
-	MatchConfig interface{} `json:"match_config"`
-	// IsActive determines whether the match is currently active.
-	IsActive bool `json:"is_active"`
-	// Start is the start timestamp of the match.
-	Start time.Time `json:"start"`
-	// End is the end timestamp of the match.
-	End time.Time `json:"end"`
-	// PlayerCount is the count of players who have joined the match.
-	PlayerCount int `json:"player_count"`
+func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster acting.Actor) (Match, error) {
+	_ = &BaseMatch{
+		GameMode:   gameMode,
+		Phase:      messages.MatchPhaseInit,
+		IsActive:   true,
+		Agency:     agency,
+		GameMaster: gameMaster,
+		Logger:     logrus.New(),
+	}
+	// TODO
+	// TODO: Remember to listen for game master quit in order to abort the match.
+	panic("implement me")
+}
+
+// AbortMatchOrLog aborts the match or logs the occurred error.
+func AbortMatchOrLog(match Match, reason string) {
+	err := match.Abort(reason)
+	errors.Log(match.Logger(), errors.Wrap(err, "abort match"))
+}
+
+// AbortMatchBecauseOfErrorOrLog logs the given error to the given logger
+// and aborts the Match. If aborting fails, the error is also logged to the
+// logger.
+func AbortMatchBecauseOfErrorOrLog(match Match, e error) {
+	match.Logger().Errorf("abort match because of error: %v", e)
+	AbortMatchOrLog(match, "internal error")
 }
 
 // MatchDoneReason is a reason for why a match is done.
@@ -76,68 +111,4 @@ type MatchDone struct {
 	Reason MatchDoneReason
 	// Err is an optional error that led to Match finish.
 	Err error
-}
-
-// Match allows handling and receiving status updates from a match.
-type Match interface {
-	// Status receives status information regarding the match.
-	Status() <-chan MatchStatus
-	// Abort aborts the match.
-	Abort() error
-	// Done receives when the match is done.
-	Done() <-chan MatchDone
-	// Logger is the match logger which contains all match information.
-	Logger() *logrus.Logger
-}
-
-// BaseMatch holds some basic fields that every Match needs and provides the
-// Match.Status and Match.Done methods.
-type BaseMatch struct {
-	// M is a lock for the whole match state. This can be used when BaseMatch is
-	// composed with the actual match.
-	M sync.RWMutex
-	// Ctx is the context of the match. This can be used in order to cancel ongoing
-	// operations when the match is being aborted.
-	Ctx context.Context
-	// abort cancels Ctx.
-	abort context.CancelFunc
-	// GameMode is the GameMode the match uses.
-	GameMode GameMode
-	// Phase is the MatchPhase the match is currently in.
-	Phase MatchPhase
-	// IsActive determines whether the match is currently active or done/not
-	// started.
-	IsActive bool
-	// Agency is where actors are hired from.
-	Agency acting.Agency
-	// GameMaster is the acting.Actor with acting.RoleGameMaster. This is the one
-	// who started the match and controls it.
-	GameMaster acting.Actor
-	// StatusUpdates sends StatusUpdates updates.
-	StatusUpdates chan MatchStatus
-	// DoneUpdates sends when the match has finished.
-	DoneUpdates chan MatchDone
-	// Logger holds all information regarding the match.
-	Logger *logrus.Logger
-}
-
-func (match *BaseMatch) Status() <-chan MatchStatus {
-	return match.StatusUpdates
-}
-
-func (match *BaseMatch) Done() <-chan MatchDone {
-	return match.DoneUpdates
-}
-
-func StartMatch(gameMode GameMode, agency acting.Agency, gameMaster acting.Actor) (Match, error) {
-	_ = &BaseMatch{
-		GameMode:   gameMode,
-		Phase:      MatchPhaseInit,
-		IsActive:   true,
-		Agency:     agency,
-		GameMaster: gameMaster,
-		Logger:     logrus.New(),
-	}
-	// TODO
-	panic("implement me")
 }

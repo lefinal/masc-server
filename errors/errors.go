@@ -135,3 +135,21 @@ func Prettify(err error) string {
 	return fmt.Sprintf("Code: %s\nKind: %s\nOriginal Error: %+v\nMessage: %s\nDetails: %s\n",
 		e.Code, e.Kind, e.Err, e.Message, detailsAsJSON(e))
 }
+
+// BlameUser checks if the given error is ErrBadRequest, ErrProtocolViolation or
+// ErrNotFound.
+func BlameUser(err error) bool {
+	e, ok := Cast(err)
+	if !ok {
+		// Unexpected.
+		return false
+	}
+	switch e.Code {
+	case ErrBadRequest,
+		ErrProtocolViolation,
+		ErrNotFound:
+		return true
+	}
+	// Otherwise.
+	return false
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	nativeerrors "errors"
-	"fmt"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
 	"github.com/LeFinal/masc-server/messages"
@@ -449,15 +448,16 @@ func (suite *NetActorTestSuite) TestFireNotHired() {
 }
 
 func (suite *NetActorTestSuite) TestFireOK() {
+	var wg sync.WaitGroup
 	// Hire.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := suite.a.Hire("")
 		suite.Require().Nil(err, "actor hiring should not fail but got: %s", errors.Prettify(err))
 	}()
-	what := <-suite.fromActor
-	fmt.Println(what)
+	<-suite.fromActor
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
-	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

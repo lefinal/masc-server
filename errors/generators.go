@@ -23,3 +23,22 @@ func NewContextAbortedError(currentOperation string) error {
 		Details: Details{"currentOperation": currentOperation},
 	}
 }
+
+// NewInvalidConfigRequestError returns a new ErrBadRequest error with kind
+// KindInvalidConfigRequest and the given message.
+func NewInvalidConfigRequestError(message string) error {
+	return Error{
+		Code:    ErrBadRequest,
+		Kind:    KindInvalidConfigRequest,
+		Message: message,
+	}
+}
+
+// NewmatchAlreadyStartedError create
+func NewMatchAlreadyStartedError() error {
+	return Error{
+		Code:    ErrInternal,
+		Kind:    KindMatchAlreadyStarted,
+		Message: "match already started",
+	}
+}

@@ -37,10 +37,12 @@ const (
 	KindCastingNotDone Kind = "casting-not-done"
 	// KindContextAborted is used when we were currently performing an operation but
 	// the context got aborted.
-	KindContextAborted     Kind = "context-aborted"
-	KindCommunicationWrite Kind = "communication-write"
-	KindDecodeJSON         Kind = "parse-request-body-as-json"
-	KindEncodeJSON         Kind = "encode-json"
+	KindContextAborted Kind = "context-aborted"
+	// KindCountDoesNotMatchExpected is used when a number of entities does not
+	// match the expected count.
+	KindCountDoesNotMatchExpected Kind = "count-does-not-match-expected"
+	KindDecodeJSON                Kind = "parse-request-body-as-json"
+	KindEncodeJSON                Kind = "encode-json"
 	// KindForbiddenMessage is used when the protocol is being violated due to a
 	// message with currently forbidden type.
 	KindForbiddenMessage Kind = "protocol-violation"
@@ -62,12 +64,14 @@ const (
 	// not in the expected match phase.
 	KindMatchPhaseViolation Kind = "match-phase-violation"
 	KindMissingID           Kind = "missing-id"
-	// KindCountDoesNotMatchExpected is used when a number of entities does not
-	// match the expected count.
-	KindCountDoesNotMatchExpected Kind = "count-does-not-match-expected"
 	// KindNotRunning is used when actions are performed that require a running
 	// entity.
-	KindNotRunning       Kind = "not-running"
+	KindNotRunning Kind = "not-running"
+	// KindPlayerAlreadyJoined is used when a player wants to join a match but has
+	// already joined.
+	KindPlayerAlreadyJoined Kind = "player-already-joined"
+	// KindPlayerNotJoined is used when a player has not joined the match yet.
+	KindPlayerNotJoined  Kind = "player-not-joined"
 	KindResourceNotFound Kind = "resource-not-found"
 	KindUUIDGenFail      Kind = "uuid-gen-fail"
 	KindUnexpected       Kind = "unexpected"

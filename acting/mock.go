@@ -254,6 +254,10 @@ func newMessageCollector() *messageCollector {
 	}
 }
 
+func (c *messageCollector) String() string {
+	return fmt.Sprintf("INCOMING:\n%v\n\nOUTGOING:%v", c.incoming, c.outgoing)
+}
+
 // handleIncoming records the given incoming message.
 func (c *messageCollector) handleIncoming(message ActorOutgoingMessage) {
 	c.m.Lock()

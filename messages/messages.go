@@ -48,6 +48,10 @@ const (
 	// MessageTypeAcceptDevice is used with MessageAcceptDevice for accepting new
 	// devices and allowing them to communicate with MASC.
 	MessageTypeAcceptDevice MessageType = "welcome-device"
+	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
+	// can send messages with MessageTypeReadyState for notifying of their current
+	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
+	MessageTypeAreYouReady MessageType = "are-you-ready"
 	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
 	// MessageTypeGetDevices.
 	MessageTypeDeviceList MessageType = "device-list"
@@ -64,19 +68,33 @@ const (
 	// MessageTypeHello is received with MessageHello for saying hello to the
 	// server.
 	MessageTypeHello MessageType = "hello"
+	// MessageTypeMatchStatus is a container for status information regarding a
+	// Match.
+	MessageTypeMatchStatus MessageType = "match-status"
 	// MessageTypeOK is used only for confirmation of actions that do not require a
 	// detailed response.
 	MessageTypeOK MessageType = "ok"
+	// MessageTypePlayerJoin is used for joining a player for a match.
+	MessageTypePlayerJoin MessageType = "player-join"
+	// MessageTypePlayerJoinClosed is used for notifying that no more player can
+	// join a match.
+	MessageTypePlayerJoinClosed MessageType = "player-join-closed"
+	// MessageTypePlayerJoinOpen notifies that players can now join.
+	MessageTypePlayerJoinOpen MessageType = "player-join-open"
+	// MessageTypePlayerJoined is sent to everyone participating in a match when a
+	// player joined.
+	MessageTypePlayerJoined MessageType = "player-joined"
+	// MessageTypePlayerLeave is received when a player wants so leave a match.
+	MessageTypePlayerLeave MessageType = "player-leave"
+	// MessageTypePlayerLeft is sent to everyone participating in a match when a
+	// player left.
+	MessageTypePlayerLeft MessageType = "player-left"
 	// MessageTypeReadyState is used with MessageReadyState for notifying that an
 	// actor is (not) ready.
 	MessageTypeReadyState MessageType = "ready-state"
 	// MessageTypeReadyAccepted is used for ending ready-state requests that were
 	// initially started with MessageTypeAreYouReady.
 	MessageTypeReadyAccepted MessageType = "ready-accepted"
-	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
-	// can send messages with MessageTypeReadyState for notifying of their current
-	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
-	MessageTypeAreYouReady MessageType = "are-you-ready"
 	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
 	// for requesting role assignments. Usually, this is sent to a game master.
 	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"
@@ -107,6 +125,12 @@ type MessageError struct {
 // MessageErrorFromError creates a MessageError from the given error.
 func MessageErrorFromError(err error) MessageError {
 	e, _ := errors.Cast(err)
+	if !errors.BlameUser(err) {
+		return MessageError{
+			Code:    string(e.Code),
+			Message: "internal server error",
+		}
+	}
 	return MessageError{
 		Code:    string(e.Code),
 		Kind:    string(e.Kind),

@@ -102,6 +102,7 @@ func NewSubscriptionManager() *SubscriptionManager {
 // SubscribeMessageType subscribes messages with the given messages.MessageType.
 func (m *SubscriptionManager) SubscribeMessageType(messageType messages.MessageType) *subscription {
 	m.subscriptionsMutex.Lock()
+	defer m.subscriptionsMutex.Unlock()
 	m.subscriptionCounter++
 	out := make(chan json.RawMessage)
 	ctx, setInactive := context.WithCancel(context.Background())
@@ -117,7 +118,6 @@ func (m *SubscriptionManager) SubscribeMessageType(messageType messages.MessageT
 		m.subscriptionsByMessageType[messageType] = make([]*subscription, 0, 1)
 	}
 	m.subscriptionsByMessageType[messageType] = append(m.subscriptionsByMessageType[messageType], sub)
-	m.subscriptionsMutex.Unlock()
 	return sub
 }
 
@@ -194,6 +194,8 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 	// Remove from subs for message type.
 	subsForMessageType[pos] = subsForMessageType[len(subsForMessageType)-1]
 	m.subscriptionsByMessageType[sub.messageType] = subsForMessageType[:len(subsForMessageType)-1]
+	// Remove from subs by token.
+	delete(m.subscriptionsByToken, sub.token)
 	return nil
 }
 
@@ -420,6 +422,80 @@ func SubscribeMessageTypeReadyState(actor Actor) NewsletterReadyState {
 		}
 	}()
 	return NewsletterReadyState{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterPlayerJoin wraps Newsletter with a self-closing receive-channel for
+// messages.MessageTypePlayerJoin.
+type NewsletterPlayerJoin struct {
+	Newsletter
+	Receive <-chan messages.MessagePlayerJoin
+}
+
+// SubscribeMessageTypePlayerJoin subscribes messages with
+// messages.MessageTypePlayerJoin for the given Actor.
+func SubscribeMessageTypePlayerJoin(actor Actor) NewsletterPlayerJoin {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypePlayerJoin)
+	cc := make(chan messages.MessagePlayerJoin)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessagePlayerJoin
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypePlayerJoin, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterPlayerJoin{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterPlayerLeave wraps Newsletter with a self-closing receive-channel for
+// messages.MessageTypePlayerLeave.
+type NewsletterPlayerLeave struct {
+	Newsletter
+	Receive <-chan messages.MessagePlayerLeave
+}
+
+// SubscribeMessageTypePlayerLeave subscribes messages with
+// messages.MessageTypePlayerLeave for the given Actor.
+func SubscribeMessageTypePlayerLeave(actor Actor) NewsletterPlayerLeave {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypePlayerLeave)
+	cc := make(chan messages.MessagePlayerLeave)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessagePlayerLeave
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypePlayerLeave, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterPlayerLeave{
 		Newsletter: newsletter.Newsletter,
 		Receive:    cc,
 	}

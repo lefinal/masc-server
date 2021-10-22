@@ -201,3 +201,64 @@ func TestWrap(t *testing.T) {
 		})
 	}
 }
+
+func TestBlameUser(t *testing.T) {
+	type args struct {
+		err error
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "not found",
+			args: args{
+				err: Error{Code: ErrNotFound},
+			},
+			want: true,
+		},
+		{
+			name: "bad request",
+			args: args{
+				err: Error{Code: ErrBadRequest},
+			},
+			want: true,
+		},
+		{
+			name: "protocol violation",
+			args: args{
+				err: Error{Code: ErrProtocolViolation},
+			},
+			want: true,
+		},
+		{
+			name: "internal",
+			args: args{
+				err: Error{Code: ErrInternal},
+			},
+			want: false,
+		},
+		{
+			name: "communication",
+			args: args{
+				err: Error{Code: ErrCommunication},
+			},
+			want: false,
+		},
+		{
+			name: "unexpected",
+			args: args{
+				err: errors.New("unknown error"),
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BlameUser(tt.args.err); got != tt.want {
+				t.Errorf("BlameUser() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
