@@ -22,3 +22,15 @@ type User struct {
 	// ProfilePicture is the URL where the profile picture is stored.
 	ProfilePicture string
 }
+
+func (user *User) Message() messages.User {
+	return messages.User{
+		ID:             user.ID,
+		Rank:           user.Rank,
+		BattleTag:      user.BattleTag,
+		CallSign:       user.CallSign,
+		Mantra:         user.Mantra,
+		JoinDate:       user.JoinDate,
+		ProfilePicture: user.ProfilePicture,
+	}
+}

@@ -47,6 +47,14 @@ type BaseMatch struct {
 	// GameMaster is the acting.Actor with acting.RoleTypeGameMaster. This is the one
 	// who started the match and controls it.
 	GameMaster acting.Actor
+	// PlayerManagement allows easy player management which can also be used for
+	// player joins.
+	PlayerManagement *PlayerManagement
+	// PlayerManagementUpdates receives when PlayerManagement welcomes new players,
+	// or they leave.
+	PlayerManagementUpdates chan PlayerManagementUpdate
+	// PlayerProvider allows retrieving users and requesting guest accounts.
+	PlayerProvider PlayerProvider
 	// StatusUpdates sends StatusUpdates updates.
 	StatusUpdates chan messages.MessageMatchStatus
 	// DoneUpdates sends when the match has finished.
@@ -68,13 +76,17 @@ func (match *BaseMatch) Done() <-chan MatchDone {
 }
 
 func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster acting.Actor) (Match, error) {
+	playerManagementUpdates := make(chan PlayerManagementUpdate)
 	_ = &BaseMatch{
-		GameMode:   gameMode,
-		Phase:      messages.MatchPhaseInit,
-		IsActive:   true,
-		Agency:     agency,
-		GameMaster: gameMaster,
-		Logger:     logrus.New(),
+		GameMode:                gameMode,
+		Phase:                   messages.MatchPhaseInit,
+		IsActive:                true,
+		Agency:                  agency,
+		GameMaster:              gameMaster,
+		PlayerManagement:        NewPlayerManagement(playerManagementUpdates),
+		PlayerManagementUpdates: playerManagementUpdates,
+		PlayerProvider:          nil, // TODO: ADD PLEASE
+		Logger:                  logrus.New(),
 	}
 	// TODO
 	// TODO: Remember to listen for game master quit in order to abort the match.

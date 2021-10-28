@@ -10,6 +10,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/gobuffalo/nulls"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"time"
 )
 
@@ -98,17 +99,18 @@ func configFromRequest(logger *logrus.Logger, r ConfigRequest) (Config, error) {
 
 // player who participates in a Match.
 type player struct {
-	acting.Actor
 	// ID is used for identifying the player.
 	id messages.UserID
 	// IsAlive
 	isAlive bool
 	// lives is the amount of remaining lives.
-	lives int
+	lives uint
 }
 
 // team holds the players that belong to it.
 type team struct {
+	// key is the identifier for the team.
+	key string
 	// bases is where players login and notify hits. As there should be support for
 	// multiple bases in a team, we use a list here.
 	bases []acting.Actor
@@ -152,15 +154,15 @@ func (match *Match) Abort(string) error {
 }
 
 func (match *Match) Start(ctx context.Context) error {
-	match.BaseMatch.M.Lock()
-	if match.BaseMatch.Phase != messages.MatchPhaseInit {
-		match.BaseMatch.M.Unlock()
+	match.M.Lock()
+	if match.Phase != messages.MatchPhaseInit {
+		match.M.Unlock()
 		return errors.NewMatchAlreadyStartedError()
 	}
 	match.Logger().Info("match start")
-	match.BaseMatch.Phase = messages.MatchPhaseSetup
+	match.Phase = messages.MatchPhaseSetup
 	match.BaseMatch.Start = time.Now()
-	match.BaseMatch.M.Unlock()
+	match.M.Unlock()
 	// Let's go.
 	match.notifyMatchStatus()
 	go match.run(ctx)
@@ -177,24 +179,41 @@ func (match *Match) run(ctx context.Context) {
 		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "perform role assignments"))
 		return
 	}
-	// We are ready.
+	match.changePhase(messages.MatchPhaseSetup)
+	// Allow player joins and await ready state.
+	err = match.playerJoinsAndAwaitReady(ctx)
+	if err != nil {
+		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "player joins and await ready"))
+		return
+	}
+	// Setup.
+	match.fillTeams()
+	match.handOutLives()
+}
 
+// changePhase changes the match phase and broadcasts the match status via
+// notifyMatchStatus.
+func (match *Match) changePhase(phase messages.MatchPhase) {
+	match.M.Lock()
+	match.Phase = phase
+	match.M.Unlock()
+	match.notifyMatchStatus()
 }
 
 // notifyMatchStatus notifies of the current games.MatchStatus.
 func (match *Match) notifyMatchStatus() {
-	match.BaseMatch.M.RLock()
-	defer match.BaseMatch.M.RUnlock()
+	match.M.RLock()
+	defer match.M.RUnlock()
 	// Count players.
 	playerCount := 0
 	for _, team := range match.teams {
 		playerCount += len(team.players)
 	}
 	match.StatusUpdates <- messages.MessageMatchStatus{
-		GameMode:    match.BaseMatch.GameMode,
-		MatchPhase:  match.BaseMatch.Phase,
+		GameMode:    match.GameMode,
+		MatchPhase:  match.Phase,
 		MatchConfig: match.config,
-		IsActive:    match.BaseMatch.IsActive,
+		IsActive:    match.IsActive,
 		Start:       match.BaseMatch.Start,
 		End:         match.BaseMatch.End,
 		PlayerCount: playerCount,
@@ -221,19 +240,33 @@ func (match *Match) Logger() *logrus.Logger {
 	return match.BaseMatch.Logger
 }
 
+func (match *Match) participatingActors() []acting.Actor {
+	match.M.RLock()
+	defer match.M.RUnlock()
+	participating := make([]acting.Actor, 0)
+	for _, t := range match.teams {
+		participating = append(participating, t.bases...)
+		participating = append(participating, t.monitors...)
+	}
+	participating = append(participating, match.monitors...)
+	return participating
+}
+
+// performRoleAssignment assigns all roles that are needed in order to run the
+// match.
 func (match *Match) performRoleAssignment(ctx context.Context) error {
-	match.BaseMatch.M.Lock()
-	defer match.BaseMatch.M.Unlock()
+	match.M.Lock()
+	defer match.M.Unlock()
 	// Assure that we are in setup phase.
-	if match.BaseMatch.Phase != messages.MatchPhaseSetup {
+	if match.Phase != messages.MatchPhaseSetup {
 		return errors.Error{
 			Code:    errors.ErrInternal,
 			Kind:    errors.KindMatchPhaseViolation,
-			Message: fmt.Sprintf("perform role assignment only allowed in setup phase but was %v", match.BaseMatch.Phase),
+			Message: fmt.Sprintf("perform role assignment only allowed in setup phase but was %v", match.Phase),
 		}
 	}
 	// Prepare casting.
-	matchCasting := casting.NewCasting(match.BaseMatch.Agency)
+	matchCasting := casting.NewCasting(match.Agency)
 	teamBaseRequests := make([]casting.ActorRequest, match.config.TeamCount)
 	teamBaseMonitorRequests := make([]casting.ActorRequest, match.config.TeamCount)
 	for i := uint(0); i < match.config.TeamCount; i++ {
@@ -284,6 +317,7 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 			return errors.Wrap(err, "retrieve team base monitor winners")
 		}
 		t := team{
+			key:      fmt.Sprintf("team-%d", i),
 			bases:    make([]acting.Actor, 0, len(teamBases)),
 			monitors: make([]acting.Actor, 0, len(teamBaseMonitors)),
 			players:  make([]*player, 0),
@@ -306,4 +340,115 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 		matchMonitors[i] = monitor
 	}
 	return nil
+}
+
+// playerJoinsAndAwaitReady accepts player joins and blocks until everybody is
+// ready.
+func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
+	wg, _ := errgroup.WithContext(ctx)
+	handlers, cancelHandlers := context.WithCancel(ctx)
+	// Open a player join office for each team.
+	match.M.RLock()
+	playerJoinOffices := make([]*games.PlayerJoinOffice, 0, match.config.TeamCount)
+	for _, team := range match.teams {
+		playerJoinOffice := &games.PlayerJoinOffice{
+			Team:             games.PlayerManagementTeamKey(team.key),
+			Logger:           match.BaseMatch.Logger,
+			PlayerProvider:   match.PlayerProvider,
+			PlayerManagement: match.PlayerManagement,
+		}
+		playerJoinOffice.Open(ctx, team.bases...)
+	}
+	match.M.RUnlock()
+	// Handle player updates.
+	wg.Go(func() error {
+		for {
+			select {
+			case <-handlers.Done():
+				return nil
+			case update := <-match.PlayerManagementUpdates:
+				err := games.BroadcastPlayerManagementUpdate(update, match.PlayerProvider, match.participatingActors()...)
+				if err != nil {
+					errors.Log(match.Logger(), errors.Wrap(err, "broadcast player management update"))
+				}
+			}
+		}
+	})
+	// Request ready-state from team bases and game master.
+	match.M.RLock()
+	requestReadyFrom := make([]acting.Actor, 0, len(match.teams)+1)
+	requestReadyFrom = append(requestReadyFrom, match.GameMaster)
+	for _, team := range match.teams {
+		requestReadyFrom = append(requestReadyFrom, team.bases...)
+	}
+	match.M.RUnlock()
+	readyStateUpdates := make(chan games.ReadyStateUpdate)
+	// Handle ready-state updates.
+	wg.Go(func() error {
+		for {
+			select {
+			case <-handlers.Done():
+				return nil
+			case update := <-readyStateUpdates:
+				err := games.BroadcastReadyStateUpdate(update, match.participatingActors()...)
+				if err != nil {
+					errors.Log(match.Logger(), errors.Wrap(err, "broadcast ready-state update"))
+				}
+			}
+		}
+	})
+	err := games.RequestAndAwaitReady(ctx, readyStateUpdates, requestReadyFrom...)
+	var originalErr error
+	if err != nil {
+		originalErr = errors.Wrap(err, "request and await ready")
+	}
+	// Close all player join offices.
+	for _, office := range playerJoinOffices {
+		err = office.Close()
+		if err != nil {
+			err = errors.Wrap(err, "close player join office")
+			if originalErr != nil {
+				originalErr = err
+			} else {
+				// Only log the error.
+				errors.Log(match.Logger(), err)
+			}
+		}
+	}
+	// Cancel handlers.
+	cancelHandlers()
+	if handlerErr := wg.Wait(); handlerErr != nil {
+		handlerErr = errors.Wrap(err, "handlers")
+		if originalErr != nil {
+			originalErr = handlerErr
+		} else {
+			errors.Log(match.Logger(), handlerErr)
+		}
+	}
+	// Done.
+	return originalErr
+	// TODO: Test
+}
+
+// fillTeams uses the Match.config and player management for filling Match.teams
+// with initial players.
+func (match *Match) fillTeams() {
+	match.M.Lock()
+	defer match.M.Unlock()
+	for _, team := range match.teams {
+		team.players = make([]*player, 0)
+		for _, playerInTeam := range match.PlayerManagement.PlayersInTeam(games.PlayerManagementTeamKey(team.key)) {
+			team.players = append(team.players, &player{
+				id:      playerInTeam.User,
+				isAlive: false,
+			})
+		}
+	}
+	// TODO: Test
+}
+
+func (match *Match) handOutLives() {
+	match.M.Lock()
+	defer match.M.Unlock()
+	// TODO: Add lives to players and balance for uneven teams!
 }

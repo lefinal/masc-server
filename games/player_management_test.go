@@ -3,12 +3,11 @@ package games
 import (
 	"context"
 	"encoding/json"
+	nativeerrors "errors"
 	"fmt"
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
-	"github.com/LeFinal/masc-server/stores"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 	"sync"
@@ -93,13 +92,13 @@ func (suite *PlayerManagementTestSuite) TestRemovePlayerOKUpdateBroadcast() {
 
 func (suite *PlayerManagementTestSuite) TestPlayersInTeamNone() {
 	suite.pm.active["should"] = "marriage"
-	suite.Assert().Equal(0, suite.pm.PlayersInTeam("empty"), "should return correct count")
+	suite.Assert().Len(suite.pm.PlayersInTeam("empty"), 0, "should return correct count")
 }
 
 func (suite *PlayerManagementTestSuite) TestPlayersInTeamMultiplePlayers() {
 	suite.pm.active["should"] = "marriage"
 	suite.pm.active["worm"] = "marriage"
-	suite.Assert().Equal(2, suite.pm.PlayersInTeam("marriage"), "should return correct count")
+	suite.Assert().Len(suite.pm.PlayersInTeam("marriage"), 2, "should return correct count")
 }
 
 func (suite *PlayerManagementTestSuite) TestPlayersInTeamMultipleTeams() {
@@ -109,37 +108,22 @@ func (suite *PlayerManagementTestSuite) TestPlayersInTeamMultipleTeams() {
 	suite.pm.active["poverty"] = "marriage"
 	suite.pm.active["shield"] = "woman"
 	suite.pm.active["baggage"] = "woman"
-	suite.Assert().Equal(3, suite.pm.PlayersInTeam("woman"), "should return correct count")
+	suite.Assert().Len(suite.pm.PlayersInTeam("woman"), 3, "should return correct count")
+}
+
+func (suite *PlayerManagementTestSuite) TestActivePlayersEmpty() {
+	suite.Assert().Empty(suite.pm.ActivePlayers(), "should be empty")
+}
+
+func (suite *PlayerManagementTestSuite) TestActivePlayersOK() {
+	suite.pm.active["tent"] = "enough"
+	suite.pm.active["explore"] = "pressure"
+	suite.pm.active["coin"] = "effect"
+	suite.Assert().Len(suite.pm.ActivePlayers(), len(suite.pm.active), "should return correct player count")
 }
 
 func TestPlayerManagement(t *testing.T) {
 	suite.Run(t, new(PlayerManagementTestSuite))
-}
-
-type mockPlayerProvider struct {
-	knownPlayers      map[messages.UserID]struct{}
-	knownPlayersMutex sync.RWMutex
-}
-
-func (p *mockPlayerProvider) SetPlayerKnown(id messages.UserID) {
-	p.knownPlayersMutex.Lock()
-	defer p.knownPlayersMutex.Unlock()
-	p.knownPlayers[id] = struct{}{}
-}
-
-func (p *mockPlayerProvider) GetUserByID(id messages.UserID) (stores.User, error) {
-	p.knownPlayersMutex.RLock()
-	defer p.knownPlayersMutex.RUnlock()
-	if _, ok := p.knownPlayers[id]; !ok {
-		return stores.User{}, errors.NewResourceNotFoundError(fmt.Sprintf("unknown user %v", id), errors.Details{})
-	}
-	return stores.User{ID: id}, nil
-}
-
-func (p *mockPlayerProvider) CreateGuestUser() (stores.User, error) {
-	newID := messages.UserID(uuid.New().String())
-	p.SetPlayerKnown(newID)
-	return p.GetUserByID(newID)
 }
 
 type PlayerJoinOfficeTestSuite struct {
@@ -148,13 +132,13 @@ type PlayerJoinOfficeTestSuite struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	playerManagement *PlayerManagement
-	playerProvider   *mockPlayerProvider
+	playerProvider   *MockPlayerProvider
 	playerUpdates    chan PlayerManagementUpdate
 }
 
 func (suite *PlayerJoinOfficeTestSuite) SetupTest() {
 	suite.ctx, suite.cancel = context.WithCancel(context.Background())
-	suite.playerProvider = &mockPlayerProvider{knownPlayers: make(map[messages.UserID]struct{})}
+	suite.playerProvider = NewMockPlayerProvider()
 	suite.playerUpdates = make(chan PlayerManagementUpdate)
 	suite.playerManagement = NewPlayerManagement(suite.playerUpdates)
 	suite.office = &PlayerJoinOffice{
@@ -363,4 +347,188 @@ func (suite *PlayerJoinOfficeTestSuite) TestPlayerLeave() {
 
 func TestPlayerJoinOffice(t *testing.T) {
 	suite.Run(t, new(PlayerJoinOfficeTestSuite))
+}
+
+type BroadcastPlayerManagementUpdateTestSuite struct {
+	suite.Suite
+	playerProvider *MockPlayerProvider
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) SetupTest() {
+	suite.playerProvider = NewMockPlayerProvider()
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) TestUserRetrievalFail() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+
+	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
+		User:      "unknown-user",
+		Team:      "team",
+		HasJoined: true,
+	}, suite.playerProvider, actor)
+	suite.Require().NotNil(err, "should fail")
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) TestSendFail() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+	actor.SendErr = nativeerrors.New("sad life")
+
+	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
+		HasJoined: false,
+	}, suite.playerProvider, actor)
+	suite.Require().NotNil(err, "should fail")
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) TestPlayerJoinedSingleOK() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+	suite.playerProvider.SetPlayerKnown("hello-world")
+
+	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
+		User:      "hello-world",
+		Team:      "team",
+		HasJoined: true,
+	}, suite.playerProvider, actor)
+	suite.Require().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
+	suite.Require().Nilf(actor.MessageCollector.AssureOutgoingMessageTypes(false, messages.MessageTypePlayerJoined),
+		"should have sent player join but did: %s", actor.MessageCollector)
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) TestPlayerLeftSingleOK() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+	suite.playerProvider.SetPlayerKnown("hello-world")
+
+	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
+		User:      "hello-world",
+		Team:      "team",
+		HasJoined: false,
+	}, suite.playerProvider, actor)
+	suite.Require().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
+	suite.Require().Nilf(actor.MessageCollector.AssureOutgoingMessageTypes(false, messages.MessageTypePlayerLeft),
+		"should have sent player left but did: %s", actor.MessageCollector)
+}
+
+func (suite *BroadcastPlayerManagementUpdateTestSuite) TestMultiple() {
+	timeout, cancelTimeout := context.WithTimeout(context.Background(), waitTimeout)
+
+	// Prepare actors and make them waiting for one message.
+	var actorMessageWaiters sync.WaitGroup
+	actors := make([]acting.Actor, 0, 8)
+	for i := 0; i < 8; i++ {
+		actor := acting.NewMockActor("actor")
+		_ = actor.Hire("actor")
+		newsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypePlayerLeft)
+		actorMessageWaiters.Add(1)
+		go func() {
+			defer actorMessageWaiters.Done()
+			select {
+			case <-timeout.Done():
+				suite.Fail("timeout", "timeout while waiting for message to receive")
+			case <-newsletter.Receive:
+				_ = actor.UnsubscribeOutgoing(newsletter.Subscription)
+			}
+		}()
+		actors = append(actors, actor)
+	}
+
+	// Perform broadcast.
+	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
+		User:      "hello-world",
+		Team:      "team-bla",
+		HasJoined: false,
+	}, nil, actors...)
+	actorMessageWaiters.Wait()
+	cancelTimeout()
+	suite.Require().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
+}
+
+func TestBroadcastPlayerManagementUpdate(t *testing.T) {
+	suite.Run(t, new(BroadcastPlayerManagementUpdateTestSuite))
+}
+
+type BroadcastReadyStateUpdateTestSuite struct {
+	suite.Suite
+}
+
+func (suite *BroadcastReadyStateUpdateTestSuite) TestSendFail() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+	actor.SendErr = nativeerrors.New("sad life")
+
+	err := BroadcastReadyStateUpdate(ReadyStateUpdate{
+		IsEverybodyReady: true,
+		ActorStates:      []ReadyStateUpdateActorState{},
+	}, actor)
+	suite.Require().NotNil(err, "should fail")
+}
+
+func (suite *BroadcastReadyStateUpdateTestSuite) TestSingleOK() {
+	actor := acting.NewMockActor("")
+	_ = actor.Hire("")
+
+	err := BroadcastReadyStateUpdate(ReadyStateUpdate{
+		IsEverybodyReady: true,
+		ActorStates: []ReadyStateUpdateActorState{
+			{
+				Actor:   acting.ActorRepresentation{ID: "hello-world", Name: "yeah"},
+				IsReady: true,
+			},
+			{
+				Actor:   acting.ActorRepresentation{ID: "hot", Name: "shield"},
+				IsReady: true,
+			},
+		},
+	}, actor)
+	suite.Require().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
+	suite.Require().Nilf(actor.MessageCollector.AssureOutgoingMessageTypes(false, messages.MessageTypeReadyStateUpdate),
+		"should have sent ready-state update but did: %s", actor.MessageCollector)
+}
+
+func (suite *BroadcastReadyStateUpdateTestSuite) TestMultiple() {
+	timeout, cancelTimeout := context.WithTimeout(context.Background(), waitTimeout)
+
+	// Prepare actors and make them waiting for one message.
+	var actorMessageWaiters sync.WaitGroup
+	actors := make([]acting.Actor, 0, 8)
+	for i := 0; i < 8; i++ {
+		actor := acting.NewMockActor("actor")
+		_ = actor.Hire("actor")
+		newsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypeReadyStateUpdate)
+		actorMessageWaiters.Add(1)
+		go func() {
+			defer actorMessageWaiters.Done()
+			select {
+			case <-timeout.Done():
+				suite.Fail("timeout", "timeout while waiting for message to receive")
+			case <-newsletter.Receive:
+				_ = actor.UnsubscribeOutgoing(newsletter.Subscription)
+			}
+		}()
+		actors = append(actors, actor)
+	}
+
+	// Perform broadcast.
+	err := BroadcastReadyStateUpdate(ReadyStateUpdate{
+		IsEverybodyReady: false,
+		ActorStates: []ReadyStateUpdateActorState{
+			{
+				Actor:   acting.ActorRepresentation{ID: "hello-world", Name: "yeah"},
+				IsReady: false,
+			},
+			{
+				Actor:   acting.ActorRepresentation{ID: "hot", Name: "shield"},
+				IsReady: true,
+			},
+		},
+	}, actors...)
+	actorMessageWaiters.Wait()
+	cancelTimeout()
+	suite.Require().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
+}
+
+func TestBroadcastReadyStateUpdate(t *testing.T) {
+	suite.Run(t, new(BroadcastReadyStateUpdateTestSuite))
 }

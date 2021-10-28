@@ -16,11 +16,25 @@ type ReadyStateUpdate struct {
 	ActorStates []ReadyStateUpdateActorState
 }
 
+func (update *ReadyStateUpdate) Message() messages.MessageReadyStateUpdate {
+	actorStates := make([]messages.ReadyStateUpdateActorState, 0, len(update.ActorStates))
+	for _, state := range update.ActorStates {
+		actorStates = append(actorStates, messages.ReadyStateUpdateActorState{
+			Actor:   state.Actor.Message(),
+			IsReady: state.IsReady,
+		})
+	}
+	return messages.MessageReadyStateUpdate{
+		IsEverybodyReady: update.IsEverybodyReady,
+		ActorStates:      actorStates,
+	}
+}
+
 // ReadyStateUpdateActorState is the ready-state for a specific Actor.
 type ReadyStateUpdateActorState struct {
 	// Actor is the actor the ready state is for.
 	Actor acting.ActorRepresentation
-	// IsReady
+	// IsReady describes whether the actor is ready.
 	IsReady bool
 }
 

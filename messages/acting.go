@@ -48,3 +48,11 @@ type MessageRoleAssignments struct {
 	// Assignments that were made.
 	Assignments []RoleAssignment `json:"assignments"`
 }
+
+// ActorRepresentation is used for a human-readable actor representation.
+type ActorRepresentation struct {
+	// ID is the Actor.ID.
+	ID ActorID
+	// Name is the Actor.Name.
+	Name string
+}

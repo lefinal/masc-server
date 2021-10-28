@@ -1,6 +1,8 @@
 package messages
 
-import "time"
+import (
+	"time"
+)
 
 // MatchID is used in order to identify a games.Match.
 type MatchID string
@@ -13,6 +15,22 @@ type MatchBase struct {
 
 // MessageReadyState is used for MessageTypeReadyState.
 type MessageReadyState struct {
+	IsReady bool `json:"is_ready"`
+}
+
+// MessageReadyStateUpdate is used with MessageTypeReadyStateUpdate.
+type MessageReadyStateUpdate struct {
+	// IsEverybodyReady describes whether all actors are ready.
+	IsEverybodyReady bool `json:"is_everybody_ready"`
+	// ActorStates holds the individual ready-states for the actors.
+	ActorStates []ReadyStateUpdateActorState `json:"actor_states"`
+}
+
+// ReadyStateUpdateActorState is the ready-state for a specific Actor.
+type ReadyStateUpdateActorState struct {
+	// Actor is the actor the ready state is for.
+	Actor ActorRepresentation `json:"actor"`
+	// IsReady describes whether the actor is ready.
 	IsReady bool `json:"is_ready"`
 }
 

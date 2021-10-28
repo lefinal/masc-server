@@ -89,12 +89,15 @@ const (
 	// MessageTypePlayerLeft is sent to everyone participating in a match when a
 	// player left.
 	MessageTypePlayerLeft MessageType = "player-left"
-	// MessageTypeReadyState is used with MessageReadyState for notifying that an
-	// actor is (not) ready.
-	MessageTypeReadyState MessageType = "ready-state"
 	// MessageTypeReadyAccepted is used for ending ready-state requests that were
 	// initially started with MessageTypeAreYouReady.
 	MessageTypeReadyAccepted MessageType = "ready-accepted"
+	// MessageTypeReadyState is used with MessageReadyState for notifying that an
+	// actor is (not) ready.
+	MessageTypeReadyState MessageType = "ready-state"
+	// MessageTypeReadyStateUpdate is used with MessageReadyStateUpdate for
+	// broadcasting ready-states to all actors participating in a match.
+	MessageTypeReadyStateUpdate MessageType = "ready-state-update"
 	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
 	// for requesting role assignments. Usually, this is sent to a game master.
 	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"

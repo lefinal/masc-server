@@ -633,6 +633,13 @@ type ActorRepresentation struct {
 	Name string
 }
 
+func (r *ActorRepresentation) Message() messages.ActorRepresentation {
+	return messages.ActorRepresentation{
+		ID:   r.ID,
+		Name: r.Name,
+	}
+}
+
 // ActorRepresentationFromActor creates an ActorRepresentation from the given
 // Actor.
 func ActorRepresentationFromActor(actor Actor) ActorRepresentation {
