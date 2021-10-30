@@ -17,4 +17,4 @@ jobs:
         run: go build -v -o ./masc-server
 
       - name: Test
-        run: go test -v ./... -count 100
+        run: go test -v ./...
