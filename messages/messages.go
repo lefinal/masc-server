@@ -60,8 +60,14 @@ const (
 	MessageTypeError MessageType = "error"
 	// MessageTypeFired is used when an actor is fired.
 	MessageTypeFired MessageType = "fired"
+	// MessageTypeFixtures provides all available fixtures from a fixture provider.
+	// Used with MessageFixtures.
+	MessageTypeFixtures MessageType = "fixtures"
 	// MessageTypeGetDevices is received when devices are requested.
 	MessageTypeGetDevices MessageType = "get-devices"
+	// MessageTypeGetFixtures is sent to the client for requesting all available
+	// fixtures he offers.
+	MessageTypeGetFixtures MessageType = "get-fixtures"
 	// MessageTypeGoAway is sent to the client when he wants to say hello with an
 	// unknown device ID.
 	MessageTypeGoAway MessageType = "go-away"
@@ -99,15 +105,23 @@ const (
 	// broadcasting ready-states to all actors participating in a match.
 	MessageTypeReadyStateUpdate MessageType = "ready-state-update"
 	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
-	// for requesting role assignments. Usually, this is sent to a game master.
+	// for requesting role assignments. Usually, this is sent to a game master. Used
+	// with MessageRequestRoleAssignments.
 	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"
 	// MessageTypeRoleAssignments is used with MessageRoleAssignments for when an
 	// assignment request was fulfilled.
 	MessageTypeRoleAssignments MessageType = "role-assignments"
+	// MessageTypeFixtureBasicSetState is used for setting the state of
+	// FixtureTypeBasic.
+	MessageTypeFixtureBasicSetState MessageType = "fixture-basic-set-state"
+	// MessageTypeFixtureDimmerSetState is used for setting the state of
+	// FixtureTypeDimmer.
+	MessageTypeFixtureDimmerSetState MessageType = "fixture-dimmer-set-state"
 	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
 	// Used with MessageWelcome.
 	MessageTypeWelcome MessageType = "welcome"
-	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that he now has a job.
+	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that
+	// he now has a job.
 	MessageTypeYouAreIn MessageType = "you-are-in"
 )
 

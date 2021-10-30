@@ -13,4 +13,6 @@ var (
 	// SubscriptionManagerLogger is used in acting package for managing
 	// subscriptions.
 	SubscriptionManagerLogger *logrus.Logger = logrus.New()
+	// LightingLogger is used for all stuff regarding lighting.
+	LightingLogger *logrus.Logger = logrus.New()
 )

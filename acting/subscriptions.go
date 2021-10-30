@@ -500,3 +500,40 @@ func SubscribeMessageTypePlayerLeave(actor Actor) NewsletterPlayerLeave {
 		Receive:    cc,
 	}
 }
+
+// NewsletterFixtures wraps Newsletter with a self-closing receive-channel for
+// messages.MessageFixtures.
+type NewsletterFixtures struct {
+	Newsletter
+	Receive <-chan messages.MessageFixtures
+}
+
+// SubscribeMessageTypeFixtures subscribes messages with
+// messages.MessageTypeFixtures for the given Actor.
+func SubscribeMessageTypeFixtures(actor Actor) NewsletterFixtures {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeFixtures)
+	cc := make(chan messages.MessageFixtures)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageFixtures
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeFixtures, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterFixtures{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}

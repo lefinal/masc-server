@@ -43,6 +43,10 @@ const (
 	KindCountDoesNotMatchExpected Kind = "count-does-not-match-expected"
 	KindDecodeJSON                Kind = "parse-request-body-as-json"
 	KindEncodeJSON                Kind = "encode-json"
+	// KindFixtureTypeConflict is used when a fixtures are being added with already
+	// matching device and provider id but the type is different. This is currently
+	// not handled.
+	KindFixtureTypeConflict Kind = "fixture-type-conflict"
 	// KindForbiddenMessage is used when the protocol is being violated due to a
 	// message with currently forbidden type.
 	KindForbiddenMessage Kind = "protocol-violation"
@@ -63,7 +67,10 @@ const (
 	// KindMatchPhaseViolation is used for operations that were performed although
 	// not in the expected match phase.
 	KindMatchPhaseViolation Kind = "match-phase-violation"
-	KindMissingID           Kind = "missing-id"
+	// KindMissingActor is used for actions that require an acting.Actor but none
+	// was provided.
+	KindMissingActor Kind = "missing-actor"
+	KindMissingID    Kind = "missing-id"
 	// KindNotRunning is used when actions are performed that require a running
 	// entity.
 	KindNotRunning Kind = "not-running"
