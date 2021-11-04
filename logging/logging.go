@@ -15,4 +15,8 @@ var (
 	SubscriptionManagerLogger *logrus.Logger = logrus.New()
 	// LightingLogger is used for all stuff regarding lighting.
 	LightingLogger *logrus.Logger = logrus.New()
+	// WebServerLogger is used for all stuff regarding web servers.
+	WebServerLogger *logrus.Logger = logrus.New()
+	// WSLogger is used for all stuff regarding websocket connections.
+	WSLogger *logrus.Logger = logrus.New()
 )
