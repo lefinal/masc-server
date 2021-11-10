@@ -32,8 +32,8 @@ var (
 
 // Client is a holds the websocket connection and is being used by Hub.
 type Client struct {
-	// id is a temporary id assigned to the Client.
-	id uuid.UUID
+	// ID is a temporary id assigned to the Client.
+	ID uuid.UUID
 	// hub is the actual websocket hub which is used for registering and
 	// unregistering.
 	hub *Hub
@@ -47,7 +47,7 @@ type Client struct {
 
 // logger returns a logrus.Entry with the Client id as field.
 func (c *Client) logger() *logrus.Entry {
-	return logging.WSLogger.WithField("client", c.id)
+	return logging.WSLogger.WithField("client", c.ID)
 }
 
 // readPump forwards messages from the websocket connection to the hub.
@@ -56,7 +56,7 @@ func (c *Client) readPump(ctx context.Context) {
 		c.hub.unregister <- c
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Warn(errors.Wrap(err, "close connection"))
+			c.logger().Debug(errors.Wrap(err, "close connection"))
 		}
 	}()
 	c.connection.SetReadLimit(maxMessageSize)
@@ -71,7 +71,7 @@ func (c *Client) readPump(ctx context.Context) {
 		_, message, err := c.connection.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.logger().Warn(errors.Wrap(err, "unexpected close"))
+				c.logger().Debug(errors.Wrap(err, "unexpected close"))
 			}
 			break
 		}
@@ -97,7 +97,7 @@ func (c *Client) writePump() {
 		// Close connection.
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Warnf(errors.Wrap(err, "close connection").Error())
+			c.logger().Debugf(errors.Wrap(err, "close connection").Error())
 		}
 	}()
 	for {
@@ -109,7 +109,8 @@ func (c *Client) writePump() {
 			if !ok {
 				err := c.connection.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
-					c.logger().Error(errors.Wrap(err, "write close message"))
+					logging.WSLogger.Debugf("write close message: %v", err)
+					return
 				}
 				return
 			}

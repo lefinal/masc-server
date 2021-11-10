@@ -78,6 +78,14 @@ func (a *MockAgency) Close() error {
 	panic("implement me")
 }
 
+func (a *MockAgency) SubscribeNewActors(recipient ActorNewsletterRecipient) {
+	panic("implement me")
+}
+
+func (a *MockAgency) UnsubscribeNewActors(recipient ActorNewsletterRecipient) {
+	panic("implement me")
+}
+
 // MockActor is used for testing with acting.Actor by providing methods to emit
 // incoming messages and recording via MessageCollector. Create one with
 // NewMockActor.

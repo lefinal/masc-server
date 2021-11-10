@@ -9,7 +9,7 @@ import (
 // Details holds additional error details that can be viewed and logged.
 type Details map[string]interface{}
 
-// Error is the general error type for appearing errors in peppa.
+// Error is the general error type for appearing errors in MASC.
 type Error struct {
 	// Code is the error code.
 	Code Code
@@ -80,14 +80,14 @@ func FromErr(message string, code Code, kind Kind, err error, details Details) e
 }
 
 // detailsAsJSON encodes the Details of the given Error as JSON string.
-func detailsAsJSON(err error) []byte {
+func detailsAsJSON(logger *logrus.Entry, err error) []byte {
 	e, _ := Cast(err)
 	if e.Details == nil {
 		return nil
 	}
 	b, err := json.Marshal(e.Details)
 	if err != nil {
-		Log(logrus.StandardLogger(), Error{
+		Log(logger, Error{
 			Code:    ErrInternal,
 			Kind:    KindEncodeJSON,
 			Message: "marshal error details",
@@ -102,12 +102,12 @@ func detailsAsJSON(err error) []byte {
 }
 
 // Log logs the given error with its details. If the error is ErrFatal, the error will be logged is fatal.
-func Log(logger *logrus.Logger, err error) {
+func Log(logger *logrus.Entry, err error) {
 	e, _ := Cast(err)
 	fields := logrus.Fields{
 		"err_code":    e.Code,
 		"err_kind":    e.Kind,
-		"err_details": string(detailsAsJSON(err)),
+		"err_details": string(detailsAsJSON(logger, err)),
 	}
 
 	// Add each details entry as separate field for better readability.
@@ -133,7 +133,7 @@ func Log(logger *logrus.Logger, err error) {
 func Prettify(err error) string {
 	e, _ := Cast(err)
 	return fmt.Sprintf("Code: %s\nKind: %s\nOriginal Error: %+v\nMessage: %s\nDetails: %s\n",
-		e.Code, e.Kind, e.Err, e.Message, detailsAsJSON(e))
+		e.Code, e.Kind, e.Err, e.Message, detailsAsJSON(nil, e))
 }
 
 // BlameUser checks if the given error is ErrBadRequest, ErrProtocolViolation or

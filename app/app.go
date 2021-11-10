@@ -1,13 +1,21 @@
 package app
 
 import (
+	"context"
+	"github.com/LeFinal/masc-server/acting"
+	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
+	"github.com/LeFinal/masc-server/logging"
+	"github.com/LeFinal/masc-server/stores"
 	"github.com/LeFinal/masc-server/web_server"
 	"github.com/LeFinal/masc-server/ws"
+	"sync"
 )
 
 // App is a complete MASC server instance.
 type App struct {
+	// mall provides persistence.
+	mall *stores.Mall
 	// config is the main config used for the App.
 	config Config
 	// webServer is used for http requests and websocket connection.
@@ -15,5 +23,83 @@ type App struct {
 	// wsHub is the hub for websocket connections.
 	wsHub *ws.Hub
 	// gatekeeper handles new connections and device management.
-	gatekeeper gatekeeping.Gatekeeper
+	gatekeeper *gatekeeping.NetGatekeeper
+	// agency does the acting.Actor management.
+	agency *acting.ProtectedAgency
+	// mainHandlers holds general actor handlers like device management or fixture
+	// manager.
+	mainHandlers mainHandlers
+}
+
+func NewApp(config Config) *App {
+	return &App{
+		config: config,
+	}
+}
+
+// Boot sets everything up based on the set config and boots.
+func (app *App) Boot(ctx context.Context) error {
+	// Connect database.
+	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
+		return errors.Wrap(err, "connect database")
+	} else {
+		app.mall = stores.NewMall(db)
+	}
+	// Create gatekeeper.
+	app.gatekeeper = gatekeeping.NewNetGatekeeper(app.mall)
+	// Create websocket hub.
+	app.wsHub = ws.NewHub(app.gatekeeper)
+	// Create agency.
+	app.agency = acting.NewProtectedAgency(app.gatekeeper)
+	// Create web server.
+	if webServer, err := web_server.NewWebServer(web_server.Config{
+		ServeAddr:    app.config.WebsocketAddr,
+		WriteTimeout: 1024,
+		ReadTimeout:  1024,
+	}); err != nil {
+		return errors.Wrap(err, "create web server")
+	} else {
+		app.webServer = webServer
+	}
+	// Create main handlers.
+	app.mainHandlers = mainHandlers{
+		deviceManagement: newDeviceManagementHandlers(app.agency, app.gatekeeper),
+	}
+	// Boot everything.
+	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
+		return errors.Wrap(err, "wake up gatekeeper and protect")
+	}
+	go app.mainHandlers.run(ctx)
+	go app.wsHub.Run(ctx)
+	if err := app.agency.Open(); err != nil {
+		return errors.Wrap(err, "open agency")
+	}
+	app.webServer.PopulateRoutes(app.wsHub, ctx)
+	go func() {
+		err := app.webServer.Run(ctx)
+		if err != nil {
+			errors.Log(logging.AppLogger, errors.Wrap(err, "run web server"))
+			return
+		}
+	}()
+	// Wait for exit.
+	<-ctx.Done()
+	if err := app.gatekeeper.Retire(); err != nil {
+		return errors.Wrap(err, "retire gatekeeper")
+	}
+	if err := app.agency.Close(); err != nil {
+		return errors.Wrap(err, "close agency")
+	}
+	return nil
+}
+
+// mainHandlers includes main actor handlers.
+type mainHandlers struct {
+	deviceManagement *deviceManagementHandlers
+	// wg waits for all running handlers.
+	wg sync.WaitGroup
+}
+
+func (mh *mainHandlers) run(ctx context.Context) {
+	go mh.deviceManagement.run(ctx)
 }

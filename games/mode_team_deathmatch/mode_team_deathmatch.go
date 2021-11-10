@@ -52,7 +52,7 @@ type Config struct {
 // config has invalid values, it returns an error. If everything is okay, the
 // created Config is returned. The passed logger is used for logging warnings
 // for unset fields.
-func configFromRequest(logger *logrus.Logger, r ConfigRequest) (Config, error) {
+func configFromRequest(logger *logrus.Entry, r ConfigRequest) (Config, error) {
 	config := Config{}
 	// Team count.
 	if r.TeamCount.Valid {
@@ -236,7 +236,7 @@ func (match *Match) subscribeMatchAbort(ctx context.Context) {
 	}
 }
 
-func (match *Match) Logger() *logrus.Logger {
+func (match *Match) Logger() *logrus.Entry {
 	return match.BaseMatch.Logger
 }
 

@@ -33,21 +33,20 @@ type MessageContainer struct {
 	MessageType MessageType `json:"message_type"`
 	// DeviceID is the id that is used for identifying the devices.Device the
 	// message belongs to.
-	DeviceID DeviceID `json:"device_id"`
+	DeviceID DeviceID `json:"device_id,omitempty"`
 	// ActorID is the optional ID of the actor. This is used for concurrent
 	// communication with actors that use the same device.
 	ActorID ActorID `json:"actor_id,omitempty"`
 	// Content is the actual message content.
-	Content json.RawMessage `json:"content"`
+	Content json.RawMessage `json:"content,omitempty"`
 }
 
 // All message types.
 const (
 	// MessageTypeAbortMatch is used
 	MessageTypeAbortMatch MessageType = "abort-match"
-	// MessageTypeAcceptDevice is used with MessageAcceptDevice for accepting new
-	// devices and allowing them to communicate with MASC.
-	MessageTypeAcceptDevice MessageType = "welcome-device"
+	// MessageTypeSetDeviceName is used for setting the name of a Device.
+	MessageTypeSetDeviceName MessageType = "set-device-name"
 	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
 	// can send messages with MessageTypeReadyState for notifying of their current
 	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
@@ -68,9 +67,6 @@ const (
 	// MessageTypeGetFixtures is sent to the client for requesting all available
 	// fixtures he offers.
 	MessageTypeGetFixtures MessageType = "get-fixtures"
-	// MessageTypeGoAway is sent to the client when he wants to say hello with an
-	// unknown device ID.
-	MessageTypeGoAway MessageType = "go-away"
 	// MessageTypeHello is received with MessageHello for saying hello to the
 	// server.
 	MessageTypeHello MessageType = "hello"

@@ -8,6 +8,7 @@ import (
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 	"sync"
@@ -141,13 +142,14 @@ func (suite *PlayerJoinOfficeTestSuite) SetupTest() {
 	suite.playerProvider = NewMockPlayerProvider()
 	suite.playerUpdates = make(chan PlayerManagementUpdate)
 	suite.playerManagement = NewPlayerManagement(suite.playerUpdates)
+	l := logrus.New()
+	l.SetLevel(logrus.PanicLevel)
 	suite.office = &PlayerJoinOffice{
 		Team:             "test-team",
-		Logger:           logrus.New(),
+		Logger:           l.WithField("match", uuid.New().String()),
 		PlayerProvider:   suite.playerProvider,
 		PlayerManagement: suite.playerManagement,
 	}
-	suite.office.Logger.SetLevel(logrus.PanicLevel)
 }
 
 func (suite *PlayerJoinOfficeTestSuite) TeardownTest() {

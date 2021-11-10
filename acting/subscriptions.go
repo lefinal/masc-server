@@ -258,17 +258,17 @@ func UnsubscribeOrLogError(newsletter Newsletter) {
 }
 
 // NewsletterAcceptDevice wraps Newsletter with a self-closing receive-channel
-// for messages.MessageAcceptDevice.
+// for messages.MessageSetDeviceName.
 type NewsletterAcceptDevice struct {
 	Newsletter
-	Receive <-chan messages.MessageAcceptDevice
+	Receive <-chan messages.MessageSetDeviceName
 }
 
-// SubscribeMessageTypeAcceptDevice subscribes message with
-// messages.MessageTypeAcceptDevice for the given Actor.
-func SubscribeMessageTypeAcceptDevice(actor Actor) NewsletterAcceptDevice {
-	newsletter := actor.SubscribeMessageType(messages.MessageTypeAcceptDevice)
-	cc := make(chan messages.MessageAcceptDevice)
+// SubscribeMessageTypeSetDeviceName subscribes message with
+// messages.MessageTypeSetDeviceName for the given Actor.
+func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterAcceptDevice {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeSetDeviceName)
+	cc := make(chan messages.MessageSetDeviceName)
 	go func() {
 		defer close(cc)
 		for {
@@ -276,8 +276,8 @@ func SubscribeMessageTypeAcceptDevice(actor Actor) NewsletterAcceptDevice {
 			case <-newsletter.Subscription.Ctx.Done():
 				return
 			case raw := <-newsletter.Receive:
-				var m messages.MessageAcceptDevice
-				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeAcceptDevice, raw, &m) {
+				var m messages.MessageSetDeviceName
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeSetDeviceName, raw, &m) {
 					continue
 				}
 				select {

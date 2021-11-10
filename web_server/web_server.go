@@ -54,10 +54,6 @@ func NewWebServer(config Config) (*WebServer, error) {
 		running: false,
 		stopErr: make(chan error),
 	}
-	// Enable logging.
-	ws.router.Use(loggingMiddleware)
-	// Disable caching.
-	ws.router.Use(noCacheMiddleware)
 	// Setup not found handler.
 	ws.router.NotFoundHandler = noCacheMiddleware(loggingMiddleware(http.NotFoundHandler()))
 	// Create http server.

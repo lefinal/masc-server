@@ -1,11 +1,16 @@
 package gatekeeping
 
 import (
+	"context"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/LeFinal/masc-server/ws"
+	"github.com/gobuffalo/nulls"
+	"time"
 )
 
 // Gatekeeper watches over the gate to the wide world.
 type Gatekeeper interface {
+	ws.ClientListener
 	// WakeUpAndProtect wakes up the Gatekeeper in order to protect the passed
 	// Protected.
 	WakeUpAndProtect(protected Protected) error
@@ -13,11 +18,9 @@ type Gatekeeper interface {
 	Retire() error
 	// GetDevices returns a list of all devices, including unknown ones that can be
 	// accepted via AcceptDevice.
-	GetDevices() []*Device
-	// AcceptDevice accepts an unknown device with the given device ID and assigns
-	// the passed name to it. Later the Gatekeeper will call Protected.WelcomeDevice
-	// for it.
-	AcceptDevice(deviceID messages.DeviceID, name string) error
+	GetDevices() ([]messages.Device, error)
+	// SetDeviceName assigns the passed name to it.
+	SetDeviceName(deviceID messages.DeviceID, name string) error
 }
 
 // Protected is something that is protected by a Gatekeeper.
@@ -35,20 +38,22 @@ type Device struct {
 	// ID is the id of the device.
 	ID messages.DeviceID
 	// Name is the name of the device.
-	Name string
+	Name nulls.String
 	// SelfDescription is how the device describes itself. This is used only for
 	// human readability and to distinguish between multiple unknown devices.
 	SelfDescription string
-	// IsAccepted is a flag for whether the device was accepted via
-	// Gatekeeper.AcceptDevice or is already known.
-	IsAccepted bool
 	// IsConnected is a flag for whether the device is currently connected. This
 	// allows also managing (removing) devices that are currently not connected.
 	IsConnected bool
+	// LastSeen is the last time the online-state for the device was updated.
+	LastSeen time.Time
 	// Roles contains all roles the device says it is able to satisfy.
 	Roles []messages.Role
 	// Send is the channel for outgoing messages.
 	Send chan<- messages.MessageContainer
 	// Receive is the channel for incoming messages.
 	Receive <-chan messages.MessageContainer
+	// ShutdownPumps shuts down message (un)marshalling pumps for incoming and
+	// outgoing messages.
+	ShutdownPumps context.CancelFunc
 }

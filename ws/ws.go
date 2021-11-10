@@ -12,7 +12,7 @@ import (
 // events.
 type ClientListener interface {
 	// AcceptClient is called when a new Client connects.
-	AcceptClient(client *Client)
+	AcceptClient(ctx context.Context, client *Client)
 	// SayGoodbyeToClient is called when a Client's connection has been closed.
 	SayGoodbyeToClient(client *Client)
 }
@@ -21,6 +21,9 @@ type ClientListener interface {
 // stop all remaining read-pumps.
 func HandleWS(hub *Hub, ctx context.Context) http.HandlerFunc {
 	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
 	}
@@ -31,7 +34,7 @@ func HandleWS(hub *Hub, ctx context.Context) http.HandlerFunc {
 			return
 		}
 		client := &Client{
-			id:         uuid.New(),
+			ID:         uuid.New(),
 			hub:        hub,
 			connection: conn,
 			Send:       make(chan []byte, 256),

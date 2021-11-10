@@ -5,6 +5,7 @@ import (
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
@@ -21,12 +22,14 @@ type Match interface {
 	// Done receives when the match is done.
 	Done() <-chan MatchDone
 	// Logger is the match logger which contains all match information.
-	Logger() *logrus.Logger
+	Logger() *logrus.Entry
 }
 
 // BaseMatch holds some basic fields that every Match needs and provides the
 // Match.Status and Match.Done methods.
 type BaseMatch struct {
+	// ID identifies a match.
+	ID string
 	// M is a lock for the whole match state. This can be used when BaseMatch is
 	// composed with the actual match.
 	M sync.RWMutex
@@ -60,7 +63,7 @@ type BaseMatch struct {
 	// DoneUpdates sends when the match has finished.
 	DoneUpdates chan MatchDone
 	// Logger holds all information regarding the match.
-	Logger *logrus.Logger
+	Logger *logrus.Entry
 	// Start is the time when the match was started.
 	Start time.Time
 	// End is the time when the match had finished.
@@ -77,7 +80,9 @@ func (match *BaseMatch) Done() <-chan MatchDone {
 
 func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster acting.Actor) (Match, error) {
 	playerManagementUpdates := make(chan PlayerManagementUpdate)
+	matchID := uuid.New().String()
 	_ = &BaseMatch{
+		ID:                      matchID,
 		GameMode:                gameMode,
 		Phase:                   messages.MatchPhaseInit,
 		IsActive:                true,
@@ -86,7 +91,7 @@ func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster act
 		PlayerManagement:        NewPlayerManagement(playerManagementUpdates),
 		PlayerManagementUpdates: playerManagementUpdates,
 		PlayerProvider:          nil, // TODO: ADD PLEASE
-		Logger:                  logrus.New(),
+		Logger:                  logrus.New().WithField("match", matchID),
 	}
 	// TODO
 	// TODO: Remember to listen for game master quit in order to abort the match.
@@ -96,7 +101,7 @@ func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster act
 // AbortMatchOrLog aborts the match or logs the occurred error.
 func AbortMatchOrLog(match Match, reason string) {
 	err := match.Abort(reason)
-	errors.Log(match.Logger(), errors.Wrap(err, "abort match"))
+	errors.Log(match.Logger().WithFields(logrus.Fields{}), errors.Wrap(err, "abort match"))
 }
 
 // AbortMatchBecauseOfErrorOrLog logs the given error to the given logger

@@ -272,7 +272,7 @@ func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestNotExactFa
 }
 
 func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestNotExactFail2() {
-	suite.record(messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
 	err := suite.c.AssureIncomingMessageTypes(false, messages.MessageTypeHello)
 	suite.Assert().NotNil(err, "should fail")
 }
@@ -299,7 +299,7 @@ func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestExactFail1
 
 func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestExactFail2() {
 	suite.record(messages.MessageTypeRoleAssignments)
-	suite.record(messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
 	suite.record(messages.MessageTypeHello)
 	err := suite.c.AssureIncomingMessageTypes(true, messages.MessageTypeRoleAssignments,
 		messages.MessageTypeHello)
@@ -308,10 +308,10 @@ func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestExactFail2
 
 func (suite *MessageCollectorAssureIncomingMessageTypesTestSuite) TestExactFail3() {
 	suite.record(messages.MessageTypeRoleAssignments)
-	suite.record(messages.MessageTypeAcceptDevice)
-	suite.record(messages.MessageTypeAcceptDevice)
-	err := suite.c.AssureIncomingMessageTypes(true, messages.MessageTypeAcceptDevice,
-		messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
+	suite.record(messages.MessageTypeSetDeviceName)
+	err := suite.c.AssureIncomingMessageTypes(true, messages.MessageTypeSetDeviceName,
+		messages.MessageTypeSetDeviceName)
 	suite.Assert().NotNil(err, "should fail")
 }
 
@@ -338,7 +338,7 @@ func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestNotExactFa
 }
 
 func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestNotExactFail2() {
-	suite.record(messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
 	err := suite.c.AssureOutgoingMessageTypes(false, messages.MessageTypeHello)
 	suite.Assert().NotNil(err, "should fail")
 }
@@ -365,7 +365,7 @@ func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestExactFail1
 
 func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestExactFail2() {
 	suite.record(messages.MessageTypeRoleAssignments)
-	suite.record(messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
 	suite.record(messages.MessageTypeHello)
 	err := suite.c.AssureOutgoingMessageTypes(true, messages.MessageTypeRoleAssignments,
 		messages.MessageTypeHello)
@@ -374,10 +374,10 @@ func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestExactFail2
 
 func (suite *MessageCollectorAssureOutgoingMessageTypesTestSuite) TestExactFail3() {
 	suite.record(messages.MessageTypeRoleAssignments)
-	suite.record(messages.MessageTypeAcceptDevice)
-	suite.record(messages.MessageTypeAcceptDevice)
-	err := suite.c.AssureOutgoingMessageTypes(true, messages.MessageTypeAcceptDevice,
-		messages.MessageTypeAcceptDevice)
+	suite.record(messages.MessageTypeSetDeviceName)
+	suite.record(messages.MessageTypeSetDeviceName)
+	err := suite.c.AssureOutgoingMessageTypes(true, messages.MessageTypeSetDeviceName,
+		messages.MessageTypeSetDeviceName)
 	suite.Assert().NotNil(err, "should fail")
 }
 

@@ -55,6 +55,12 @@ func getRole(role messages.Role) (RoleType, bool) {
 	return "", false
 }
 
+// ActorNewsletterRecipient is used for handling a new Actor for an Agency.
+type ActorNewsletterRecipient interface {
+	// HandleNewActor is called when a new Actor is welcomed to the Agency.
+	HandleNewActor(actor Actor, role RoleType)
+}
+
 // Agency manages actors.
 type Agency interface {
 	// ActorByID retrieves an Actor by its Actor.ID. Returns false when the Actor is
@@ -67,6 +73,13 @@ type Agency interface {
 	Open() error
 	// Close closes the agency.
 	Close() error
+	// SubscribeNewActors adds the given ActorNewsletterRecipient to the list of
+	// subscribers for when a new Actor is welcomed. Don't forget to call
+	// UnsubscribeNewActors!
+	SubscribeNewActors(recipient ActorNewsletterRecipient)
+	// UnsubscribeNewActors unsubscribes a subscription that was originally set up
+	// using SubscribeNewActors.
+	UnsubscribeNewActors(recipient ActorNewsletterRecipient)
 }
 
 // ActorOutgoingMessage is a message that is sent from an Actor.
@@ -109,7 +122,9 @@ type Actor interface {
 	// be careful to use it in production. In most cases, a SubscriptionManager
 	// handles receiving messages.
 	Receive() <-chan ActorIncomingMessage
-	// Quit returns the channel for when the actor decides to quit.
+	// Quit returns the channel for when the actor decides to quit. The channel
+	// provides a context.CancelFunc that needs to be called when we are sure that
+	// no more writes are being performed and all pumps can be shut down.
 	Quit() <-chan struct{}
 }
 
@@ -263,69 +278,6 @@ func (a *netActor) handleIncomingMessage(message ActorIncomingMessage) {
 	}
 }
 
-type netActorDeviceManager struct {
-	netActor
-	// gatekeeper is used for retrieving and managing devices.
-	gatekeeper gatekeeping.Gatekeeper
-	// shutdownMessageHandlers is the context.CancelFunc for stopping the message handler.
-	shutdownMessageHandlers context.CancelFunc
-	// messageHandlers waits for all message handlers to stop.
-	messageHandlers sync.WaitGroup
-}
-
-func (a *netActorDeviceManager) Hire(displayedName string) error {
-	// Hire normally.
-	err := a.netActor.Hire(displayedName)
-	if err != nil {
-		return errors.Wrap(err, "hire actor")
-	}
-	// Setup message handlers. We do not need to unsubscribe because this will be
-	// done when the actor is fired. Handle device retrieval.
-	go func() {
-		newsletter := SubscribeMessageTypeGetDevices(a)
-		for range newsletter.Receive {
-			a.handleGetDevices()
-		}
-	}()
-	// Handle device accepting.
-	go func() {
-		newsletter := SubscribeMessageTypeAcceptDevice(a)
-		for message := range newsletter.Receive {
-			a.handleAcceptDevice(message)
-		}
-	}()
-	return nil
-}
-
-// handleGetDevices handles an incoming message with type
-// messages.MessageTypeGetDevices.
-func (a *netActorDeviceManager) handleGetDevices() {
-	// Respond with all devices.
-	devices := a.gatekeeper.GetDevices()
-	res := messages.MessageDeviceList{
-		Devices: make([]messages.Device, len(devices)),
-	}
-	for i, device := range devices {
-		res.Devices[i] = messages.Device{
-			ID:          device.ID,
-			Name:        device.Name,
-			IsAccepted:  device.IsAccepted,
-			IsConnected: device.IsConnected,
-			Roles:       device.Roles,
-		}
-	}
-}
-
-// handleAcceptDevice handles an incoming message with type
-// messages.MessageTypeAcceptDevice.
-func (a *netActorDeviceManager) handleAcceptDevice(message messages.MessageAcceptDevice) {
-	err := a.gatekeeper.AcceptDevice(message.DeviceID, message.AssignName)
-	if err != nil {
-		SendOrLogError(logging.ActingLogger, a, ActorErrorMessageFromError(errors.Wrap(err, "accept device")))
-		return
-	}
-}
-
 // netActorDeviceOutgoingMessage is a container for an ActorIncomingMessage and
 // the id of the Actor that wants to send the message. This allows using a
 // single channel for sending messages to a device.
@@ -356,15 +308,21 @@ type netActorDevice struct {
 	routers sync.WaitGroup
 }
 
-// boot sets up all fields and fires up the routers. Make sure that the device is set.
-func (ad *netActorDevice) boot() error {
+type actorWithRole struct {
+	actor Actor
+	role  RoleType
+}
+
+// boot sets up all fields and fires up the routers. Make sure that the device
+// is set. Returns a list of added actors.
+func (ad *netActorDevice) boot() ([]actorWithRole, error) {
 	// Check each role of the device for being known so that if one is unknown, we
 	// do not need to rollback.
 	roles := make([]RoleType, len(ad.device.Roles))
 	for i, role := range ad.device.Roles {
 		r, knownRole := getRole(role)
 		if !knownRole {
-			return errors.Error{
+			return nil, errors.Error{
 				Code:    errors.ErrBadRequest,
 				Kind:    errors.KindUnknownRole,
 				Message: fmt.Sprintf("unknown role: %s", role),
@@ -375,6 +333,7 @@ func (ad *netActorDevice) boot() error {
 	}
 	ad.actors = make(map[messages.ActorID]*netActor)
 	ad.send = make(chan netActorDeviceOutgoingMessage)
+	createdActors := make([]actorWithRole, 0, len(roles))
 	// Add actors for each role the device offers.
 	for _, role := range roles {
 		// Create new actor.
@@ -388,15 +347,19 @@ func (ad *netActorDevice) boot() error {
 		}
 		// Append to own actor list.
 		ad.actors[created.id] = created
+		createdActors = append(createdActors, actorWithRole{
+			actor: created,
+			role:  role,
+		})
 	}
 	// Start router.
-	ctx, cancel := context.WithCancel(context.Background())
-	ad.shutdownRouter = cancel
+	routerCtx, shutdownRouter := context.WithCancel(context.Background())
+	ad.shutdownRouter = shutdownRouter
 	ad.routers.Add(2)
-	go ad.routeIncoming(ctx)
-	go ad.routeOutgoing(ctx)
+	go ad.routeIncoming(routerCtx)
+	go ad.routeOutgoing(routerCtx)
 	logging.ActingLogger.Infof("net actor device %s with roles %s ready.", ad.device.ID, ad.device.Roles)
-	return nil
+	return createdActors, nil
 }
 
 // routeIncoming performs routing for incoming messages to the correct actor. When
@@ -473,6 +436,9 @@ func (ad *netActorDevice) shutdown() {
 	ad.actorsMutex.Lock()
 	for _, actor := range ad.actors {
 		if actor.isHired {
+			actor.hireMutex.Lock()
+			actor.isHired = false
+			actor.hireMutex.Unlock()
 			actor.quit <- struct{}{}
 		}
 	}
@@ -491,6 +457,17 @@ type ProtectedAgency struct {
 	m sync.RWMutex
 	// gatekeeper protects the agency.
 	gatekeeper gatekeeping.Gatekeeper
+	// newActorSubscribers is the collection of subscribers for when a new Actor is
+	// welcomed. Subscriptions are added via SubscribeNewActors.
+	newActorSubscribers map[ActorNewsletterRecipient]struct{}
+}
+
+func NewProtectedAgency(gatekeeper gatekeeping.Gatekeeper) *ProtectedAgency {
+	return &ProtectedAgency{
+		actorDevices:        make(map[messages.DeviceID]*netActorDevice),
+		gatekeeper:          gatekeeper,
+		newActorSubscribers: make(map[ActorNewsletterRecipient]struct{}),
+	}
 }
 
 func (a *ProtectedAgency) WelcomeDevice(device *gatekeeping.Device) error {
@@ -501,12 +478,18 @@ func (a *ProtectedAgency) WelcomeDevice(device *gatekeeping.Device) error {
 		device: device,
 	}
 	// Boot.
-	err := ad.boot()
+	newActors, err := ad.boot()
 	if err != nil {
 		return errors.Wrap(err, "boot actor device")
 	}
 	// Only add if successfully booted.
 	a.actorDevices[device.ID] = ad
+	// Satisfy actor subscriptions.
+	for _, actor := range newActors {
+		for recipient := range a.newActorSubscribers {
+			go recipient.HandleNewActor(actor.actor, actor.role)
+		}
+	}
 	return nil
 }
 
@@ -558,11 +541,7 @@ func (a *ProtectedAgency) AvailableActors(role RoleType) []Actor {
 
 func (a *ProtectedAgency) Open() error {
 	a.actorDevices = make(map[messages.DeviceID]*netActorDevice)
-	// Protect self by gatekeeper.
-	err := a.gatekeeper.WakeUpAndProtect(a)
-	if err != nil {
-		return errors.Wrap(err, "wake up gatekeeper")
-	}
+	logging.ActingLogger.Info("agency open for actors")
 	return nil
 }
 
@@ -571,15 +550,32 @@ func (a *ProtectedAgency) Close() error {
 	for _, device := range a.actorDevices {
 		device.shutdown()
 	}
-	// Retire gatekeeper.
-	err := a.gatekeeper.Retire()
-	if err != nil {
-		return errors.Wrap(err, "retire gatekeeper")
-	}
+	logging.ActingLogger.Info("agency closed")
 	return nil
 }
 
-// ActorErrorMessageFromError creates a new ActorOutgoingMessage for the given actor and with passed error.
+func (a *ProtectedAgency) SubscribeNewActors(recipient ActorNewsletterRecipient) {
+	a.m.Lock()
+	defer a.m.Unlock()
+	if _, ok := a.newActorSubscribers[recipient]; ok {
+		logging.ActingLogger.Warn("duplicate new actor subscribe")
+		return
+	}
+	a.newActorSubscribers[recipient] = struct{}{}
+}
+
+func (a *ProtectedAgency) UnsubscribeNewActors(recipient ActorNewsletterRecipient) {
+	a.m.Lock()
+	defer a.m.Unlock()
+	if _, ok := a.newActorSubscribers[recipient]; !ok {
+		logging.ActingLogger.Error("unsubscribe for new actors although not subscribed")
+		return
+	}
+	delete(a.newActorSubscribers, recipient)
+}
+
+// ActorErrorMessageFromError creates a new ActorOutgoingMessage for the given
+// actor and with passed error.
 func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 	return ActorOutgoingMessage{
 		MessageType: messages.MessageTypeError,
@@ -587,17 +583,28 @@ func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 	}
 }
 
-// SendForbiddenMessageTypeErrToActorOrLogError does everything the function name already includes lol.
-func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Logger, a Actor, message ActorIncomingMessage) {
+// SendForbiddenMessageTypeErrToActorOrLogError does everything the function
+// name already includes lol.
+func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Entry, a Actor, message ActorIncomingMessage) {
 	SendOrLogError(logger, a,
 		ActorErrorMessageFromError(NewForbiddenMessageError(message.MessageType, message.Content)))
 }
 
-// SendOrLogError sends the message to the given Actor and logs the error if delivery failed.
-func SendOrLogError(logger *logrus.Logger, a Actor, message ActorOutgoingMessage) {
+// SendOrLogError sends the message to the given Actor and logs the error if
+// delivery failed.
+func SendOrLogError(logger *logrus.Entry, a Actor, message ActorOutgoingMessage) {
 	err := a.Send(message)
 	if err != nil {
 		errors.Log(logger, errors.Wrap(err, "send message"))
+	}
+}
+
+// SendOKOrLogError sends a message with messages.MessageTypeOK to the given
+// Actor and logs the error if delivery failed.
+func SendOKOrLogError(logger *logrus.Entry, a Actor) {
+	err := a.Send(ActorOutgoingMessage{MessageType: messages.MessageTypeOK})
+	if err != nil {
+		errors.Log(logger, errors.Wrap(err, "send ok message"))
 	}
 }
 

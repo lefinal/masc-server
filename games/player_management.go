@@ -152,7 +152,7 @@ type PlayerJoinOffice struct {
 	// from others when using shared PlayerManagement.
 	Team PlayerManagementTeamKey
 	// Logger for non-critical errors.
-	Logger *logrus.Logger
+	Logger *logrus.Entry
 	// PlayerProvider is a store interface for retrieving users and creating guest
 	// ones.
 	PlayerProvider PlayerProvider
