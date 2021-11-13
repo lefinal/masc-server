@@ -24,10 +24,12 @@ const (
 	// Warning: This is the only RoleType that is managed within an Agency, because it
 	// needs to be able to accept new devices.
 	RoleTypeDeviceManager RoleType = "device-manager"
-	// RoleTypeGameMaster sets up and controls matches.
-	RoleTypeGameMaster RoleType = "game-master"
+	// RoleTypeFixtureManager sets up and controls fixtures.
+	RoleTypeFixtureManager RoleType = "fixture-manager"
 	// RoleTypeFixtureProvider is used for provided fixtures.
 	RoleTypeFixtureProvider RoleType = "fixture-provider"
+	// RoleTypeGameMaster sets up and controls matches.
+	RoleTypeGameMaster RoleType = "game-master"
 	// RoleTypeTeamBase allows managing a team. Mostly used for devices that are located
 	// in team bases. Also used in-game.
 	RoleTypeTeamBase RoleType = "team-base"
@@ -46,6 +48,8 @@ func getRole(role messages.Role) (RoleType, bool) {
 	r := RoleType(role)
 	switch r {
 	case RoleTypeDeviceManager,
+		RoleTypeFixtureManager,
+		RoleTypeFixtureProvider,
 		RoleTypeGameMaster,
 		RoleTypeTeamBase,
 		RoleTypeTeamBaseMonitor,
