@@ -24,7 +24,8 @@ type Device struct {
 
 func (m *Mall) GetDevices() ([]Device, error) {
 	q, _, err := m.dialect.From(goqu.T("devices")).
-		Select(goqu.C("id"), goqu.C("name"), goqu.C("self_description"), goqu.C("last_seen")).ToSQL()
+		Select(goqu.C("id"), goqu.C("name"), goqu.C("self_description"), goqu.C("last_seen")).
+		Order(goqu.C("last_seen").Desc()).ToSQL()
 	if err != nil {
 		return nil, errors.NewQueryToSQLError(err, nil)
 	}
@@ -104,6 +105,23 @@ func (m *Mall) SetDeviceName(deviceID messages.DeviceID, name string) error {
 	result, err := m.db.Exec(q)
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errDetails)
+	}
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	if err != nil {
+		return errors.Wrap(err, "assure found")
+	}
+	return nil
+}
+
+func (m *Mall) DeleteDevice(deviceID messages.DeviceID) error {
+	q, _, err := m.dialect.Delete(goqu.T("devices")).
+		Where(goqu.C("id").Eq(deviceID)).ToSQL()
+	if err != nil {
+		return errors.NewQueryToSQLError(err, errors.Details{"device": deviceID})
+	}
+	result, err := m.db.Exec(q)
+	if err != nil {
+		return errors.NewExecQueryError(err, q, errors.Details{"device": deviceID})
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
 	if err != nil {

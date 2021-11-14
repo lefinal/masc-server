@@ -21,6 +21,8 @@ type Gatekeeper interface {
 	GetDevices() ([]messages.Device, error)
 	// SetDeviceName assigns the passed name to it.
 	SetDeviceName(deviceID messages.DeviceID, name string) error
+	// DeleteDevice deletes the device with the given id.
+	DeleteDevice(deviceID messages.DeviceID) error
 }
 
 // Protected is something that is protected by a Gatekeeper.

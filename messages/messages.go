@@ -45,12 +45,12 @@ type MessageContainer struct {
 const (
 	// MessageTypeAbortMatch is used
 	MessageTypeAbortMatch MessageType = "abort-match"
-	// MessageTypeSetDeviceName is used for setting the name of a Device.
-	MessageTypeSetDeviceName MessageType = "set-device-name"
 	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
 	// can send messages with MessageTypeReadyState for notifying of their current
 	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
 	MessageTypeAreYouReady MessageType = "are-you-ready"
+	// MessageTypeDeleteDevice is used with MessageDeleteDevice for deleting a Device.
+	MessageTypeDeleteDevice MessageType = "delete-device"
 	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
 	// MessageTypeGetDevices.
 	MessageTypeDeviceList MessageType = "device-list"
@@ -62,6 +62,12 @@ const (
 	// MessageTypeFixtures provides all available fixtures from a fixture provider.
 	// Used with MessageFixtures.
 	MessageTypeFixtures MessageType = "fixtures"
+	// MessageTypeFixtureBasicSetState is used for setting the state of
+	// FixtureTypeBasic.
+	MessageTypeFixtureBasicSetState MessageType = "fixture-basic-set-state"
+	// MessageTypeFixtureDimmerSetState is used for setting the state of
+	// FixtureTypeDimmer.
+	MessageTypeFixtureDimmerSetState MessageType = "fixture-dimmer-set-state"
 	// MessageTypeGetDevices is received when devices are requested.
 	MessageTypeGetDevices MessageType = "get-devices"
 	// MessageTypeGetFixtures is sent to the client for requesting all available
@@ -107,12 +113,8 @@ const (
 	// MessageTypeRoleAssignments is used with MessageRoleAssignments for when an
 	// assignment request was fulfilled.
 	MessageTypeRoleAssignments MessageType = "role-assignments"
-	// MessageTypeFixtureBasicSetState is used for setting the state of
-	// FixtureTypeBasic.
-	MessageTypeFixtureBasicSetState MessageType = "fixture-basic-set-state"
-	// MessageTypeFixtureDimmerSetState is used for setting the state of
-	// FixtureTypeDimmer.
-	MessageTypeFixtureDimmerSetState MessageType = "fixture-dimmer-set-state"
+	// MessageTypeSetDeviceName is used for setting the name of a Device.
+	MessageTypeSetDeviceName MessageType = "set-device-name"
 	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
 	// Used with MessageWelcome.
 	MessageTypeWelcome MessageType = "welcome"

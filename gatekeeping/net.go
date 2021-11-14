@@ -25,6 +25,8 @@ type GatekeeperStore interface {
 	RefreshLastSeenForDevice(deviceID messages.DeviceID) error
 	// SetDeviceName sets the name for the Device with the given id.
 	SetDeviceName(deviceID messages.DeviceID, name string) error
+	// DeleteDevice deletes the Device with the given id.
+	DeleteDevice(deviceID messages.DeviceID) error
 }
 
 type NetGatekeeper struct {
@@ -81,6 +83,7 @@ func (gk *NetGatekeeper) GetDevices() ([]messages.Device, error) {
 			ID:              storeDevice.ID,
 			Name:            storeDevice.Name,
 			SelfDescription: storeDevice.SelfDescription,
+			LastSeen:        storeDevice.LastSeen,
 			IsConnected:     isOnline,
 		}
 		// Only set roles when online.
@@ -150,6 +153,10 @@ func (gk *NetGatekeeper) AcceptClient(ctx context.Context, client *ws.Client) {
 			return
 		}
 	}
+}
+
+func (gk *NetGatekeeper) DeleteDevice(deviceID messages.DeviceID) error {
+	return gk.store.DeleteDevice(deviceID)
 }
 
 // deviceIncomingPump unmarshalls and logs incoming messages and forwards them

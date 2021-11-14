@@ -1,6 +1,9 @@
 package messages
 
-import "github.com/gobuffalo/nulls"
+import (
+	"github.com/gobuffalo/nulls"
+	"time"
+)
 
 // MessageHello is used with MessageTypeHello for saying hello to MASC.
 type MessageHello struct {
@@ -34,16 +37,24 @@ type Device struct {
 	// SelfDescription is a human-readable description of how the device describes
 	// itself.
 	SelfDescription string `json:"self_description"`
+	// LastSeen is the last time, the device updated its online-state.
+	LastSeen time.Time `json:"last_seen"`
 	// IsConnected describes whether the device is currently connected.
 	IsConnected bool `json:"is_connected"`
 	// Roles contains all roles the device says it can satisfy.
 	Roles []Role `json:"roles,omitempty"`
 }
 
-// MessageSetDeviceName is used for setting device names.
+// MessageSetDeviceName is used with MessageTypeSetDeviceName.
 type MessageSetDeviceName struct {
-	// DeviceID is the ID of the device to accept.
+	// DeviceID is the id of the device to accept.
 	DeviceID DeviceID `json:"device_id"`
 	// Name is the name that will be assigned to the new device.
 	Name string `json:"name"`
+}
+
+// MessageDeleteDevice is used with MessageTypeDeleteDevice.
+type MessageDeleteDevice struct {
+	// DeviceID is the id of the device to delete.
+	DeviceID DeviceID `json:"device_id"`
 }

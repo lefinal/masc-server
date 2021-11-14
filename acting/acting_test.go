@@ -243,6 +243,11 @@ func (gk *mockGatekeeper) SetDeviceName(deviceID messages.DeviceID, name string)
 	return args.Error(0)
 }
 
+func (gk *mockGatekeeper) DeleteDevice(deviceID messages.DeviceID) error {
+	args := gk.Called(deviceID)
+	return args.Error(0)
+}
+
 func (suite *ProtectedAgencyTestSuite) SetupTest() {
 	suite.device = &gatekeeping.Device{
 		ID:      messages.DeviceID(uuid.New().String()),

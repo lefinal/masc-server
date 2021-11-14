@@ -94,11 +94,16 @@ func (a *actorDeviceManager) Hire(displayedName string) error {
 			a.handleGetDevices()
 		}
 	}()
-	// Handle device accepting.
 	go func() {
 		newsletter := acting.SubscribeMessageTypeSetDeviceName(a)
 		for message := range newsletter.Receive {
 			a.handleSetDeviceName(message)
+		}
+	}()
+	go func() {
+		newsletter := acting.SubscribeMessageTypeDeleteDevice(a)
+		for message := range newsletter.Receive {
+			a.handleDeleteDevice(message)
 		}
 	}()
 	return nil
@@ -117,6 +122,7 @@ func (a *actorDeviceManager) handleGetDevices() {
 			ID:          device.ID,
 			Name:        device.Name,
 			IsConnected: device.IsConnected,
+			LastSeen:    device.LastSeen,
 			Roles:       device.Roles,
 		}
 	}
@@ -132,6 +138,17 @@ func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDevi
 	err := a.gatekeeper.SetDeviceName(message.DeviceID, message.Name)
 	if err != nil {
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "set device name")))
+		return
+	}
+	acting.SendOKOrLogError(logging.ActingLogger, a)
+}
+
+// handleDeleteDevice handles an incoming message with type
+// messages.MessageTypeDeleteDevice.
+func (a *actorDeviceManager) handleDeleteDevice(message messages.MessageDeleteDevice) {
+	err := a.gatekeeper.DeleteDevice(message.DeviceID)
+	if err != nil {
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "delete device")))
 		return
 	}
 	acting.SendOKOrLogError(logging.ActingLogger, a)

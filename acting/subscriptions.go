@@ -257,16 +257,16 @@ func UnsubscribeOrLogError(newsletter Newsletter) {
 	}
 }
 
-// NewsletterAcceptDevice wraps Newsletter with a self-closing receive-channel
+// NewsletterSetDeviceName wraps Newsletter with a self-closing receive-channel
 // for messages.MessageSetDeviceName.
-type NewsletterAcceptDevice struct {
+type NewsletterSetDeviceName struct {
 	Newsletter
 	Receive <-chan messages.MessageSetDeviceName
 }
 
 // SubscribeMessageTypeSetDeviceName subscribes message with
 // messages.MessageTypeSetDeviceName for the given Actor.
-func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterAcceptDevice {
+func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterSetDeviceName {
 	newsletter := actor.SubscribeMessageType(messages.MessageTypeSetDeviceName)
 	cc := make(chan messages.MessageSetDeviceName)
 	go func() {
@@ -288,7 +288,44 @@ func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterAcceptDevice {
 			}
 		}
 	}()
-	return NewsletterAcceptDevice{
+	return NewsletterSetDeviceName{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterDeleteDevice wraps Newsletter with a self-closing receive-channel
+// for messages.MessageDeleteDevice.
+type NewsletterDeleteDevice struct {
+	Newsletter
+	Receive <-chan messages.MessageDeleteDevice
+}
+
+// SubscribeMessageTypeDeleteDevice subscribes message with
+// messages.MessageTypeDeleteDevice for the given Actor.
+func SubscribeMessageTypeDeleteDevice(actor Actor) NewsletterDeleteDevice {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeDeleteDevice)
+	cc := make(chan messages.MessageDeleteDevice)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageDeleteDevice
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeDeleteDevice, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterDeleteDevice{
 		Newsletter: newsletter.Newsletter,
 		Receive:    cc,
 	}
