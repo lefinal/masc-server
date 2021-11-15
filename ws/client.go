@@ -126,18 +126,6 @@ func (c *Client) writePump() {
 			if err != nil {
 				c.logger().Warnf(errors.Wrap(err, "write text message").Error())
 			}
-			// Add queued messages to the current websocket message.
-			remainingMessages := len(c.Send)
-			for i := 0; i < remainingMessages; i++ {
-				_, err = nextWriter.Write(newline)
-				if err != nil {
-					c.logger().Warnf(errors.Wrap(err, "write new line").Error())
-				}
-				_, err = nextWriter.Write(<-c.Send)
-				if err != nil {
-					c.logger().Warnf(errors.Wrap(err, "write queued message").Error())
-				}
-			}
 			// Close writer.
 			if err := nextWriter.Close(); err != nil {
 				c.logger().Warnf(errors.Wrap(err, "close next writer").Error())
