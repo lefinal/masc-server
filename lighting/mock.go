@@ -256,7 +256,7 @@ func (manager *MockManagerStore) SetFixtureName(fixtureID messages.FixtureID, na
 	return nil
 }
 
-func (manager *MockManagerStore) SetFixtureOnline(fixtureID messages.FixtureID, isOnline bool) error {
+func (manager *MockManagerStore) RefreshLastSeen(fixtureID messages.FixtureID) error {
 	if manager.SetFixtureOnlineErr != nil {
 		return manager.SetFixtureOnlineErr
 	}
@@ -266,7 +266,6 @@ func (manager *MockManagerStore) SetFixtureOnline(fixtureID messages.FixtureID, 
 		return errors.NewResourceNotFoundError(fmt.Sprintf("fixture %v not found", fixtureID), errors.Details{})
 	} else {
 		fixture.LastSeen = time.Now()
-		fixture.IsOnline = isOnline
 		manager.fixtures[fixtureID] = fixture
 	}
 	return nil

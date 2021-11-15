@@ -1,4 +1,4 @@
-package app
+package device_management
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"sync"
 )
 
-// deviceManagementHandlers implements acting.ActorNewsletterRecipient for
+// DeviceManagementHandlers implements acting.ActorNewsletterRecipient for
 // handling new actors with acting.RoleTypeDeviceManager.
-type deviceManagementHandlers struct {
+type DeviceManagementHandlers struct {
 	// agency from which new actors are subscribed.
 	agency acting.Agency
 	// gatekeeper is the gatekeeping.Gatekeeper that is passed to every created
@@ -28,25 +28,25 @@ type deviceManagementHandlers struct {
 	m sync.Mutex
 }
 
-// newDeviceManagementHandlers creates a new deviceManagementHandlers that can
+// NewDeviceManagementHandlers creates a new deviceManagementHandlers that can
 // be run via deviceManagementHandlers.run.
-func newDeviceManagementHandlers(agency acting.Agency, gatekeeper gatekeeping.Gatekeeper) *deviceManagementHandlers {
-	return &deviceManagementHandlers{
+func NewDeviceManagementHandlers(agency acting.Agency, gatekeeper gatekeeping.Gatekeeper) *DeviceManagementHandlers {
+	return &DeviceManagementHandlers{
 		agency:         agency,
 		gatekeeper:     gatekeeper,
 		activeManagers: make(map[*actorDeviceManager]struct{}),
 	}
 }
 
-// run the handler. It subscribes to the agency and unsubscribes when the given
+// Run the handler. It subscribes to the agency and unsubscribes when the given
 // context.Context is done.
-func (dm *deviceManagementHandlers) run(ctx context.Context) {
+func (dm *DeviceManagementHandlers) Run(ctx context.Context) {
 	dm.agency.SubscribeNewActors(dm)
 	<-ctx.Done()
 	dm.agency.UnsubscribeNewActors(dm)
 }
 
-func (dm *deviceManagementHandlers) HandleNewActor(actor acting.Actor, role acting.RoleType) {
+func (dm *DeviceManagementHandlers) HandleNewActor(actor acting.Actor, role acting.RoleType) {
 	if role != acting.RoleTypeDeviceManager {
 		return
 	}

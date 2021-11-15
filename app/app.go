@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"github.com/LeFinal/masc-server/acting"
+	"github.com/LeFinal/masc-server/device_management"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
 	"github.com/LeFinal/masc-server/logging"
@@ -63,13 +64,13 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	// Create main handlers.
 	app.mainHandlers = mainHandlers{
-		deviceManagement: newDeviceManagementHandlers(app.agency, app.gatekeeper),
+		deviceManagement: device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
 	}
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
 		return errors.Wrap(err, "wake up gatekeeper and protect")
 	}
-	go app.mainHandlers.run(ctx)
+	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if err := app.agency.Open(); err != nil {
 		return errors.Wrap(err, "open agency")
@@ -95,11 +96,11 @@ func (app *App) Boot(ctx context.Context) error {
 
 // mainHandlers includes main actor handlers.
 type mainHandlers struct {
-	deviceManagement *deviceManagementHandlers
+	deviceManagement *device_management.DeviceManagementHandlers
 	// wg waits for all running handlers.
 	wg sync.WaitGroup
 }
 
-func (mh *mainHandlers) run(ctx context.Context) {
-	go mh.deviceManagement.run(ctx)
+func (mh *mainHandlers) Run(ctx context.Context) {
+	go mh.deviceManagement.Run(ctx)
 }

@@ -21,10 +21,8 @@ type ManagerStore interface {
 	DeleteFixture(fixtureID messages.FixtureID) error
 	// SetFixtureName sets the name of the fixture with the given id.
 	SetFixtureName(fixtureID messages.FixtureID, name string) error
-	// SetFixtureOnline sets the last seen field for the fixture to the current time
-	// if online and sets it to online. If it is offline, the last seen field is
-	// updated again and online-state set to offline.
-	SetFixtureOnline(fixtureID messages.FixtureID, isOnline bool) error
+	// RefreshLastSeen sets the last seen field for the fixture to the current time.
+	RefreshLastSeen(fixtureID messages.FixtureID) error
 }
 
 // Manager allows managing fixtures and their providers.
@@ -92,7 +90,7 @@ func (manager *manager) AcceptFixtureProvider(ctx context.Context, actor acting.
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	for _, fixture := range acceptedFixtures {
-		err = manager.store.SetFixtureOnline(fixture.ID(), true)
+		err = manager.store.RefreshLastSeen(fixture.ID())
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v online", fixture.ID()))
 		}
@@ -145,7 +143,6 @@ addFixtures:
 			ProviderID: fixtureToAdd.ProviderID,
 			LastSeen:   time.Now(),
 			Type:       fixtureToAdd.Type,
-			IsOnline:   false,
 		})
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("create fixture %v from device %v",
@@ -164,7 +161,7 @@ func (manager *manager) SayGoodbyeToFixtureProvider(actor acting.Actor) error {
 	// Set all fixtures offline for the actor.
 	for fixtureID, fixture := range manager.fixtures {
 		fixture.setActor(nil)
-		err := manager.store.SetFixtureOnline(fixtureID, false)
+		err := manager.store.RefreshLastSeen(fixtureID)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v offline", fixtureID))
 		}

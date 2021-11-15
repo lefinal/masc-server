@@ -21,6 +21,24 @@ type Fixture struct {
 	Type messages.FixtureType
 	// LastSeen is the last time the fixture online state changed.
 	LastSeen time.Time
-	// IsOnline is true when the fixture is currently online.
-	IsOnline bool
+}
+
+func (m *Mall) GetFixtures() ([]Fixture, error) {
+	panic("implement me")
+}
+
+func (m *Mall) CreateFixture(fixture Fixture) (Fixture, error) {
+	panic("implement me")
+}
+
+func (m *Mall) DeleteFixture(fixtureID messages.FixtureID) error {
+	panic("implement me")
+}
+
+func (m *Mall) SetFixtureName(fixtureID messages.FixtureID, name string) error {
+	panic("implement me")
+}
+
+func (m *Mall) RefreshLastSeen(fixtureID messages.FixtureID) error {
+	panic("implement me")
 }
