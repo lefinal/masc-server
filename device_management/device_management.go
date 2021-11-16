@@ -29,7 +29,7 @@ type DeviceManagementHandlers struct {
 }
 
 // NewDeviceManagementHandlers creates a new deviceManagementHandlers that can
-// be run via deviceManagementHandlers.run.
+// be run via DeviceManagementHandlers.Run.
 func NewDeviceManagementHandlers(agency acting.Agency, gatekeeper gatekeeping.Gatekeeper) *DeviceManagementHandlers {
 	return &DeviceManagementHandlers{
 		agency:         agency,
@@ -73,7 +73,7 @@ func (dm *DeviceManagementHandlers) HandleNewActor(actor acting.Actor, role acti
 }
 
 // actorDeviceManager is an Actor that implements handling for
-// RoleTypeDeviceManager.
+// acting.RoleTypeDeviceManager.
 type actorDeviceManager struct {
 	acting.Actor
 	// gatekeeper is used for retrieving and managing devices.
@@ -113,7 +113,11 @@ func (a *actorDeviceManager) Hire(displayedName string) error {
 // messages.MessageTypeGetDevices.
 func (a *actorDeviceManager) handleGetDevices() {
 	// Respond with all devices.
-	devices, _ := a.gatekeeper.GetDevices()
+	devices, err := a.gatekeeper.GetDevices()
+	if err != nil {
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "get devices")))
+		return
+	}
 	res := messages.MessageDeviceList{
 		Devices: make([]messages.Device, len(devices)),
 	}

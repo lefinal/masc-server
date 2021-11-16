@@ -18,7 +18,7 @@ type MockFixtureProps struct {
 	providerID  messages.FixtureProviderFixtureID
 	isEnabled   bool
 	fixtureType messages.FixtureType
-	name        string
+	name        nulls.String
 	isLocating  bool
 	actor       acting.Actor
 	features    []messages.FixtureFeature
@@ -30,7 +30,7 @@ type MockFixture struct {
 	providerID  messages.FixtureProviderFixtureID
 	isEnabled   bool
 	fixtureType messages.FixtureType
-	name        string
+	name        nulls.String
 	isLocating  bool
 	actor       acting.Actor
 	// features are returned by Features.
@@ -39,6 +39,7 @@ type MockFixture struct {
 	lastReset time.Time
 	// lastApply is the last time Apply was called.
 	lastApply time.Time
+	lastSeen  time.Time
 	// m locks all properties from MockFixture.
 	m sync.RWMutex
 	// ApplyErr for Apply.
@@ -71,10 +72,22 @@ func (f *MockFixture) DeviceID() messages.DeviceID {
 	return f.deviceID
 }
 
+func (f *MockFixture) setDeviceID(deviceID messages.DeviceID) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.deviceID = deviceID
+}
+
 func (f *MockFixture) ProviderID() messages.FixtureProviderFixtureID {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.providerID
+}
+
+func (f *MockFixture) setProviderID(providerID messages.FixtureProviderFixtureID) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.providerID = providerID
 }
 
 func (f *MockFixture) IsEnabled() bool {
@@ -101,13 +114,13 @@ func (f *MockFixture) Type() messages.FixtureType {
 	return f.fixtureType
 }
 
-func (f *MockFixture) Name() string {
+func (f *MockFixture) Name() nulls.String {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.name
 }
 
-func (f *MockFixture) setName(name string) {
+func (f *MockFixture) setName(name nulls.String) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.name = name
@@ -168,6 +181,18 @@ func (f *MockFixture) actorID() messages.ActorID {
 		panic("no actor set")
 	}
 	return f.actor.ID()
+}
+
+func (f *MockFixture) LastSeen() time.Time {
+	f.m.RLock()
+	defer f.m.RUnlock()
+	return f.lastSeen
+}
+
+func (f *MockFixture) setLastSeen(lastSeen time.Time) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.lastSeen = lastSeen
 }
 
 // MockManagerStore mocks ManagerStore.
@@ -241,7 +266,7 @@ func (manager *MockManagerStore) DeleteFixture(fixtureID messages.FixtureID) err
 	return nil
 }
 
-func (manager *MockManagerStore) SetFixtureName(fixtureID messages.FixtureID, name string) error {
+func (manager *MockManagerStore) SetFixtureName(fixtureID messages.FixtureID, name nulls.String) error {
 	if manager.SetFixtureNameErr != nil {
 		return manager.SetFixtureNameErr
 	}
@@ -250,13 +275,13 @@ func (manager *MockManagerStore) SetFixtureName(fixtureID messages.FixtureID, na
 	if fixture, ok := manager.fixtures[fixtureID]; !ok {
 		return errors.NewResourceNotFoundError(fmt.Sprintf("fixture %v not found", fixtureID), errors.Details{})
 	} else {
-		fixture.Name = nulls.NewString(name)
+		fixture.Name = name
 		manager.fixtures[fixtureID] = fixture
 	}
 	return nil
 }
 
-func (manager *MockManagerStore) RefreshLastSeen(fixtureID messages.FixtureID) error {
+func (manager *MockManagerStore) RefreshLastSeenForFixture(fixtureID messages.FixtureID) error {
 	if manager.SetFixtureOnlineErr != nil {
 		return manager.SetFixtureOnlineErr
 	}

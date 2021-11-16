@@ -6,6 +6,7 @@ import (
 	"github.com/LeFinal/masc-server/device_management"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
+	"github.com/LeFinal/masc-server/lighting"
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/LeFinal/masc-server/web_server"
@@ -27,6 +28,8 @@ type App struct {
 	gatekeeper *gatekeeping.NetGatekeeper
 	// agency does the acting.Actor management.
 	agency *acting.ProtectedAgency
+	// lightingManager is the manager for fixture operation, handling, etc.
+	lightingManager *lighting.StoredManager
 	// mainHandlers holds general actor handlers like device management or fixture
 	// manager.
 	mainHandlers mainHandlers
@@ -52,6 +55,11 @@ func (app *App) Boot(ctx context.Context) error {
 	app.wsHub = ws.NewHub(app.gatekeeper)
 	// Create agency.
 	app.agency = acting.NewProtectedAgency(app.gatekeeper)
+	// Create lighting manager.
+	app.lightingManager = lighting.NewStoredManager(app.mall)
+	if err := app.lightingManager.LoadKnownFixtures(); err != nil {
+		return errors.Wrap(err, "load known fixtures for lighting manager")
+	}
 	// Create web server.
 	if webServer, err := web_server.NewWebServer(web_server.Config{
 		ServeAddr:    app.config.WebsocketAddr,
@@ -64,7 +72,8 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	// Create main handlers.
 	app.mainHandlers = mainHandlers{
-		deviceManagement: device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
+		deviceManagement:  device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
+		fixtureManagement: lighting.NewManagementHandlers(app.agency, app.lightingManager),
 	}
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
@@ -96,11 +105,13 @@ func (app *App) Boot(ctx context.Context) error {
 
 // mainHandlers includes main actor handlers.
 type mainHandlers struct {
-	deviceManagement *device_management.DeviceManagementHandlers
+	deviceManagement  *device_management.DeviceManagementHandlers
+	fixtureManagement *lighting.ManagementHandlers
 	// wg waits for all running handlers.
 	wg sync.WaitGroup
 }
 
 func (mh *mainHandlers) Run(ctx context.Context) {
 	go mh.deviceManagement.Run(ctx)
+	go mh.fixtureManagement.Run(ctx)
 }

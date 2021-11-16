@@ -7,6 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
+	"github.com/gobuffalo/nulls"
 	"sync"
 	"time"
 )
@@ -20,9 +21,10 @@ type ManagerStore interface {
 	// DeleteFixture deletes the fixture with the given id.
 	DeleteFixture(fixtureID messages.FixtureID) error
 	// SetFixtureName sets the name of the fixture with the given id.
-	SetFixtureName(fixtureID messages.FixtureID, name string) error
-	// RefreshLastSeen sets the last seen field for the fixture to the current time.
-	RefreshLastSeen(fixtureID messages.FixtureID) error
+	SetFixtureName(fixtureID messages.FixtureID, name nulls.String) error
+	// RefreshLastSeenForFixture sets the last seen field for the fixture to the
+	// current time.
+	RefreshLastSeenForFixture(fixtureID messages.FixtureID) error
 }
 
 // Manager allows managing fixtures and their providers.
@@ -36,7 +38,7 @@ type Manager interface {
 	// available in fixtures. This is usually the case, when the actor quits.
 	SayGoodbyeToFixtureProvider(actor acting.Actor) error
 	// SetFixtureName sets the name of the given Fixture.
-	SetFixtureName(fixture Fixture, name string) error
+	SetFixtureName(fixtureID messages.FixtureID, name nulls.String) error
 	// OnlineFixtures returns all fixtures that are currently online.
 	OnlineFixtures() []Fixture
 	// Fixtures returns all fixtures including offline ones.
@@ -45,37 +47,54 @@ type Manager interface {
 	DeleteFixture(fixtureID messages.FixtureID) error
 }
 
-// manager is the implementation of Manager.
-type manager struct {
+// StoredManager is the implementation of Manager.
+type StoredManager struct {
 	// store enables fixture persistence.
 	store ManagerStore
 	// fixtures holds all fixtures by their associated actor.
 	fixtures map[messages.FixtureID]Fixture
-	// m locks the manager.
+	// m locks the StoredManager.
 	m sync.RWMutex
 }
 
-// NewManager creates a new Manager.
-func NewManager(store ManagerStore) *manager {
-	return &manager{
+// NewStoredManager creates a new Manager.
+func NewStoredManager(store ManagerStore) *StoredManager {
+	return &StoredManager{
 		store:    store,
 		fixtures: make(map[messages.FixtureID]Fixture),
 	}
 }
 
-func (manager *manager) LoadKnownFixtures() error {
-	panic("implement me")
+func (manager *StoredManager) LoadKnownFixtures() error {
+	manager.m.Lock()
+	defer manager.m.Unlock()
+	fixtures, err := manager.store.GetFixtures()
+	if err != nil {
+		return errors.Wrap(err, "retrieve fixtures from store")
+	}
+	for _, storeFixture := range fixtures {
+		f := newFixture(storeFixture.ID, storeFixture.Type)
+		// Apply fields from store fixture.
+		if storeFixture.Name.Valid {
+			f.setName(storeFixture.Name)
+		}
+		f.setDeviceID(storeFixture.Device)
+		f.setProviderID(storeFixture.ProviderID)
+		f.setLastSeen(storeFixture.LastSeen)
+		manager.fixtures[storeFixture.ID] = f
+	}
+	return nil
 }
 
-func (manager *manager) AcceptFixtureProvider(ctx context.Context, actor acting.Actor) error {
+func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor acting.Actor) error {
 	// Request available fixtures.
-	fixtureRes := acting.SubscribeMessageTypeFixtures(actor)
+	fixtureRes := acting.SubscribeMessageTypeOfferedFixtures(actor)
 	defer acting.UnsubscribeOrLogError(fixtureRes.Newsletter)
 	err := actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeGetFixtures})
 	if err != nil {
 		return errors.Wrap(err, "request fixtures from provider")
 	}
-	var messageFixtures messages.MessageFixtures
+	var messageFixtures messages.MessageOfferedFixtures
 	select {
 	case <-ctx.Done():
 		return errors.NewContextAbortedError("request available fixtures")
@@ -90,7 +109,7 @@ func (manager *manager) AcceptFixtureProvider(ctx context.Context, actor acting.
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	for _, fixture := range acceptedFixtures {
-		err = manager.store.RefreshLastSeen(fixture.ID())
+		err = manager.store.RefreshLastSeenForFixture(fixture.ID())
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v online", fixture.ID()))
 		}
@@ -105,10 +124,10 @@ func (manager *manager) AcceptFixtureProvider(ctx context.Context, actor acting.
 }
 
 // addFixturesFromProviderMessage adds the fixtures from the given
-// messages.MessageFixtures to manager.fixtures. If a fixture is unknown, it
-// will be created using the manager.store. Fixtures will NOT be set to online
+// messages.MessageOfferedFixtures to StoredManager.fixtures. If a fixture is unknown, it
+// will be created using the StoredManager.store. Fixtures will NOT be set to online
 // and will not call Fixture.Apply.
-func (manager *manager) addFixturesFromProviderMessage(m messages.MessageFixtures) ([]Fixture, error) {
+func (manager *StoredManager) addFixturesFromProviderMessage(m messages.MessageOfferedFixtures) ([]Fixture, error) {
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	fixtures := make([]Fixture, 0, len(m.Fixtures))
@@ -155,13 +174,16 @@ addFixtures:
 	return fixtures, nil
 }
 
-func (manager *manager) SayGoodbyeToFixtureProvider(actor acting.Actor) error {
+func (manager *StoredManager) SayGoodbyeToFixtureProvider(actor acting.Actor) error {
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	// Set all fixtures offline for the actor.
 	for fixtureID, fixture := range manager.fixtures {
+		if fixture.actorID() != actor.ID() {
+			continue
+		}
 		fixture.setActor(nil)
-		err := manager.store.RefreshLastSeen(fixtureID)
+		err := manager.store.RefreshLastSeenForFixture(fixtureID)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v offline", fixtureID))
 		}
@@ -169,10 +191,16 @@ func (manager *manager) SayGoodbyeToFixtureProvider(actor acting.Actor) error {
 	return nil
 }
 
-func (manager *manager) SetFixtureName(fixture Fixture, name string) error {
+func (manager *StoredManager) SetFixtureName(fixtureID messages.FixtureID, name nulls.String) error {
 	manager.m.Lock()
 	defer manager.m.Unlock()
-	err := manager.store.SetFixtureName(fixture.ID(), name)
+	// Search for fixture in online ones.
+	fixture, ok := manager.fixtures[fixtureID]
+	if !ok {
+		return errors.NewResourceNotFoundError(fmt.Sprintf("fixture %v not found", fixtureID),
+			errors.Details{"fixture": fixtureID, "name": name})
+	}
+	err := manager.store.SetFixtureName(fixtureID, name)
 	if err != nil {
 		return errors.Wrap(err, "set fixture name in store")
 	}
@@ -180,7 +208,7 @@ func (manager *manager) SetFixtureName(fixture Fixture, name string) error {
 	return nil
 }
 
-func (manager *manager) OnlineFixtures() []Fixture {
+func (manager *StoredManager) OnlineFixtures() []Fixture {
 	manager.m.RLock()
 	defer manager.m.RUnlock()
 	onlineFixtures := make([]Fixture, 0)
@@ -192,7 +220,7 @@ func (manager *manager) OnlineFixtures() []Fixture {
 	return onlineFixtures
 }
 
-func (manager *manager) Fixtures() []Fixture {
+func (manager *StoredManager) Fixtures() []Fixture {
 	manager.m.RLock()
 	defer manager.m.RUnlock()
 	fixtures := make([]Fixture, 0)
@@ -202,7 +230,7 @@ func (manager *manager) Fixtures() []Fixture {
 	return fixtures
 }
 
-func (manager *manager) DeleteFixture(fixtureID messages.FixtureID) error {
+func (manager *StoredManager) DeleteFixture(fixtureID messages.FixtureID) error {
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	err := manager.store.DeleteFixture(fixtureID)

@@ -6,6 +6,7 @@ import (
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
+	"github.com/gobuffalo/nulls"
 	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func (suite *MockFixtureTestSuite) TestNewMockFixture() {
 		providerID:  messages.FixtureProviderFixtureID("boast"),
 		isEnabled:   true,
 		fixtureType: "beak",
-		name:        "gate",
+		name:        nulls.NewString("gate"),
 		isLocating:  true,
 		actor:       acting.NewMockActor("knife"),
 		features:    []messages.FixtureFeature{messages.FixtureFeatureDimmer},
@@ -78,12 +79,12 @@ func (suite *MockFixtureTestSuite) TestType() {
 }
 
 func (suite *MockFixtureTestSuite) TestName() {
-	suite.fixture.name = "fork"
+	suite.fixture.name = nulls.NewString("fork")
 	suite.Equal(suite.fixture.name, suite.fixture.Name(), "name should be as set")
 }
 
 func (suite *MockFixtureTestSuite) TestSetName() {
-	newName := "western"
+	newName := nulls.NewString("western")
 	suite.fixture.setName(newName)
 	suite.Equal(newName, suite.fixture.name, "name should be as set")
 }

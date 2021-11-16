@@ -4,6 +4,8 @@ import (
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/gobuffalo/nulls"
+	"time"
 )
 
 // Fixture is a general fixture which allows turning on and off. This is the
@@ -17,9 +19,13 @@ type Fixture interface {
 	ID() messages.FixtureID
 	// DeviceID is the id of the device the fixture is associated with.
 	DeviceID() messages.DeviceID
+	// setDeviceID sets the device id that can be retrieved via DeviceID.
+	setDeviceID(deviceID messages.DeviceID)
 	// ProviderID returns the id that is being assigned to the fixture by the
 	// fixture provider.
 	ProviderID() messages.FixtureProviderFixtureID
+	// SetProviderID sets the provider id that can be retrieved via ProviderID.
+	setProviderID(providerID messages.FixtureProviderFixtureID)
 	// IsEnabled describes whether the fixture is turned on or off. For setting use
 	// SetEnabled.
 	IsEnabled() bool
@@ -31,9 +37,9 @@ type Fixture interface {
 	// Type returns the messages.FixtureType of the fixture.
 	Type() messages.FixtureType
 	// Name returns the assigned name.
-	Name() string
+	Name() nulls.String
 	// SetName sets the Name of the fixture.
-	setName(name string)
+	setName(name nulls.String)
 	// Features returns the features the fixture provides.
 	Features() []messages.FixtureFeature
 	// IsLocating describes whether the fixture is currently in locating mode. Set
@@ -51,6 +57,11 @@ type Fixture interface {
 	// actorID returns the id of the actor that was set via setActor. This should
 	// only be used at one specific point where no further checks are required.
 	actorID() messages.ActorID
+	// LastSeen returns the timestamp when the fixture last updated its
+	// online-state.
+	LastSeen() time.Time
+	// setLastSeen sets the timestamp that can be retrieved via LastSeen.
+	setLastSeen(lastSeen time.Time)
 }
 
 // getFixtureFeatures returns the features of the given Fixture.

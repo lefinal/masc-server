@@ -51,6 +51,9 @@ const (
 	MessageTypeAreYouReady MessageType = "are-you-ready"
 	// MessageTypeDeleteDevice is used with MessageDeleteDevice for deleting a Device.
 	MessageTypeDeleteDevice MessageType = "delete-device"
+	// MessageTypeDeleteFixture is used with MessageDeleteFixture for deleting a
+	// Fixture.
+	MessageTypeDeleteFixture MessageType = "delete-fixture"
 	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
 	// MessageTypeGetDevices.
 	MessageTypeDeviceList MessageType = "device-list"
@@ -59,15 +62,15 @@ const (
 	MessageTypeError MessageType = "error"
 	// MessageTypeFired is used when an actor is fired.
 	MessageTypeFired MessageType = "fired"
-	// MessageTypeFixtures provides all available fixtures from a fixture provider.
-	// Used with MessageFixtures.
-	MessageTypeFixtures MessageType = "fixtures"
 	// MessageTypeFixtureBasicSetState is used for setting the state of
 	// FixtureTypeBasic.
 	MessageTypeFixtureBasicSetState MessageType = "fixture-basic-set-state"
 	// MessageTypeFixtureDimmerSetState is used for setting the state of
 	// FixtureTypeDimmer.
 	MessageTypeFixtureDimmerSetState MessageType = "fixture-dimmer-set-state"
+	// MessageTypeFixtureList is used with MessageFixtureList as an answer to
+	// MessageTypeGetFixtures.
+	MessageTypeFixtureList MessageType = "fixture-list"
 	// MessageTypeGetDevices is received when devices are requested.
 	MessageTypeGetDevices MessageType = "get-devices"
 	// MessageTypeGetFixtures is sent to the client for requesting all available
@@ -79,6 +82,9 @@ const (
 	// MessageTypeMatchStatus is a container for status information regarding a
 	// Match.
 	MessageTypeMatchStatus MessageType = "match-status"
+	// MessageTypeOfferedFixtures provides all available fixtures from a fixture
+	// provider. Used with MessageOfferedFixtures.
+	MessageTypeOfferedFixtures MessageType = "offered-fixtures"
 	// MessageTypeOK is used only for confirmation of actions that do not require a
 	// detailed response.
 	MessageTypeOK MessageType = "ok"
@@ -115,6 +121,9 @@ const (
 	MessageTypeRoleAssignments MessageType = "role-assignments"
 	// MessageTypeSetDeviceName is used for setting the name of a Device.
 	MessageTypeSetDeviceName MessageType = "set-device-name"
+	// MessageTypeSetFixtureName is used with MessageSetFixtureName for setting the
+	// name of a OfferedFixture.
+	MessageTypeSetFixtureName MessageType = "set-fixture-name"
 	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
 	// Used with MessageWelcome.
 	MessageTypeWelcome MessageType = "welcome"

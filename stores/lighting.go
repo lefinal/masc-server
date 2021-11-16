@@ -1,7 +1,10 @@
 package stores
 
 import (
+	"fmt"
+	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/doug-martin/goqu/v9"
 	"github.com/gobuffalo/nulls"
 	"time"
 )
@@ -24,21 +27,99 @@ type Fixture struct {
 }
 
 func (m *Mall) GetFixtures() ([]Fixture, error) {
-	panic("implement me")
+	q, _, err := m.dialect.From(goqu.T("fixtures")).
+		Select(goqu.C("id"), goqu.C("device"), goqu.C("provider_id"), goqu.C("name"),
+			goqu.C("type"), goqu.C("last_seen")).ToSQL()
+	if err != nil {
+		return nil, errors.NewQueryToSQLError(err, nil)
+	}
+	rows, err := m.db.Query(q)
+	if err != nil {
+		return nil, errors.NewExecQueryError(err, q, nil)
+	}
+	defer closeRows(rows)
+	fixtures := make([]Fixture, 0)
+	for rows.Next() {
+		var fixture Fixture
+		err = rows.Scan(&fixture.ID, &fixture.Device, &fixture.ProviderID, &fixture.Name, &fixture.Type, &fixture.LastSeen)
+		if err != nil {
+			return nil, errors.NewScanDBRowError(err, nil)
+		}
+		fixtures = append(fixtures, fixture)
+	}
+	return fixtures, nil
 }
 
 func (m *Mall) CreateFixture(fixture Fixture) (Fixture, error) {
-	panic("implement me")
+	q, _, err := m.dialect.Insert(goqu.T("fixtures")).
+		Rows(goqu.Record{
+			"device":      fixture.Device,
+			"provider_id": fixture.ProviderID,
+			"name":        fixture.Name,
+			"type":        fixture.Type,
+			"last_seen":   fixture.LastSeen,
+		}).
+		Returning(goqu.C("id")).ToSQL()
+	if err != nil {
+		return Fixture{}, errors.NewQueryToSQLError(err, errors.Details{"fixture": fixture})
+	}
+	row := m.db.QueryRow(q)
+	err = row.Scan(&fixture.ID)
+	if err != nil {
+		return Fixture{}, errors.NewScanSingleDBRowError("sad life", err, errors.Details{"fixture": fixture})
+	}
+	return fixture, nil
 }
 
 func (m *Mall) DeleteFixture(fixtureID messages.FixtureID) error {
-	panic("implement me")
+	q, _, err := m.dialect.Delete(goqu.T("fixtures")).
+		Where(goqu.C("id").Eq(fixtureID)).ToSQL()
+	if err != nil {
+		return errors.NewQueryToSQLError(err, errors.Details{"fixture": fixtureID})
+	}
+	result, err := m.db.Exec(q)
+	if err != nil {
+		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID})
+	}
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	if err != nil {
+		return errors.Wrap(err, "assure one affected")
+	}
+	return nil
 }
 
-func (m *Mall) SetFixtureName(fixtureID messages.FixtureID, name string) error {
-	panic("implement me")
+func (m *Mall) SetFixtureName(fixtureID messages.FixtureID, name nulls.String) error {
+	q, _, err := m.dialect.Update(goqu.T("fixtures")).Set(goqu.Record{
+		"name": name,
+	}).Where(goqu.C("id").Eq(fixtureID)).ToSQL()
+	if err != nil {
+		return errors.NewQueryToSQLError(err, errors.Details{"fixture": fixtureID, "name": name})
+	}
+	result, err := m.db.Exec(q)
+	if err != nil {
+		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID, "name": name})
+	}
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	if err != nil {
+		return errors.Wrap(err, "assure one affected")
+	}
+	return nil
 }
 
-func (m *Mall) RefreshLastSeen(fixtureID messages.FixtureID) error {
-	panic("implement me")
+func (m *Mall) RefreshLastSeenForFixture(fixtureID messages.FixtureID) error {
+	q, _, err := m.dialect.Update(goqu.T("fixtures")).Set(goqu.Record{
+		"last_seen": time.Now(),
+	}).Where(goqu.C("id").Eq(fixtureID)).ToSQL()
+	if err != nil {
+		return errors.NewQueryToSQLError(err, errors.Details{"fixture": fixtureID})
+	}
+	result, err := m.db.Exec(q)
+	if err != nil {
+		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID})
+	}
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	if err != nil {
+		return errors.Wrap(err, "assure one affected")
+	}
+	return nil
 }

@@ -4,7 +4,9 @@ import (
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
+	"github.com/gobuffalo/nulls"
 	"sync"
+	"time"
 )
 
 // basicFixture implements Fixture for basic access.
@@ -12,7 +14,7 @@ type basicFixture struct {
 	// id identifies the fixture.
 	id messages.FixtureID
 	// name is the assigned human-readable name.
-	name string
+	name nulls.String
 	// deviceID is the id of the device the fixture is assocaited with.
 	deviceID messages.DeviceID
 	// providerID is the id the fixture was assigned to from the provider.
@@ -25,6 +27,8 @@ type basicFixture struct {
 	fixtureType messages.FixtureType
 	// isLocating holds the state set via Fixture.Locate.
 	isLocating bool
+	// lastSeen is the timestamp for when the fixture updated its online-state.
+	lastSeen time.Time
 	// m locks all properties including the ones from compositing.
 	m sync.RWMutex
 }
@@ -36,6 +40,7 @@ func newBasicFixture(fixtureID messages.FixtureID) *basicFixture {
 		isEnabled:   false,
 		fixtureType: messages.FixtureTypeBasic,
 		isLocating:  false,
+		lastSeen:    time.Now(),
 	}
 }
 
@@ -82,10 +87,22 @@ func (f *basicFixture) DeviceID() messages.DeviceID {
 	return f.deviceID
 }
 
+func (f *basicFixture) setDeviceID(deviceID messages.DeviceID) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.deviceID = deviceID
+}
+
 func (f *basicFixture) ProviderID() messages.FixtureProviderFixtureID {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.providerID
+}
+
+func (f *basicFixture) setProviderID(providerID messages.FixtureProviderFixtureID) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.providerID = providerID
 }
 
 func (f *basicFixture) IsEnabled() bool {
@@ -110,14 +127,14 @@ func (f *basicFixture) Type() messages.FixtureType {
 	return f.fixtureType
 }
 
-func (f *basicFixture) Name() string {
+func (f *basicFixture) Name() nulls.String {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.name
 }
 
 // setName sets the name of the fixture.
-func (f *basicFixture) setName(name string) {
+func (f *basicFixture) setName(name nulls.String) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.name = name
@@ -167,4 +184,16 @@ func (f *basicFixture) actorID() messages.ActorID {
 		return "sad life"
 	}
 	return f.actor.ID()
+}
+
+func (f *basicFixture) LastSeen() time.Time {
+	f.m.RLock()
+	defer f.m.RUnlock()
+	return f.lastSeen
+}
+
+func (f *basicFixture) setLastSeen(lastSeen time.Time) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.lastSeen = lastSeen
 }
