@@ -112,7 +112,9 @@ func (a *managementHandler) Hire(displayedName string) error {
 func (a *managementHandler) handleSetFixtureName(message messages.MessageSetFixtureName) {
 	err := a.manager.SetFixtureName(message.FixtureID, message.Name)
 	if err != nil {
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "set fixture name")))
+		err = errors.Wrap(err, "set fixture name")
+		errors.Log(logging.ActingLogger, err)
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	acting.SendOKOrLogError(logging.ActingLogger, a)
@@ -151,7 +153,9 @@ func (a *managementHandler) handleGetFixtures() {
 func (a *managementHandler) handleDeleteFixture(message messages.MessageDeleteFixture) {
 	err := a.manager.DeleteFixture(message.FixtureID)
 	if err != nil {
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "delete fixture")))
+		err = errors.Wrap(err, "delete fixture")
+		errors.Log(logging.ActingLogger, err)
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	acting.SendOKOrLogError(logging.ActingLogger, a)

@@ -8,6 +8,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/gobuffalo/nulls"
+	"sort"
 	"sync"
 	"time"
 )
@@ -88,13 +89,13 @@ func (manager *StoredManager) LoadKnownFixtures() error {
 
 func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor acting.Actor) error {
 	// Request available fixtures.
-	fixtureRes := acting.SubscribeMessageTypeOfferedFixtures(actor)
+	fixtureRes := acting.SubscribeMessageTypeFixtureOffers(actor)
 	defer acting.UnsubscribeOrLogError(fixtureRes.Newsletter)
-	err := actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeGetFixtures})
+	err := actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeGetFixtureOffers})
 	if err != nil {
 		return errors.Wrap(err, "request fixtures from provider")
 	}
-	var messageFixtures messages.MessageOfferedFixtures
+	var messageFixtures messages.MessageFixtureOffers
 	select {
 	case <-ctx.Done():
 		return errors.NewContextAbortedError("request available fixtures")
@@ -124,10 +125,10 @@ func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor a
 }
 
 // addFixturesFromProviderMessage adds the fixtures from the given
-// messages.MessageOfferedFixtures to StoredManager.fixtures. If a fixture is unknown, it
+// messages.MessageFixtureOffers to StoredManager.fixtures. If a fixture is unknown, it
 // will be created using the StoredManager.store. Fixtures will NOT be set to online
 // and will not call Fixture.Apply.
-func (manager *StoredManager) addFixturesFromProviderMessage(m messages.MessageOfferedFixtures) ([]Fixture, error) {
+func (manager *StoredManager) addFixturesFromProviderMessage(m messages.MessageFixtureOffers) ([]Fixture, error) {
 	manager.m.Lock()
 	defer manager.m.Unlock()
 	fixtures := make([]Fixture, 0, len(m.Fixtures))
@@ -227,6 +228,10 @@ func (manager *StoredManager) Fixtures() []Fixture {
 	for _, fixture := range manager.fixtures {
 		fixtures = append(fixtures, fixture)
 	}
+	// Sort by last seen desc.
+	sort.Slice(fixtures, func(i, j int) bool {
+		return fixtures[i].LastSeen().After(fixtures[j].LastSeen())
+	})
 	return fixtures
 }
 

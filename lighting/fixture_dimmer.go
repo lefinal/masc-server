@@ -44,10 +44,10 @@ func (f *dimmerFixture) Apply() error {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.actor.Send(acting.ActorOutgoingMessage{
-		MessageType: messages.MessageTypeFixtureDimmerSetState,
-		Content: messages.MessageFixtureDimmerSetState{
-			MessageFixtureBasicSetState: f.buildBasicGetStateMessage(),
-			Brightness:                  f.brightness,
+		MessageType: messages.MessageTypeFixtureDimmerState,
+		Content: messages.MessageFixtureDimmerState{
+			MessageFixtureBasicState: f.buildBasicGetStateMessage(),
+			Brightness:               f.brightness,
 		},
 	})
 }

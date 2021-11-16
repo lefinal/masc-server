@@ -44,11 +44,11 @@ func newBasicFixture(fixtureID messages.FixtureID) *basicFixture {
 	}
 }
 
-// buildBasicGetStateMessage returns the messages.MessageFixtureBasicSetState for the basicFixture.
+// buildBasicGetStateMessage returns the messages.MessageFixtureBasicState for the basicFixture.
 //
 // Warning: This does not lock basicFixture.m!
-func (f *basicFixture) buildBasicGetStateMessage() messages.MessageFixtureBasicSetState {
-	return messages.MessageFixtureBasicSetState{
+func (f *basicFixture) buildBasicGetStateMessage() messages.MessageFixtureBasicState {
+	return messages.MessageFixtureBasicState{
 		Fixture:    f.providerID,
 		IsEnabled:  f.isEnabled,
 		IsLocating: f.isLocating,
@@ -172,7 +172,7 @@ func (f *basicFixture) Apply() error {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.sendStateUpdate(acting.ActorOutgoingMessage{
-		MessageType: messages.MessageTypeFixtureBasicSetState,
+		MessageType: messages.MessageTypeFixtureBasicState,
 		Content:     f.buildBasicGetStateMessage(),
 	})
 }

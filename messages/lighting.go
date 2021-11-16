@@ -33,26 +33,8 @@ const (
 	FixtureFeatureDimmer FixtureFeature = "dimmer"
 )
 
-// MessageSetFixtureEnabled is used with MessageTypeSetFixtureEnabled.
-type MessageSetFixtureEnabled struct {
-	// IsEnabled describes whether the fixture should be enabled or disabled.
-	IsEnabled bool `json:"is_enabled"`
-}
-
-// MessageSetFixtureLocating is used with MessageTypeSetFixtureLocating.
-type MessageSetFixtureLocating struct {
-	// IsLocating describes whether the fixture should be in locating mode or not.
-	IsLocating bool `json:"is_enabled"`
-}
-
-// MessageSetFixtureBrightness is used with MessageTypeSetFixtureBrightness.
-type MessageSetFixtureBrightness struct {
-	// Brightness is the target brightness.
-	Brightness float64 `json:"brightness"`
-}
-
-// MessageFixtureBasicSetState is used with MessageTypeFixtureBasicSetState.
-type MessageFixtureBasicSetState struct {
+// MessageFixtureBasicState is used with MessageTypeFixtureBasicState.
+type MessageFixtureBasicState struct {
 	// Fixture is the id of the fixture that is being set by the fixture provider.
 	Fixture FixtureProviderFixtureID `json:"fixture"`
 	// IsEnabled describes whether the fixture is currently enabled or turned off.
@@ -61,14 +43,14 @@ type MessageFixtureBasicSetState struct {
 	IsLocating bool `json:"is_locating"`
 }
 
-// MessageFixtureDimmerSetState is used with MessageTypeFixtureDimmerSetState.
-type MessageFixtureDimmerSetState struct {
-	MessageFixtureBasicSetState
+// MessageFixtureDimmerState is used with MessageTypeFixtureDimmerState.
+type MessageFixtureDimmerState struct {
+	MessageFixtureBasicState
 	// Brightness is the brightness the dimmer should use.
 	Brightness float64 `json:"brightness"`
 }
 
-// OfferedFixture is an offered fixture in MessageOfferedFixtures.
+// OfferedFixture is an offered fixture in MessageFixtureOffers.
 type OfferedFixture struct {
 	// ProviderID is the id provided by the fixture provider.
 	ProviderID FixtureProviderFixtureID `json:"id"`
@@ -77,8 +59,8 @@ type OfferedFixture struct {
 	Type FixtureType `json:"type"`
 }
 
-// MessageOfferedFixtures is used with MessageTypeOfferedFixtures.
-type MessageOfferedFixtures struct {
+// MessageFixtureOffers is used with MessageTypeFixtureOffers.
+type MessageFixtureOffers struct {
 	// DeviceID is the regular device id. We only need it for association of already
 	// known fixtures.
 	DeviceID DeviceID `json:"device_id"`

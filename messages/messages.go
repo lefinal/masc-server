@@ -62,19 +62,21 @@ const (
 	MessageTypeError MessageType = "error"
 	// MessageTypeFired is used when an actor is fired.
 	MessageTypeFired MessageType = "fired"
-	// MessageTypeFixtureBasicSetState is used for setting the state of
+	// MessageTypeFixtureBasicState is used for setting the state of
 	// FixtureTypeBasic.
-	MessageTypeFixtureBasicSetState MessageType = "fixture-basic-set-state"
-	// MessageTypeFixtureDimmerSetState is used for setting the state of
+	MessageTypeFixtureBasicState MessageType = "fixture-basic-state"
+	// MessageTypeFixtureDimmerState is used for setting the state of
 	// FixtureTypeDimmer.
-	MessageTypeFixtureDimmerSetState MessageType = "fixture-dimmer-set-state"
+	MessageTypeFixtureDimmerState MessageType = "fixture-dimmer-state"
 	// MessageTypeFixtureList is used with MessageFixtureList as an answer to
 	// MessageTypeGetFixtures.
 	MessageTypeFixtureList MessageType = "fixture-list"
 	// MessageTypeGetDevices is received when devices are requested.
 	MessageTypeGetDevices MessageType = "get-devices"
-	// MessageTypeGetFixtures is sent to the client for requesting all available
-	// fixtures he offers.
+	// MessageTypeGetFixtureOffers is sent to the client for requesting fixture
+	// offers.
+	MessageTypeGetFixtureOffers MessageType = "get-fixture-offers"
+	// MessageTypeGetFixtures is received for requesting all known fixtures.
 	MessageTypeGetFixtures MessageType = "get-fixtures"
 	// MessageTypeHello is received with MessageHello for saying hello to the
 	// server.
@@ -82,9 +84,9 @@ const (
 	// MessageTypeMatchStatus is a container for status information regarding a
 	// Match.
 	MessageTypeMatchStatus MessageType = "match-status"
-	// MessageTypeOfferedFixtures provides all available fixtures from a fixture
-	// provider. Used with MessageOfferedFixtures.
-	MessageTypeOfferedFixtures MessageType = "offered-fixtures"
+	// MessageTypeFixtureOffers provides all available fixtures from a fixture
+	// provider. Used with MessageFixtureOffers.
+	MessageTypeFixtureOffers MessageType = "fixture-offers"
 	// MessageTypeOK is used only for confirmation of actions that do not require a
 	// detailed response.
 	MessageTypeOK MessageType = "ok"

@@ -538,18 +538,18 @@ func SubscribeMessageTypePlayerLeave(actor Actor) NewsletterPlayerLeave {
 	}
 }
 
-// NewsletterOfferedFixtures wraps Newsletter with a self-closing
-// receive-channel for messages.MessageOfferedFixtures.
-type NewsletterOfferedFixtures struct {
+// NewsletterFixtureOffers wraps Newsletter with a self-closing receive-channel
+// for messages.MessageFixtureOffers.
+type NewsletterFixtureOffers struct {
 	Newsletter
-	Receive <-chan messages.MessageOfferedFixtures
+	Receive <-chan messages.MessageFixtureOffers
 }
 
-// SubscribeMessageTypeOfferedFixtures subscribes messages with
-// messages.MessageTypeOfferedFixtures for the given Actor.
-func SubscribeMessageTypeOfferedFixtures(actor Actor) NewsletterOfferedFixtures {
-	newsletter := actor.SubscribeMessageType(messages.MessageTypeOfferedFixtures)
-	cc := make(chan messages.MessageOfferedFixtures)
+// SubscribeMessageTypeFixtureOffers subscribes messages with
+// messages.MessageTypeFixtureOffers for the given Actor.
+func SubscribeMessageTypeFixtureOffers(actor Actor) NewsletterFixtureOffers {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeFixtureOffers)
+	cc := make(chan messages.MessageFixtureOffers)
 	go func() {
 		defer close(cc)
 		for {
@@ -557,8 +557,8 @@ func SubscribeMessageTypeOfferedFixtures(actor Actor) NewsletterOfferedFixtures 
 			case <-newsletter.Subscription.Ctx.Done():
 				return
 			case raw := <-newsletter.Receive:
-				var m messages.MessageOfferedFixtures
-				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeOfferedFixtures, raw, &m) {
+				var m messages.MessageFixtureOffers
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeFixtureOffers, raw, &m) {
 					continue
 				}
 				select {
@@ -569,7 +569,7 @@ func SubscribeMessageTypeOfferedFixtures(actor Actor) NewsletterOfferedFixtures 
 			}
 		}
 	}()
-	return NewsletterOfferedFixtures{
+	return NewsletterFixtureOffers{
 		Newsletter: newsletter.Newsletter,
 		Receive:    cc,
 	}

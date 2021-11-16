@@ -115,7 +115,9 @@ func (a *actorDeviceManager) handleGetDevices() {
 	// Respond with all devices.
 	devices, err := a.gatekeeper.GetDevices()
 	if err != nil {
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "get devices")))
+		err = errors.Wrap(err, "get devices")
+		errors.Log(logging.ActingLogger, err)
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	res := messages.MessageDeviceList{
@@ -141,7 +143,9 @@ func (a *actorDeviceManager) handleGetDevices() {
 func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDeviceName) {
 	err := a.gatekeeper.SetDeviceName(message.DeviceID, message.Name)
 	if err != nil {
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "set device name")))
+		err = errors.Wrap(err, "set-device-name")
+		errors.Log(logging.ActingLogger, err)
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	acting.SendOKOrLogError(logging.ActingLogger, a)
@@ -152,7 +156,9 @@ func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDevi
 func (a *actorDeviceManager) handleDeleteDevice(message messages.MessageDeleteDevice) {
 	err := a.gatekeeper.DeleteDevice(message.DeviceID)
 	if err != nil {
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(errors.Wrap(err, "delete device")))
+		err = errors.Wrap(err, "delete device")
+		errors.Log(logging.ActingLogger, err)
+		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	acting.SendOKOrLogError(logging.ActingLogger, a)

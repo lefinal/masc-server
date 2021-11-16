@@ -74,6 +74,7 @@ func (app *App) Boot(ctx context.Context) error {
 	app.mainHandlers = mainHandlers{
 		deviceManagement:  device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
 		fixtureManagement: lighting.NewManagementHandlers(app.agency, app.lightingManager),
+		fixtureProviders:  lighting.NewFixtureProviderHandlers(app.agency, app.lightingManager),
 	}
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
@@ -107,6 +108,7 @@ func (app *App) Boot(ctx context.Context) error {
 type mainHandlers struct {
 	deviceManagement  *device_management.DeviceManagementHandlers
 	fixtureManagement *lighting.ManagementHandlers
+	fixtureProviders  *lighting.FixtureProviderHandlers
 	// wg waits for all running handlers.
 	wg sync.WaitGroup
 }
@@ -114,4 +116,5 @@ type mainHandlers struct {
 func (mh *mainHandlers) Run(ctx context.Context) {
 	go mh.deviceManagement.Run(ctx)
 	go mh.fixtureManagement.Run(ctx)
+	go mh.fixtureProviders.Run(ctx)
 }

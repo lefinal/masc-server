@@ -29,7 +29,8 @@ type Fixture struct {
 func (m *Mall) GetFixtures() ([]Fixture, error) {
 	q, _, err := m.dialect.From(goqu.T("fixtures")).
 		Select(goqu.C("id"), goqu.C("device"), goqu.C("provider_id"), goqu.C("name"),
-			goqu.C("type"), goqu.C("last_seen")).ToSQL()
+			goqu.C("type"), goqu.C("last_seen")).
+		Order(goqu.C("last_seen").Desc()).ToSQL()
 	if err != nil {
 		return nil, errors.NewQueryToSQLError(err, nil)
 	}
