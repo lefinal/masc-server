@@ -219,6 +219,8 @@ func (manager *StoredManager) SayGoodbyeToFixtureProvider(actor acting.Actor) er
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v offline", fixtureID))
 		}
 	}
+	// Broadcast new state update.
+	manager.fixtureStateBroadcaster.HandleFixtureStateUpdated()
 	return nil
 }
 
@@ -236,6 +238,8 @@ func (manager *StoredManager) SetFixtureName(fixtureID messages.FixtureID, name 
 		return errors.Wrap(err, "set fixture name in store")
 	}
 	fixture.setName(name)
+	// Broadcast new state update.
+	manager.fixtureStateBroadcaster.HandleFixtureStateUpdated()
 	return nil
 }
 
@@ -273,6 +277,8 @@ func (manager *StoredManager) DeleteFixture(fixtureID messages.FixtureID) error 
 		return errors.Wrap(err, "delete fixture from store")
 	}
 	delete(manager.fixtures, fixtureID)
+	// Broadcast new state update.
+	manager.fixtureStateBroadcaster.HandleFixtureStateUpdated()
 	return nil
 }
 

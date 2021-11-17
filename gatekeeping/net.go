@@ -27,6 +27,9 @@ type GatekeeperStore interface {
 	SetDeviceName(deviceID messages.DeviceID, name string) error
 	// DeleteDevice deletes the Device with the given id.
 	DeleteDevice(deviceID messages.DeviceID) error
+	// SetDeviceSelfDescription sets the Device.SelfDescription for the device with
+	// the given id.
+	SetDeviceSelfDescription(deviceID messages.DeviceID, selfDescription string) error
 }
 
 type NetGatekeeper struct {
@@ -268,11 +271,20 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 		}
 		for _, knownDevice := range knownDevices {
 			if knownDevice.ID == helloMessageContainer.DeviceID {
+				// Yay, device was found.
 				foundInKnownDevices = true
+				// Check if self-description changed.
+				if knownDevice.SelfDescription != newDevice.SelfDescription {
+					err = gk.store.SetDeviceSelfDescription(knownDevice.ID, newDevice.SelfDescription)
+					if err != nil {
+						return nil, errors.Wrap(err, "update device self-description")
+					}
+					logging.GatekeepingLogger.Infof("updated self-description for device %v (%v) from %s to %s",
+						knownDevice.ID, knownDevice.Name, knownDevice.SelfDescription, newDevice.SelfDescription)
+				}
 				// Apply already known fields.
 				newDevice.ID = knownDevice.ID
 				newDevice.Name = knownDevice.Name
-				newDevice.SelfDescription = knownDevice.SelfDescription
 				break
 			}
 		}

@@ -129,3 +129,27 @@ func (m *Mall) DeleteDevice(deviceID messages.DeviceID) error {
 	}
 	return nil
 }
+
+func (m *Mall) SetDeviceSelfDescription(deviceID messages.DeviceID, selfDescription string) error {
+	errDetails := errors.Details{
+		"device":          deviceID,
+		"selfDescription": selfDescription,
+	}
+	q, _, err := m.dialect.Update(goqu.T("devices")).
+		Set(goqu.Record{
+			"self_description": selfDescription,
+		}).
+		Where(goqu.C("id").Eq(deviceID)).ToSQL()
+	if err != nil {
+		return errors.NewQueryToSQLError(err, errDetails)
+	}
+	result, err := m.db.Exec(q)
+	if err != nil {
+		return errors.NewExecQueryError(err, q, errDetails)
+	}
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	if err != nil {
+		return errors.Wrap(err, "assure found")
+	}
+	return nil
+}
