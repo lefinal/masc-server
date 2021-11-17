@@ -68,6 +68,10 @@ func (dm *FixtureProviderHandlers) HandleNewActor(actor acting.Actor, role actin
 		return
 	}
 	<-actorDM.Quit()
+	err = actorDM.cleanUp()
+	if err != nil {
+		errors.Log(logging.AppLogger, errors.Wrap(err, "clean up"))
+	}
 	// Remove from active ones.
 	dm.m.Lock()
 	delete(dm.activeManagers, actorDM)
@@ -99,5 +103,14 @@ func (a *fixtureProviderHandler) Hire(displayedName string) error {
 			return
 		}
 	}()
+	return nil
+}
+
+// cleanUp cleans up by unregistering from manager.
+func (a *fixtureProviderHandler) cleanUp() error {
+	err := a.manager.SayGoodbyeToFixtureProvider(a.Actor)
+	if err != nil {
+		return errors.Wrap(err, "unregister fixture provider")
+	}
 	return nil
 }
