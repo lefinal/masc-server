@@ -125,11 +125,12 @@ func (a *actorDeviceManager) handleGetDevices() {
 	}
 	for i, device := range devices {
 		res.Devices[i] = messages.Device{
-			ID:          device.ID,
-			Name:        device.Name,
-			IsConnected: device.IsConnected,
-			LastSeen:    device.LastSeen,
-			Roles:       device.Roles,
+			ID:              device.ID,
+			Name:            device.Name,
+			SelfDescription: device.SelfDescription,
+			IsConnected:     device.IsConnected,
+			LastSeen:        device.LastSeen,
+			Roles:           device.Roles,
 		}
 	}
 	acting.SendOrLogError(logging.AppLogger, a, acting.ActorOutgoingMessage{
