@@ -107,6 +107,8 @@ const (
 	KindUnknownCastingKey Kind = "unknown-casting-key"
 	// KindUnknownDevice is used when an unknown device is being requested.
 	KindUnknownDevice Kind = "unknown-device"
+	// KindUnknownFixture is used when an unknown fixture is referenced.
+	KindUnknownFixture Kind = "unknown-fixture"
 	// KindUnknownRole is used when a role is unknown.
 	KindUnknownRole Kind = "unknown-role"
 )

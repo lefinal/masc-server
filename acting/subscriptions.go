@@ -680,3 +680,109 @@ func SubscribeMessageTypeDeleteFixture(actor Actor) NewsletterDeleteFixture {
 		Receive:    cc,
 	}
 }
+
+// NewsletterGetFixtureStates wraps Newsletter with a self-closing receive-channel.
+type NewsletterGetFixtureStates struct {
+	Newsletter
+	Receive <-chan struct{}
+}
+
+// SubscribeMessageTypeGetFixtureStates subscribes messages with
+// messages.MessageTypeGetFixtureStates for the given Actor.
+func SubscribeMessageTypeGetFixtureStates(actor Actor) NewsletterGetFixtureStates {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeGetFixtureStates)
+	cc := make(chan struct{})
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case <-newsletter.Receive:
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- struct{}{}:
+				}
+			}
+		}
+	}()
+	return NewsletterGetFixtureStates{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterSetFixturesEnabled wraps Newsletter with a self-closing receive-channel
+// for messages.MessageSetFixturesEnabled.
+type NewsletterSetFixturesEnabled struct {
+	Newsletter
+	Receive <-chan messages.MessageSetFixturesEnabled
+}
+
+// SubscribeMessageTypeSetFixturesEnabled subscribes message with
+// messages.MessageTypeSetFixturesEnabled for the given Actor.
+func SubscribeMessageTypeSetFixturesEnabled(actor Actor) NewsletterSetFixturesEnabled {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeSetFixturesEnabled)
+	cc := make(chan messages.MessageSetFixturesEnabled)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageSetFixturesEnabled
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeSetFixturesEnabled, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterSetFixturesEnabled{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterSetFixturesLocating wraps Newsletter with a self-closing receive-channel
+// for messages.MessageSetFixturesLocating.
+type NewsletterSetFixturesLocating struct {
+	Newsletter
+	Receive <-chan messages.MessageSetFixturesLocating
+}
+
+// SubscribeMessageTypeSetFixturesLocating subscribes message with
+// messages.MessageTypeSetFixturesLocating for the given Actor.
+func SubscribeMessageTypeSetFixturesLocating(actor Actor) NewsletterSetFixturesLocating {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeSetFixturesLocating)
+	cc := make(chan messages.MessageSetFixturesLocating)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageSetFixturesLocating
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeSetFixturesLocating, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterSetFixturesLocating{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}

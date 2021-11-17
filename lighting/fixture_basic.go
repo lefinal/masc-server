@@ -3,6 +3,7 @@ package lighting
 import (
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
+	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/gobuffalo/nulls"
 	"sync"
@@ -15,7 +16,7 @@ type basicFixture struct {
 	id messages.FixtureID
 	// name is the assigned human-readable name.
 	name nulls.String
-	// deviceID is the id of the device the fixture is assocaited with.
+	// deviceID is the id of the device the fixture is associated with.
 	deviceID messages.DeviceID
 	// providerID is the id the fixture was assigned to from the provider.
 	providerID messages.FixtureProviderFixtureID
@@ -29,6 +30,8 @@ type basicFixture struct {
 	isLocating bool
 	// lastSeen is the timestamp for when the fixture updated its online-state.
 	lastSeen time.Time
+	// updateNotifier is called when updates are being applied.
+	updateNotifier FixtureStateUpdateNotifier
 	// m locks all properties including the ones from compositing.
 	m sync.RWMutex
 }
@@ -44,10 +47,14 @@ func newBasicFixture(fixtureID messages.FixtureID) *basicFixture {
 	}
 }
 
-// buildBasicGetStateMessage returns the messages.MessageFixtureBasicState for the basicFixture.
-//
-// Warning: This does not lock basicFixture.m!
-func (f *basicFixture) buildBasicGetStateMessage() messages.MessageFixtureBasicState {
+// State returns the messages.MessageFixtureBasicState for the basicFixture.
+func (f *basicFixture) State() interface{} {
+	return f.fixtureBasicState()
+}
+
+func (f *basicFixture) fixtureBasicState() messages.MessageFixtureBasicState {
+	f.m.RLock()
+	defer f.m.RUnlock()
 	return messages.MessageFixtureBasicState{
 		Fixture:    f.providerID,
 		IsEnabled:  f.isEnabled,
@@ -56,17 +63,17 @@ func (f *basicFixture) buildBasicGetStateMessage() messages.MessageFixtureBasicS
 }
 
 // sendStateUpdate is used for sending the given message when basicFixture.actor
-// is set. Otherwise, an error is being returned. This also applied to errors
-// while sending.
+// is set. Otherwise, an error is being returned. This also applies to errors
+// while sending. This also calls the update notifier.
 func (f *basicFixture) sendStateUpdate(message acting.ActorOutgoingMessage) error {
 	f.m.RLock()
 	defer f.m.RUnlock()
+	if f.updateNotifier != nil {
+		f.updateNotifier.HandleFixtureStateUpdated()
+	}
 	if f.actor == nil {
-		return errors.Error{
-			Code:    errors.ErrCommunication,
-			Kind:    errors.KindMissingActor,
-			Message: "no actor provided",
-		}
+		logging.LightingLogger.Warnf("dropping apply for fixture %v due to no actor being set", f.ID())
+		return nil
 	}
 	err := f.actor.Send(message)
 	if err != nil {
@@ -115,6 +122,9 @@ func (f *basicFixture) SetEnabled(isEnabled bool) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.isEnabled = isEnabled
+	if !isEnabled {
+		f.isLocating = false
+	}
 }
 
 func (f *basicFixture) Reset() {
@@ -169,11 +179,9 @@ func (f *basicFixture) SetLocating(isLocating bool) {
 }
 
 func (f *basicFixture) Apply() error {
-	f.m.RLock()
-	defer f.m.RUnlock()
 	return f.sendStateUpdate(acting.ActorOutgoingMessage{
 		MessageType: messages.MessageTypeFixtureBasicState,
-		Content:     f.buildBasicGetStateMessage(),
+		Content:     f.fixtureBasicState(),
 	})
 }
 
@@ -196,4 +204,10 @@ func (f *basicFixture) setLastSeen(lastSeen time.Time) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.lastSeen = lastSeen
+}
+
+func (f *basicFixture) setUpdateNotifier(notifier FixtureStateUpdateNotifier) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.updateNotifier = notifier
 }

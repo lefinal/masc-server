@@ -30,7 +30,8 @@ type Fixture interface {
 	// SetEnabled.
 	IsEnabled() bool
 	// SetEnabled turns the fixture on or off. Any changes regarding brightness,
-	// color, etc. will have no effect when the fixture is not enabled.
+	// color, etc. will have no effect when the fixture is not enabled. This also
+	// disables the locating-mode when disabling the fixture.
 	SetEnabled(isEnabled bool)
 	// Reset sets the state to the initial ones. Don't forget to call Apply.
 	Reset()
@@ -62,6 +63,10 @@ type Fixture interface {
 	LastSeen() time.Time
 	// setLastSeen sets the timestamp that can be retrieved via LastSeen.
 	setLastSeen(lastSeen time.Time)
+	State() interface{}
+	// setUpdateNotifier sets the notifier that is called when updates are being
+	// applied.
+	setUpdateNotifier(notifier FixtureStateUpdateNotifier)
 }
 
 // getFixtureFeatures returns the features of the given Fixture.

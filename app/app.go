@@ -75,11 +75,13 @@ func (app *App) Boot(ctx context.Context) error {
 		deviceManagement:  device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
 		fixtureManagement: lighting.NewManagementHandlers(app.agency, app.lightingManager),
 		fixtureProviders:  lighting.NewFixtureProviderHandlers(app.agency, app.lightingManager),
+		fixtureOperators:  lighting.NewFixtureOperatorHandlers(app.agency, app.lightingManager),
 	}
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
 		return errors.Wrap(err, "wake up gatekeeper and protect")
 	}
+	go app.lightingManager.Run(ctx)
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if err := app.agency.Open(); err != nil {
@@ -109,12 +111,16 @@ type mainHandlers struct {
 	deviceManagement  *device_management.DeviceManagementHandlers
 	fixtureManagement *lighting.ManagementHandlers
 	fixtureProviders  *lighting.FixtureProviderHandlers
+	fixtureOperators  *lighting.FixtureOperatorHandlers
 	// wg waits for all running handlers.
 	wg sync.WaitGroup
 }
 
 func (mh *mainHandlers) Run(ctx context.Context) {
 	go mh.deviceManagement.Run(ctx)
+	// We run the operators first because they need to provide the context for
+	// update handlers.
+	go mh.fixtureOperators.Run(ctx)
 	go mh.fixtureManagement.Run(ctx)
 	go mh.fixtureProviders.Run(ctx)
 }

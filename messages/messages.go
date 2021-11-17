@@ -71,6 +71,9 @@ const (
 	// MessageTypeFixtureList is used with MessageFixtureList as an answer to
 	// MessageTypeGetFixtures.
 	MessageTypeFixtureList MessageType = "fixture-list"
+	// MessageTypeFixtureStates is used for transmitting the state of all known
+	// fixtures to an operator.
+	MessageTypeFixtureStates MessageType = "fixture-states"
 	// MessageTypeGetDevices is received when devices are requested.
 	MessageTypeGetDevices MessageType = "get-devices"
 	// MessageTypeGetFixtureOffers is sent to the client for requesting fixture
@@ -78,6 +81,9 @@ const (
 	MessageTypeGetFixtureOffers MessageType = "get-fixture-offers"
 	// MessageTypeGetFixtures is received for requesting all known fixtures.
 	MessageTypeGetFixtures MessageType = "get-fixtures"
+	// MessageTypeGetFixtureStates is received from fixture operators for retrieving
+	// fixture states that are being returned with MessageTypeFixtureStates.
+	MessageTypeGetFixtureStates MessageType = "get-fixture-states"
 	// MessageTypeHello is received with MessageHello for saying hello to the
 	// server.
 	MessageTypeHello MessageType = "hello"
@@ -126,6 +132,12 @@ const (
 	// MessageTypeSetFixtureName is used with MessageSetFixtureName for setting the
 	// name of a OfferedFixture.
 	MessageTypeSetFixtureName MessageType = "set-fixture-name"
+	// MessageTypeSetFixturesEnabled is used with MessageSetFixturesEnabled in order
+	// to set the enabled state for fixtures.
+	MessageTypeSetFixturesEnabled MessageType = "set-fixtures-enabled"
+	// MessageTypeSetFixturesLocating is used with MessageSetFixturesLocating in
+	// order to set the enabled state for fixtures.
+	MessageTypeSetFixturesLocating MessageType = "set-fixtures-locating"
 	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
 	// Used with MessageWelcome.
 	MessageTypeWelcome MessageType = "welcome"

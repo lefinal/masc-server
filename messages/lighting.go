@@ -33,6 +33,36 @@ const (
 	FixtureFeatureDimmer FixtureFeature = "dimmer"
 )
 
+// MessageFixtureStatesFixture is used in MessageFixtureStates as a container
+// for the actual message state. This matches most fields of
+// MessageFixtureBasicState but for compatibility and reliability, they are
+// treated differently.
+type MessageFixtureStatesFixture struct {
+	// ID is the id of the fixture.
+	ID FixtureID `json:"id"`
+	// FixtureType is the type of the fixture.
+	FixtureType FixtureType `json:"fixture_type"`
+	// DeviceID
+	DeviceID DeviceID `json:"device_id"`
+	// ProviderID is how the provider identifies the fixture.
+	ProviderID FixtureProviderFixtureID `json:"provider_id"`
+	// Name is an optionally assigned fixture name.
+	Name nulls.String `json:"name"`
+	// IsOnline determines whether the fixture is online.
+	IsOnline bool `json:"is_online"`
+	// IsEnabled describes whether the fixture is currently enabled or turned off.
+	IsEnabled bool `json:"is_enabled"`
+	// IsLocating holds the state set via Fixture.Locate.
+	IsLocating bool `json:"is_locating"`
+	// State is the actual fixture state that is different for each FixtureType.
+	State interface{} `json:"state"`
+}
+
+// MessageFixtureStates is used with MessageTypeFixtureStates.
+type MessageFixtureStates struct {
+	Fixtures []MessageFixtureStatesFixture `json:"fixtures"`
+}
+
 // MessageFixtureBasicState is used with MessageTypeFixtureBasicState.
 type MessageFixtureBasicState struct {
 	// Fixture is the id of the fixture that is being set by the fixture provider.
@@ -110,4 +140,28 @@ type MessageFixtureList struct {
 type MessageDeleteFixture struct {
 	// FixtureID is the id of the device to delete.
 	FixtureID FixtureID `json:"fixture_id"`
+}
+
+// MessageSetFixturesEnabledFixtureState is used in MessageSetFixturesEnabled
+// for setting the enabled state of fixtures.
+type MessageSetFixturesEnabledFixtureState struct {
+	FixtureID FixtureID `json:"fixture_id"`
+	IsEnabled bool      `json:"is_enabled"`
+}
+
+// MessageSetFixturesEnabled is used with MessageTypeSetFixturesEnabled.
+type MessageSetFixturesEnabled struct {
+	Fixtures []MessageSetFixturesEnabledFixtureState `json:"fixtures"`
+}
+
+// MessageSetFixturesLocatingFixtureState is used in MessageSetFixturesLocating
+// for setting the locating-mode of fixtures.
+type MessageSetFixturesLocatingFixtureState struct {
+	FixtureID  FixtureID `json:"fixture_id"`
+	IsLocating bool      `json:"is_locating"`
+}
+
+// MessageSetFixturesLocating is used with MessageTypeSetFixturesLocating.
+type MessageSetFixturesLocating struct {
+	Fixtures []MessageSetFixturesLocatingFixtureState `json:"fixtures"`
 }

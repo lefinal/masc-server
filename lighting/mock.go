@@ -195,6 +195,15 @@ func (f *MockFixture) setLastSeen(lastSeen time.Time) {
 	f.lastSeen = lastSeen
 }
 
+func (f *MockFixture) State() interface{} {
+	// TODO
+	return nil
+}
+
+func (f *MockFixture) setUpdateNotifier(notifier FixtureStateUpdateNotifier) {
+	// TODO
+}
+
 // MockManagerStore mocks ManagerStore.
 type MockManagerStore struct {
 	// fixtures holds all registered fixtures.

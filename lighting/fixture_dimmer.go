@@ -41,13 +41,22 @@ func (f *dimmerFixture) Reset() {
 }
 
 func (f *dimmerFixture) Apply() error {
+	return f.sendStateUpdate(acting.ActorOutgoingMessage{
+		MessageType: messages.MessageTypeFixtureDimmerState,
+		Content:     f.fixtureDimmerState(),
+	})
+}
+
+func (f *dimmerFixture) fixtureDimmerState() messages.MessageFixtureDimmerState {
+	basicState := f.fixtureBasicState()
 	f.m.RLock()
 	defer f.m.RUnlock()
-	return f.actor.Send(acting.ActorOutgoingMessage{
-		MessageType: messages.MessageTypeFixtureDimmerState,
-		Content: messages.MessageFixtureDimmerState{
-			MessageFixtureBasicState: f.buildBasicGetStateMessage(),
-			Brightness:               f.brightness,
-		},
-	})
+	return messages.MessageFixtureDimmerState{
+		MessageFixtureBasicState: basicState,
+		Brightness:               f.brightness,
+	}
+}
+
+func (f *dimmerFixture) State() interface{} {
+	return f.fixtureDimmerState()
 }

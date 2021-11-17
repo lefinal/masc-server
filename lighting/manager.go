@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
+	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/gobuffalo/nulls"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"time"
 )
+
+var fixtureStateBroadcastBufferDuration = 100 * time.Millisecond
 
 type ManagerStore interface {
 	// GetFixtures returns all known fixtures.
@@ -30,6 +33,8 @@ type ManagerStore interface {
 
 // Manager allows managing fixtures and their providers.
 type Manager interface {
+	// Run runs the Manager.
+	Run(ctx context.Context)
 	// LoadKnownFixtures loads all known fixtures from the ManagerStore.
 	LoadKnownFixtures() error
 	// AcceptFixtureProvider accepts an acting.Actor with
@@ -46,6 +51,12 @@ type Manager interface {
 	Fixtures() []Fixture
 	// DeleteFixture deletes the given Fixture from the store and from the Manager.
 	DeleteFixture(fixtureID messages.FixtureID) error
+	// GetFixtureStatesBroadcast is the channel for fixture state updates are being
+	// read from.
+	GetFixtureStatesBroadcast() <-chan messages.MessageFixtureStates
+	// FixtureStates returns all fixture states. Usually, important for fixture
+	// operators.
+	FixtureStates() messages.MessageFixtureStates
 }
 
 // StoredManager is the implementation of Manager.
@@ -54,16 +65,33 @@ type StoredManager struct {
 	store ManagerStore
 	// fixtures holds all fixtures by their associated actor.
 	fixtures map[messages.FixtureID]Fixture
+	// fixtureStateBroadcaster is the broadcaster for publishing fixture states.
+	fixtureStateBroadcaster *fixtureStateBroadcaster
 	// m locks the StoredManager.
 	m sync.RWMutex
 }
 
 // NewStoredManager creates a new Manager.
 func NewStoredManager(store ManagerStore) *StoredManager {
-	return &StoredManager{
+	m := &StoredManager{
 		store:    store,
 		fixtures: make(map[messages.FixtureID]Fixture),
 	}
+	m.fixtureStateBroadcaster = newFixtureStateBroadcaster(m, fixtureStateBroadcastBufferDuration)
+	return m
+}
+
+func (manager *StoredManager) Run(ctx context.Context) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		manager.fixtureStateBroadcaster.run(ctx)
+	}()
+	logging.LightingLogger.Info("lighting manager running")
+	<-ctx.Done()
+	wg.Wait()
+	logging.LightingLogger.Info("lighting manager shut down.")
 }
 
 func (manager *StoredManager) LoadKnownFixtures() error {
@@ -82,6 +110,7 @@ func (manager *StoredManager) LoadKnownFixtures() error {
 		f.setDeviceID(storeFixture.Device)
 		f.setProviderID(storeFixture.ProviderID)
 		f.setLastSeen(storeFixture.LastSeen)
+		f.setUpdateNotifier(manager.fixtureStateBroadcaster)
 		manager.fixtures[storeFixture.ID] = f
 	}
 	return nil
@@ -115,6 +144,7 @@ func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor a
 			return errors.Wrap(err, fmt.Sprintf("set fixture %v online", fixture.ID()))
 		}
 		fixture.setActor(actor)
+		fixture.setUpdateNotifier(manager.fixtureStateBroadcaster)
 		fixture.Reset()
 		err = fixture.Apply()
 		if err != nil {
@@ -244,4 +274,29 @@ func (manager *StoredManager) DeleteFixture(fixtureID messages.FixtureID) error 
 	}
 	delete(manager.fixtures, fixtureID)
 	return nil
+}
+
+func (manager *StoredManager) GetFixtureStatesBroadcast() <-chan messages.MessageFixtureStates {
+	return manager.fixtureStateBroadcaster.statesBroadcast
+}
+
+func (manager *StoredManager) FixtureStates() messages.MessageFixtureStates {
+	fixtures := manager.Fixtures()
+	messageFixtures := make([]messages.MessageFixtureStatesFixture, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		messageFixtures = append(messageFixtures, messages.MessageFixtureStatesFixture{
+			ID:          fixture.ID(),
+			FixtureType: fixture.Type(),
+			DeviceID:    fixture.DeviceID(),
+			ProviderID:  fixture.ProviderID(),
+			Name:        fixture.Name(),
+			IsOnline:    fixture.IsOnline(),
+			IsEnabled:   fixture.IsEnabled(),
+			IsLocating:  fixture.IsLocating(),
+			State:       fixture.State(),
+		})
+	}
+	return messages.MessageFixtureStates{
+		Fixtures: messageFixtures,
+	}
 }
