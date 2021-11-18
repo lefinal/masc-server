@@ -108,6 +108,9 @@ func NewScanDBRowError(err error, details Details) error {
 // Otherwise, an ErrInternal error is created. The query will be added to the details as well as the additional ones.
 // Error codes taken from https://en.wikipedia.org/wiki/SQLSTATE.
 func NewExecQueryError(err error, query string, details Details) error {
+	if details == nil {
+		details = Details{}
+	}
 	details["query"] = query
 	// Check if error is postgres error.
 	var pgErr *pgconn.PgError
