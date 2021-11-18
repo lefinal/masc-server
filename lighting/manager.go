@@ -199,6 +199,8 @@ addFixtures:
 				fixtureToAdd.ProviderID, m.DeviceID))
 		}
 		newFixture := newFixture(created.ID, created.Type)
+		newFixture.setDeviceID(m.DeviceID)
+		newFixture.setProviderID(fixtureToAdd.ProviderID)
 		manager.fixtures[newFixture.ID()] = newFixture
 		fixtures = append(fixtures, newFixture)
 	}
