@@ -289,6 +289,8 @@ func (manager *StoredManager) GetFixtureStatesBroadcast() <-chan messages.Messag
 }
 
 func (manager *StoredManager) FixtureStates() messages.MessageFixtureStates {
+	manager.m.RLock()
+	defer manager.m.RUnlock()
 	fixtures := manager.Fixtures()
 	messageFixtures := make([]messages.MessageFixtureStatesFixture, 0, len(fixtures))
 	for _, fixture := range fixtures {
