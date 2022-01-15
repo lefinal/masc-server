@@ -61,15 +61,21 @@ const (
 	// KindForbiddenMessage is used when the protocol is being violated due to a
 	// message with currently forbidden type.
 	KindForbiddenMessage Kind = "protocol-violation"
+	// KindMisc is used for miscellaneous stuff.
+	KindMisc Kind = "misc"
 	// KindInvalidCastingRequest is used when an invalid games.ActorRequest is added
 	// to a casting.
 	KindInvalidCastingRequest Kind = "invalid-casting-request"
+	// KindInvalidConfig is used when an invalid app.Config is provided to app.App.
+	KindInvalidConfig Kind = "invalid-config"
 	// KindInvalidConfigRequest is used when an invalid config is passed to match
 	// creation.
 	KindInvalidConfigRequest Kind = "invalid-config-request"
 	// KindInvalidRoleAssignments is used when an invalid assignment with
 	// messages.MessageRoleAssignments was received.
 	KindInvalidRoleAssignments Kind = "invalid-role-assignments"
+	// KindIO is used for I/O stuff like reading files.
+	KindIO Kind = "io"
 	// KindMatchAlreadyStarted is used when a games.Match is tried to be started,
 	// although it is already running.
 	KindMatchAlreadyStarted Kind = "match-already-started"
@@ -82,6 +88,8 @@ const (
 	// was provided.
 	KindMissingActor Kind = "missing-actor"
 	KindMissingID    Kind = "missing-id"
+	// KindMQTT is used for all MQTT stuff.
+	KindMQTT Kind = "mqtt"
 	// KindNotRunning is used when actions are performed that require a running
 	// entity.
 	KindNotRunning Kind = "not-running"

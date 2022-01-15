@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/LeFinal/masc-server/client"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
-	"github.com/LeFinal/masc-server/ws"
 	"sync"
 	"time"
 )
@@ -40,7 +40,7 @@ type NetGatekeeper struct {
 	// events and management. If not nil, the NetGatekeeper is awake.
 	protected Protected
 	// onlineDevices holds all devices that are currently online.
-	onlineDevices map[*ws.Client]*Device
+	onlineDevices map[*client.Client]*Device
 	// m locks the NetGatekeeper.
 	m sync.RWMutex
 }
@@ -48,7 +48,7 @@ type NetGatekeeper struct {
 func NewNetGatekeeper(store GatekeeperStore) *NetGatekeeper {
 	return &NetGatekeeper{
 		store:         store,
-		onlineDevices: make(map[*ws.Client]*Device),
+		onlineDevices: make(map[*client.Client]*Device),
 	}
 }
 
@@ -71,7 +71,7 @@ func (gk *NetGatekeeper) Retire() error {
 func (gk *NetGatekeeper) GetDevices() ([]messages.Device, error) {
 	storeDevices, err := gk.store.GetDevices()
 	if err != nil {
-		return nil, errors.Wrap(err, "get devices from store")
+		return nil, errors.Wrap(err, "get devices from store", nil)
 	}
 	// Index online devices for faster message building.
 	onlineDevices := make(map[messages.DeviceID]*Device)
@@ -102,7 +102,7 @@ func (gk *NetGatekeeper) SetDeviceName(deviceID messages.DeviceID, name string) 
 	return gk.store.SetDeviceName(deviceID, name)
 }
 
-func (gk *NetGatekeeper) AcceptClient(ctx context.Context, client *ws.Client) {
+func (gk *NetGatekeeper) AcceptClient(ctx context.Context, client *client.Client) {
 	// Wait for hello message.
 	for {
 		select {
@@ -150,7 +150,7 @@ func (gk *NetGatekeeper) AcceptClient(ctx context.Context, client *ws.Client) {
 			// Okay, so now everything is set up, and we can pass it forward to the protected.
 			err = gk.protected.WelcomeDevice(newDevice)
 			if err != nil {
-				logAndSendErrorMessage(errors.Wrap(err, "welcome device"), client)
+				logAndSendErrorMessage(errors.Wrap(err, "welcome device", nil), client)
 				continue
 			}
 			return
@@ -164,7 +164,7 @@ func (gk *NetGatekeeper) DeleteDevice(deviceID messages.DeviceID) error {
 
 // deviceIncomingPump unmarshalls and logs incoming messages and forwards them
 // to the given device channel.
-func deviceIncomingPump(ctx context.Context, client *ws.Client, deviceReceive chan<- messages.MessageContainer, deviceID messages.DeviceID) {
+func deviceIncomingPump(ctx context.Context, client *client.Client, deviceReceive chan<- messages.MessageContainer, deviceID messages.DeviceID) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -177,14 +177,14 @@ func deviceIncomingPump(ctx context.Context, client *ws.Client, deviceReceive ch
 				// Notify sender.
 				errMessage, err := messageErrorFromError(errors.NewJSONError(err, "unmarshal incoming message", true))
 				if err != nil {
-					errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "message error from error"))
+					errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "message error from error", nil))
 					continue
 				}
 				marshalAndSendOrLog(messages.MessageTypeError, deviceID, errMessage, client)
 				continue
 			}
 			// Log.
-			logging.MessageLogger().WithFields(map[string]interface{}{
+			logging.MessageLogger.WithFields(map[string]interface{}{
 				"device":      messageContainer.DeviceID,
 				"dir":         "incoming",
 				"actor":       messageContainer.ActorID,
@@ -193,7 +193,7 @@ func deviceIncomingPump(ctx context.Context, client *ws.Client, deviceReceive ch
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger().Warnf("aborting incoming message forward for device %v: %v", deviceID, messageContainer)
+				logging.MessageLogger.Warnf("aborting incoming message forward for device %v: %v", deviceID, messageContainer)
 				return
 			case deviceReceive <- messageContainer:
 			}
@@ -212,11 +212,11 @@ func deviceOutgoingPump(ctx context.Context, send chan<- []byte, deviceSend <-ch
 			// Marshal message container.
 			raw, err := json.Marshal(message)
 			if err != nil {
-				errors.Log(logging.GatekeepingLogger, errors.Wrap(err, fmt.Sprintf("marshal outgoing message for device %v", deviceID)))
+				errors.Log(logging.GatekeepingLogger, errors.Wrap(err, fmt.Sprintf("marshal outgoing message for device %v", deviceID), nil))
 				continue
 			}
 			// Log.
-			logging.MessageLogger().WithFields(map[string]interface{}{
+			logging.MessageLogger.WithFields(map[string]interface{}{
 				"device":      message.DeviceID,
 				"dir":         "outgoing",
 				"actor":       message.ActorID,
@@ -225,7 +225,7 @@ func deviceOutgoingPump(ctx context.Context, send chan<- []byte, deviceSend <-ch
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger().Warnf("aborting outgoing message forward for device %v: %v", deviceID, message)
+				logging.MessageLogger.Warnf("aborting outgoing message forward for device %v: %v", deviceID, message)
 				return
 			case send <- raw:
 			}
@@ -267,7 +267,7 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 		// Device claims to be known. Let's verify that by comparing with known devices.
 		knownDevices, err := gk.store.GetDevices()
 		if err != nil {
-			return nil, errors.Wrap(err, "get devices")
+			return nil, errors.Wrap(err, "get devices", nil)
 		}
 		for _, knownDevice := range knownDevices {
 			if knownDevice.ID == helloMessageContainer.DeviceID {
@@ -277,7 +277,7 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 				if knownDevice.SelfDescription != newDevice.SelfDescription {
 					err = gk.store.SetDeviceSelfDescription(knownDevice.ID, newDevice.SelfDescription)
 					if err != nil {
-						return nil, errors.Wrap(err, "update device self-description")
+						return nil, errors.Wrap(err, "update device self-description", nil)
 					}
 					logging.GatekeepingLogger.Infof("updated self-description for device %v (%v) from %s to %s",
 						knownDevice.ID, knownDevice.Name, knownDevice.SelfDescription, newDevice.SelfDescription)
@@ -293,7 +293,7 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 		// Create entry in store.
 		createdDevice, err := gk.store.CreateNewDevice(helloMessage.SelfDescription)
 		if err != nil {
-			return nil, errors.Wrap(err, "create new device")
+			return nil, errors.Wrap(err, "create new device", nil)
 		}
 		newDevice.ID = createdDevice.ID
 		newDevice.Name = createdDevice.Name
@@ -301,12 +301,12 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 	}
 	err = gk.store.RefreshLastSeenForDevice(newDevice.ID)
 	if err != nil {
-		return nil, errors.Wrap(err, "set device online")
+		return nil, errors.Wrap(err, "set device online", nil)
 	}
 	return newDevice, nil
 }
 
-func (gk *NetGatekeeper) SayGoodbyeToClient(client *ws.Client) {
+func (gk *NetGatekeeper) SayGoodbyeToClient(ctx context.Context, client *client.Client) {
 	gk.m.Lock()
 	defer gk.m.Unlock()
 	device, ok := gk.onlineDevices[client]
@@ -319,23 +319,23 @@ func (gk *NetGatekeeper) SayGoodbyeToClient(client *ws.Client) {
 	// Update online status.
 	err := gk.store.RefreshLastSeenForDevice(device.ID)
 	if err != nil {
-		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "set device offline"))
+		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "set device offline", nil))
 		return
 	}
 	err = gk.protected.SayGoodbyeToDevice(device.ID)
 	if err != nil {
-		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "make protected say goodbye to device"))
+		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "make protected say goodbye to device", nil))
 		return
 	}
 }
 
 // logAndSendErrorMessage logs the given error and sends it to the given
 // ws.Client WITHOUT device id!
-func logAndSendErrorMessage(e error, client *ws.Client) {
+func logAndSendErrorMessage(e error, client *client.Client) {
 	errors.Log(logging.GatekeepingLogger, e)
 	errMessage, err := messageErrorFromError(e)
 	if err != nil {
-		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "message error from error"))
+		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "message error from error", nil))
 		return
 	}
 	marshalAndSendOrLog(messages.MessageTypeError, "", errMessage, client)
@@ -352,7 +352,7 @@ func messageErrorFromError(err error) ([]byte, error) {
 	return c, nil
 }
 
-func marshalAndSendOrLog(messageType messages.MessageType, deviceID messages.DeviceID, content json.RawMessage, client *ws.Client) bool {
+func marshalAndSendOrLog(messageType messages.MessageType, deviceID messages.DeviceID, content json.RawMessage, client *client.Client) bool {
 	errMessage, err := json.Marshal(messages.MessageContainer{
 		MessageType: messageType,
 		DeviceID:    deviceID,

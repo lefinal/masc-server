@@ -9,6 +9,24 @@ import (
 
 //goland:noinspection SpellCheckingInspection
 
+// NewInternalError creates a new ErrInternal with the given message and
+// details.
+func NewInternalError(message string, details Details) error {
+	return NewInternalErrorFromErr(nil, message, details)
+}
+
+// NewInternalErrorFromErr creates a new ErrInternal with the given message,
+// original error and details.
+func NewInternalErrorFromErr(err error, message string, details Details) error {
+	return Error{
+		Code:    ErrInternal,
+		Kind:    KindMisc,
+		Err:     err,
+		Message: message,
+		Details: details,
+	}
+}
+
 // NewResourceNotFoundError returns a new ErrNotFound error with kind
 // KindResourceNotFound and the given message.
 func NewResourceNotFoundError(message string, details Details) error {
@@ -123,7 +141,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 			return Error{
 				Code:    ErrBadRequest,
 				Kind:    KindDBConstraintViolation,
-				Message: "exed db query: constraint violation",
+				Message: "exec db query: constraint violation",
 				Err:     err,
 				Details: details,
 			}

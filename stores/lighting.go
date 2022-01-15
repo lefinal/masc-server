@@ -84,7 +84,7 @@ func (m *Mall) DeleteFixture(fixtureID messages.FixtureID) error {
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure one affected")
+		return errors.Wrap(err, "assure one affected", nil)
 	}
 	return nil
 }
@@ -102,7 +102,7 @@ func (m *Mall) SetFixtureName(fixtureID messages.FixtureID, name nulls.String) e
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure one affected")
+		return errors.Wrap(err, "assure one affected", nil)
 	}
 	return nil
 }
@@ -120,7 +120,7 @@ func (m *Mall) RefreshLastSeenForFixture(fixtureID messages.FixtureID) error {
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure one affected")
+		return errors.Wrap(err, "assure one affected", nil)
 	}
 	return nil
 }

@@ -62,7 +62,7 @@ func (dm *DeviceManagementHandlers) HandleNewActor(actor acting.Actor, role acti
 	// Hire.
 	err := actorDM.Hire(fmt.Sprintf("device-manager-%d", dm.managerCounter))
 	if err != nil {
-		errors.Log(logging.AppLogger, errors.Wrap(err, "hire"))
+		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
 	<-actorDM.Quit()
@@ -84,7 +84,7 @@ func (a *actorDeviceManager) Hire(displayedName string) error {
 	// Hire normally.
 	err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor")
+		return errors.Wrap(err, "hire actor", nil)
 	}
 	// Setup message handlers. We do not need to unsubscribe because this will be
 	// done when the actor is fired. Handle device retrieval.
@@ -115,7 +115,7 @@ func (a *actorDeviceManager) handleGetDevices() {
 	// Respond with all devices.
 	devices, err := a.gatekeeper.GetDevices()
 	if err != nil {
-		err = errors.Wrap(err, "get devices")
+		err = errors.Wrap(err, "get devices", nil)
 		errors.Log(logging.ActingLogger, err)
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
@@ -144,7 +144,7 @@ func (a *actorDeviceManager) handleGetDevices() {
 func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDeviceName) {
 	err := a.gatekeeper.SetDeviceName(message.DeviceID, message.Name)
 	if err != nil {
-		err = errors.Wrap(err, "set-device-name")
+		err = errors.Wrap(err, "set-device-name", nil)
 		errors.Log(logging.ActingLogger, err)
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
@@ -157,7 +157,7 @@ func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDevi
 func (a *actorDeviceManager) handleDeleteDevice(message messages.MessageDeleteDevice) {
 	err := a.gatekeeper.DeleteDevice(message.DeviceID)
 	if err != nil {
-		err = errors.Wrap(err, "delete device")
+		err = errors.Wrap(err, "delete device", nil)
 		errors.Log(logging.ActingLogger, err)
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return

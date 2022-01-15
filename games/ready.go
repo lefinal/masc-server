@@ -179,7 +179,7 @@ func (ra *readyAwaiter) areYouReadyForActor(readyStateRequest context.Context, a
 	// Send ready-state request.
 	err := actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeAreYouReady})
 	if err != nil {
-		ra.handleError(readyStateRequest, errors.Wrap(err, "send ready-state request to actor"))
+		ra.handleError(readyStateRequest, errors.Wrap(err, "send ready-state request to actor", nil))
 		return
 	}
 	// Handle ready-state updates.
@@ -187,7 +187,7 @@ func (ra *readyAwaiter) areYouReadyForActor(readyStateRequest context.Context, a
 		select {
 		case <-readyStateRequest.Done():
 			err = actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeReadyAccepted})
-			ra.handleError(readyStateRequest, errors.Wrap(err, "send ready accepted to actor"))
+			ra.handleError(readyStateRequest, errors.Wrap(err, "send ready accepted to actor", nil))
 			return
 		case message, more := <-newsletter.Receive:
 			if !more {

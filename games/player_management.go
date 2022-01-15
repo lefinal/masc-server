@@ -193,7 +193,7 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 			Content:     messages.MessagePlayerJoinOpen{Team: string(office.Team)},
 		})
 		if err != nil {
-			return errors.Wrap(err, "notify player join open")
+			return errors.Wrap(err, "notify player join open", nil)
 		}
 		// Accept player joins until closed.
 	handlePlayerJoins:
@@ -207,7 +207,7 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 					// Create guest user.
 					user, err = office.PlayerProvider.CreateGuestUser()
 					if err != nil {
-						return errors.Wrap(err, "request guest user")
+						return errors.Wrap(err, "request guest user", nil)
 					}
 				} else {
 					// Retrieve user from provider.
@@ -215,10 +215,10 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 					if err != nil {
 						if errors.BlameUser(err) {
 							if blameErr := actor.Send(acting.ActorErrorMessageFromError(err)); blameErr != nil {
-								return errors.Wrap(blameErr, "notify actor for error after user retrieval")
+								return errors.Wrap(blameErr, "notify actor for error after user retrieval", nil)
 							}
 						} else {
-							return errors.Wrap(err, "retrieve user")
+							return errors.Wrap(err, "retrieve user", nil)
 						}
 						continue
 					}
@@ -234,7 +234,7 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 						Message: fmt.Sprintf("player already joined match"),
 						Details: errors.Details{"player": user.ID},
 					})); blameErr != nil {
-						return errors.Wrap(blameErr, "notify actor that player already joined")
+						return errors.Wrap(blameErr, "notify actor that player already joined", nil)
 					}
 				}
 			case m := <-playerLeftNewsletter.Receive:
@@ -246,7 +246,7 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 						Message: fmt.Sprintf("player did not join the match"),
 						Details: errors.Details{"player": m.Player},
 					})); blameErr != nil {
-						return errors.Wrap(blameErr, "notify actor that player did not join")
+						return errors.Wrap(blameErr, "notify actor that player did not join", nil)
 					}
 				}
 			}
@@ -254,7 +254,7 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 		// Notify player join closed.
 		err = actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypePlayerJoinClosed})
 		if err != nil {
-			return errors.Wrap(err, "notify player join closed")
+			return errors.Wrap(err, "notify player join closed", nil)
 		}
 		acting.UnsubscribeOrLogError(playerJoinNewsletter.Newsletter)
 		acting.UnsubscribeOrLogError(playerLeftNewsletter.Newsletter)
@@ -280,7 +280,7 @@ func BroadcastPlayerManagementUpdate(update PlayerManagementUpdate, playerProvid
 		if err != nil {
 			// This is indeed a problem but not critical. We log the error and simply set
 			// the id.
-			return errors.Wrap(err, "get user details from provider")
+			return errors.Wrap(err, "get user details from provider", nil)
 		}
 		broadcastMessage = acting.ActorOutgoingMessage{
 			MessageType: messages.MessageTypePlayerJoined,
@@ -296,7 +296,7 @@ func BroadcastPlayerManagementUpdate(update PlayerManagementUpdate, playerProvid
 	for _, actor := range recipients {
 		err := actor.Send(broadcastMessage)
 		if err != nil {
-			return errors.Wrap(err, "broadcast player update")
+			return errors.Wrap(err, "broadcast player update", nil)
 		}
 	}
 	return nil
@@ -314,7 +314,7 @@ func BroadcastReadyStateUpdate(update ReadyStateUpdate, recipients ...acting.Act
 	for _, actor := range recipients {
 		err := actor.Send(broadcastMessage)
 		if err != nil {
-			return errors.Wrap(err, "broadcast ready-state update")
+			return errors.Wrap(err, "broadcast ready-state update", nil)
 		}
 	}
 	return nil

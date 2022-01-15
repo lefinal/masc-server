@@ -8,6 +8,7 @@ import (
 	"github.com/LeFinal/masc-server/gatekeeping"
 	"github.com/LeFinal/masc-server/lighting"
 	"github.com/LeFinal/masc-server/logging"
+	"github.com/LeFinal/masc-server/mqttbridge"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/LeFinal/masc-server/web_server"
 	"github.com/LeFinal/masc-server/ws"
@@ -30,6 +31,8 @@ type App struct {
 	agency *acting.ProtectedAgency
 	// lightingManager is the manager for fixture operation, handling, etc.
 	lightingManager *lighting.StoredManager
+	// mqttBridge is used for connecting to a MQTT-server.
+	mqttBridge mqttbridge.Bridge
 	// mainHandlers holds general actor handlers like device management or fixture
 	// manager.
 	mainHandlers mainHandlers
@@ -43,9 +46,19 @@ func NewApp(config Config) *App {
 
 // Boot sets everything up based on the set config and boots.
 func (app *App) Boot(ctx context.Context) error {
+	// Validate config.
+	err := ValidateConfig(app.config)
+	if err != nil {
+		return errors.Error{
+			Code:    errors.ErrFatal,
+			Kind:    errors.KindInvalidConfig,
+			Err:     err,
+			Message: "invalid config",
+		}
+	}
 	// Connect database.
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
-		return errors.Wrap(err, "connect database")
+		return errors.Wrap(err, "connect database", nil)
 	} else {
 		app.mall = stores.NewMall(db)
 	}
@@ -58,7 +71,11 @@ func (app *App) Boot(ctx context.Context) error {
 	// Create lighting manager.
 	app.lightingManager = lighting.NewStoredManager(app.mall)
 	if err := app.lightingManager.LoadKnownFixtures(); err != nil {
-		return errors.Wrap(err, "load known fixtures for lighting manager")
+		return errors.Wrap(err, "load known fixtures for lighting manager", nil)
+	}
+	// Create MQTT bridge if address is provided.
+	if app.config.MQTTAddr.Valid {
+		app.mqttBridge = mqttbridge.NewBridge(mqttbridge.Config{MQTTAddr: app.config.MQTTAddr.String})
 	}
 	// Create web server.
 	if webServer, err := web_server.NewWebServer(web_server.Config{
@@ -66,7 +83,7 @@ func (app *App) Boot(ctx context.Context) error {
 		WriteTimeout: 1024,
 		ReadTimeout:  1024,
 	}); err != nil {
-		return errors.Wrap(err, "create web server")
+		return errors.Wrap(err, "create web server", nil)
 	} else {
 		app.webServer = webServer
 	}
@@ -79,29 +96,36 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
-		return errors.Wrap(err, "wake up gatekeeper and protect")
+		return errors.Wrap(err, "wake up gatekeeper and protect", nil)
 	}
 	go app.lightingManager.Run(ctx)
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
+	if app.mqttBridge != nil {
+		go func() {
+			if err := app.mqttBridge.Run(ctx, app.mall, app.gatekeeper); err != nil {
+				errors.Log(logging.AppLogger, errors.Wrap(err, "run mqtt bridge", nil))
+			}
+		}()
+	}
 	if err := app.agency.Open(); err != nil {
-		return errors.Wrap(err, "open agency")
+		return errors.Wrap(err, "open agency", nil)
 	}
 	app.webServer.PopulateRoutes(app.wsHub, ctx)
 	go func() {
 		err := app.webServer.Run(ctx)
 		if err != nil {
-			errors.Log(logging.AppLogger, errors.Wrap(err, "run web server"))
+			errors.Log(logging.AppLogger, errors.Wrap(err, "run web server", nil))
 			return
 		}
 	}()
 	// Wait for exit.
 	<-ctx.Done()
 	if err := app.gatekeeper.Retire(); err != nil {
-		return errors.Wrap(err, "retire gatekeeper")
+		return errors.Wrap(err, "retire gatekeeper", nil)
 	}
 	if err := app.agency.Close(); err != nil {
-		return errors.Wrap(err, "close agency")
+		return errors.Wrap(err, "close agency", nil)
 	}
 	return nil
 }

@@ -64,13 +64,13 @@ func (dm *FixtureProviderHandlers) HandleNewActor(actor acting.Actor, role actin
 	// Hire.
 	err := actorDM.Hire(fmt.Sprintf("fixture-provider-%d", dm.managerCounter))
 	if err != nil {
-		errors.Log(logging.AppLogger, errors.Wrap(err, "hire"))
+		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
 	<-actorDM.Quit()
 	err = actorDM.cleanUp()
 	if err != nil {
-		errors.Log(logging.AppLogger, errors.Wrap(err, "clean up"))
+		errors.Log(logging.AppLogger, errors.Wrap(err, "clean up", nil))
 	}
 	// Remove from active ones.
 	dm.m.Lock()
@@ -91,13 +91,13 @@ func (a *fixtureProviderHandler) Hire(displayedName string) error {
 	// Hire normally.
 	err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor")
+		return errors.Wrap(err, "hire actor", nil)
 	}
 	// We do not need any message handlers but pass it directly to the manager.
 	go func() {
 		err = a.manager.AcceptFixtureProvider(a.ctx, a.Actor)
 		if err != nil {
-			err = errors.Wrap(err, "accept fixture provider")
+			err = errors.Wrap(err, "accept fixture provider", nil)
 			errors.Log(logging.ActingLogger, err)
 			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
 			return
@@ -110,7 +110,7 @@ func (a *fixtureProviderHandler) Hire(displayedName string) error {
 func (a *fixtureProviderHandler) cleanUp() error {
 	err := a.manager.SayGoodbyeToFixtureProvider(a.Actor)
 	if err != nil {
-		return errors.Wrap(err, "unregister fixture provider")
+		return errors.Wrap(err, "unregister fixture provider", nil)
 	}
 	return nil
 }

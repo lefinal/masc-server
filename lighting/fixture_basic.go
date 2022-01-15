@@ -77,7 +77,7 @@ func (f *basicFixture) sendStateUpdate(message acting.ActorOutgoingMessage) erro
 	}
 	err := f.actor.Send(message)
 	if err != nil {
-		return errors.Wrap(err, "send")
+		return errors.Wrap(err, "send", nil)
 	}
 	return nil
 }

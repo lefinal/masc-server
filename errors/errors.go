@@ -47,7 +47,7 @@ func Cast(err error) (Error, bool) {
 }
 
 // Wrap wraps the given error with the given message.
-func Wrap(err error, message string) error {
+func Wrap(err error, message string, details Details) error {
 	e, ok := Cast(err)
 	// Check whether to append to message or replace.
 	var errMsg string
@@ -55,6 +55,19 @@ func Wrap(err error, message string) error {
 		errMsg = fmt.Sprintf("%s: %s", message, e.Message)
 	} else {
 		errMsg = message
+	}
+	// Add details.
+	if details != nil && e.Details == nil {
+		e.Details = make(Details)
+	}
+	for k, v := range details {
+		// Check if detail with same key already set.
+		if originalV, ok := e.Details[k]; ok {
+			// Add prefix to original key. Original value will be overwritten after this
+			// block.
+			e.Details[fmt.Sprintf("_%s", k)] = originalV
+		}
+		e.Details[k] = v
 	}
 	wrappedErr := Error{
 		Code:    e.Code,

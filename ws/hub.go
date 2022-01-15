@@ -2,13 +2,14 @@ package ws
 
 import (
 	"context"
+	"github.com/LeFinal/masc-server/client"
 	"github.com/LeFinal/masc-server/logging"
 )
 
 // Hub holds all active clients and manages centralized receiving and sending.
 type Hub struct {
 	// clientListener is used for notifying of new clients or unregistered ones.
-	clientListener ClientListener
+	clientListener client.Listener
 	// clients holds all online clients.
 	clients map[*Client]struct{}
 	// register receives when a Client wants to register itself.
@@ -18,7 +19,7 @@ type Hub struct {
 }
 
 // NewHub creates a new Hub. Start it with Hub.Run.
-func NewHub(clientListener ClientListener) *Hub {
+func NewHub(clientListener client.Listener) *Hub {
 	return &Hub{
 		clientListener: clientListener,
 		register:       make(chan *Client),
@@ -33,19 +34,19 @@ func (h *Hub) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case client := <-h.register:
+		case c := <-h.register:
 			// Register client.
-			h.clients[client] = struct{}{}
-			logging.WSLogger.Infof("client %v connected", client.ID)
-			go h.clientListener.AcceptClient(ctx, client)
-		case client := <-h.unregister:
+			h.clients[c] = struct{}{}
+			logging.WSLogger.Infof("client %v connected", c.ID)
+			go h.clientListener.AcceptClient(ctx, c.Client)
+		case c := <-h.unregister:
 			// Unregister client.
-			if _, ok := h.clients[client]; ok {
-				h.clientListener.SayGoodbyeToClient(client)
-				delete(h.clients, client)
-				logging.WSLogger.Infof("client %v disconnected", client.ID)
+			if _, ok := h.clients[c]; ok {
+				h.clientListener.SayGoodbyeToClient(ctx, c.Client)
+				delete(h.clients, c)
+				logging.WSLogger.Infof("client %v disconnected", c.ID)
 				// Close the send-channel which leads to stopping the write-pump.
-				close(client.Send)
+				close(c.Send)
 			}
 		}
 	}

@@ -157,7 +157,7 @@ func (c *casting) AddRequest(request ActorRequest) error {
 	// Assure valid request.
 	err = c.assureValidActorRequest(request)
 	if err != nil {
-		return errors.Wrap(err, "assure valid actor request")
+		return errors.Wrap(err, "assure valid actor request", nil)
 	}
 	// Add order and wait for response.
 	c.requestsMutex.Lock()
@@ -206,7 +206,7 @@ func (c *casting) PerformAndHire(ctx context.Context, jury acting.Actor) error {
 			},
 		})
 		if err != nil {
-			return errors.Wrap(err, "request role assignments")
+			return errors.Wrap(err, "request role assignments", nil)
 		}
 		// Wait for reply.
 		select {
@@ -224,32 +224,29 @@ func (c *casting) PerformAndHire(ctx context.Context, jury acting.Actor) error {
 			acting.UnsubscribeOrLogError(newsletterAssignments.Newsletter)
 			// Handle assignments by first checking if the request was fulfilled correctly.
 			if badRequestErr := c.setWinners(messageAssignments); badRequestErr != nil {
-				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr,
-					"set winners from assignment message")))
+				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr, "set winners from assignment message", nil)))
 				if notifyErr != nil {
-					return errors.Wrap(err, "notify jury for invalid role assignments")
+					return errors.Wrap(err, "notify jury for invalid role assignments", nil)
 				}
 				continue
 			}
 			// Assure valid assignment.
 			if badRequestErr := c.assureWinnersSatisfyRequests(); badRequestErr != nil {
-				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr,
-					"assure winners satisfy requests")))
+				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr, "assure winners satisfy requests", nil)))
 				if notifyErr != nil {
-					return errors.Wrap(err, "notify jury for invalid role assignments")
+					return errors.Wrap(err, "notify jury for invalid role assignments", nil)
 				}
 				continue
 			}
 			// Hire winners.
 			badRequestErr, internalErr := c.hireWinners()
 			if internalErr != nil {
-				return errors.Wrap(internalErr, "hire winners")
+				return errors.Wrap(internalErr, "hire winners", nil)
 			}
 			if badRequestErr != nil {
-				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr,
-					"hire winners from assignment message")))
+				notifyErr := c.jury.Send(acting.ActorErrorMessageFromError(errors.Wrap(badRequestErr, "hire winners from assignment message", nil)))
 				if notifyErr != nil {
-					return errors.Wrap(err, "notify jury for invalid role assignments")
+					return errors.Wrap(err, "notify jury for invalid role assignments", nil)
 				}
 				continue
 			}
@@ -277,7 +274,7 @@ func (c *casting) hireWinners() (error, error) {
 			if hireError := actor.Hire(""); hireError != nil {
 				// Fire already hired actors.
 				if fireAllErr := acting.FireAllActors(hired); fireAllErr != nil {
-					return nil, errors.Wrap(fireAllErr, "fire all actors because of failed hire after role assignments")
+					return nil, errors.Wrap(fireAllErr, "fire all actors because of failed hire after role assignments", nil)
 				} else {
 					return errors.Error{
 						Code:    errors.ErrBadRequest,

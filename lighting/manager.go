@@ -9,6 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/gobuffalo/nulls"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -99,7 +100,7 @@ func (manager *StoredManager) LoadKnownFixtures() error {
 	defer manager.m.Unlock()
 	fixtures, err := manager.store.GetFixtures()
 	if err != nil {
-		return errors.Wrap(err, "retrieve fixtures from store")
+		return errors.Wrap(err, "retrieve fixtures from store", nil)
 	}
 	for _, storeFixture := range fixtures {
 		f := newFixture(storeFixture.ID, storeFixture.Type)
@@ -122,7 +123,7 @@ func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor a
 	defer acting.UnsubscribeOrLogError(fixtureRes.Newsletter)
 	err := actor.Send(acting.ActorOutgoingMessage{MessageType: messages.MessageTypeGetFixtureOffers})
 	if err != nil {
-		return errors.Wrap(err, "request fixtures from provider")
+		return errors.Wrap(err, "request fixtures from provider", nil)
 	}
 	var messageFixtures messages.MessageFixtureOffers
 	select {
@@ -133,7 +134,7 @@ func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor a
 	// Add them.
 	acceptedFixtures, err := manager.addFixturesFromProviderMessage(messageFixtures)
 	if err != nil {
-		return errors.Wrap(err, "add fixtures from provider message")
+		return errors.Wrap(err, "add fixtures from provider message", nil)
 	}
 	// Set fixtures to online, initialise and apply.
 	manager.m.Lock()
@@ -141,14 +142,14 @@ func (manager *StoredManager) AcceptFixtureProvider(ctx context.Context, actor a
 	for _, fixture := range acceptedFixtures {
 		err = manager.store.RefreshLastSeenForFixture(fixture.ID())
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("set fixture %v online", fixture.ID()))
+			return errors.Wrap(err, fmt.Sprintf("set fixture %v online", fixture.ID()), nil)
 		}
 		fixture.setActor(actor)
 		fixture.setUpdateNotifier(manager.fixtureStateBroadcaster)
 		fixture.Reset()
 		err = fixture.Apply()
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("apply initial state for fixture %v", fixture.ID()))
+			return errors.Wrap(err, fmt.Sprintf("apply initial state for fixture %v", fixture.ID()), nil)
 		}
 	}
 	return nil
@@ -191,15 +192,19 @@ addFixtures:
 		created, err := manager.store.CreateFixture(stores.Fixture{
 			Device:     m.DeviceID,
 			ProviderID: fixtureToAdd.ProviderID,
+			Name:       nulls.NewString(randomFixtureName()),
 			LastSeen:   time.Now(),
 			Type:       fixtureToAdd.Type,
 		})
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("create fixture %v from device %v",
-				fixtureToAdd.ProviderID, m.DeviceID))
+			return nil, errors.Wrap(err, "create fixture from device", errors.Details{
+				"provider_id": fixtureToAdd.ProviderID,
+				"device_id":   m.DeviceID,
+			})
 		}
 		newFixture := newFixture(created.ID, created.Type)
 		newFixture.setDeviceID(m.DeviceID)
+		newFixture.setName(created.Name)
 		newFixture.setProviderID(fixtureToAdd.ProviderID)
 		manager.fixtures[newFixture.ID()] = newFixture
 		fixtures = append(fixtures, newFixture)
@@ -218,7 +223,7 @@ func (manager *StoredManager) SayGoodbyeToFixtureProvider(actor acting.Actor) er
 		fixture.setActor(nil)
 		err := manager.store.RefreshLastSeenForFixture(fixtureID)
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("set fixture %v offline", fixtureID))
+			return errors.Wrap(err, fmt.Sprintf("set fixture %v offline", fixtureID), nil)
 		}
 	}
 	// Broadcast new state update.
@@ -237,7 +242,7 @@ func (manager *StoredManager) SetFixtureName(fixtureID messages.FixtureID, name 
 	}
 	err := manager.store.SetFixtureName(fixtureID, name)
 	if err != nil {
-		return errors.Wrap(err, "set fixture name in store")
+		return errors.Wrap(err, "set fixture name in store", nil)
 	}
 	fixture.setName(name)
 	// Broadcast new state update.
@@ -276,7 +281,7 @@ func (manager *StoredManager) DeleteFixture(fixtureID messages.FixtureID) error 
 	defer manager.m.Unlock()
 	err := manager.store.DeleteFixture(fixtureID)
 	if err != nil {
-		return errors.Wrap(err, "delete fixture from store")
+		return errors.Wrap(err, "delete fixture from store", nil)
 	}
 	delete(manager.fixtures, fixtureID)
 	// Broadcast new state update.
@@ -309,4 +314,11 @@ func (manager *StoredManager) FixtureStates() messages.MessageFixtureStates {
 	return messages.MessageFixtureStates{
 		Fixtures: messageFixtures,
 	}
+}
+
+// randomFixtureName creates a random fixture name to be used for identifying
+// fixtures in order to name them properly.
+func randomFixtureName() string {
+	rand.Seed(time.Now().UnixNano())
+	return fmt.Sprintf("unknown-%v", rand.Intn(9999))
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gobuffalo/nulls"
 	"github.com/google/uuid"
+	"math/rand"
 	"time"
 )
 
@@ -48,12 +49,13 @@ func (m *Mall) GetDevices() ([]Device, error) {
 
 func (m *Mall) CreateNewDevice(selfDescription string) (Device, error) {
 	createdDevice := Device{
-		Name:            nulls.String{},
+		Name:            nulls.NewString(randomName()),
 		SelfDescription: selfDescription,
 		LastSeen:        time.Now(),
 	}
 	q, _, err := m.dialect.Insert(goqu.T("devices")).Rows(goqu.Record{
 		"id":               uuid.New().String(),
+		"name":             createdDevice.Name,
 		"self_description": createdDevice.SelfDescription,
 		"last_seen":        createdDevice.LastSeen,
 	}).Returning(goqu.C("id")).ToSQL()
@@ -84,7 +86,7 @@ func (m *Mall) RefreshLastSeenForDevice(deviceID messages.DeviceID) error {
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure found")
+		return errors.Wrap(err, "assure found", nil)
 	}
 	return nil
 }
@@ -108,7 +110,7 @@ func (m *Mall) SetDeviceName(deviceID messages.DeviceID, name string) error {
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure found")
+		return errors.Wrap(err, "assure found", nil)
 	}
 	return nil
 }
@@ -125,7 +127,7 @@ func (m *Mall) DeleteDevice(deviceID messages.DeviceID) error {
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure found")
+		return errors.Wrap(err, "assure found", nil)
 	}
 	return nil
 }
@@ -149,7 +151,14 @@ func (m *Mall) SetDeviceSelfDescription(deviceID messages.DeviceID, selfDescript
 	}
 	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
 	if err != nil {
-		return errors.Wrap(err, "assure found")
+		return errors.Wrap(err, "assure found", nil)
 	}
 	return nil
+}
+
+// randomName creates a random name to be used for identifying entities in order
+// to name them properly.
+func randomName() string {
+	rand.Seed(time.Now().UnixNano())
+	return fmt.Sprintf("unknown-%v", rand.Intn(9999))
 }

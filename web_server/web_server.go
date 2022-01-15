@@ -85,7 +85,7 @@ func (server *WebServer) Run(ctx context.Context) error {
 		logging.WebServerLogger.Infof("web server running at %s", server.config.ServeAddr)
 		err := http.ListenAndServe(server.config.ServeAddr, handler)
 		if err != nil {
-			logging.WebServerLogger.Error(errors.Wrap(err, "listen and serve"))
+			logging.WebServerLogger.Error(errors.Wrap(err, "listen and serve", nil))
 		}
 	}()
 	// Wait for stop command.
@@ -94,7 +94,7 @@ func (server *WebServer) Run(ctx context.Context) error {
 	defer cancel()
 	err := server.httpServer.Shutdown(ctx)
 	if err != nil {
-		return errors.Wrap(err, "shutdown web server")
+		return errors.Wrap(err, "shutdown web server", nil)
 	}
 	return nil
 }

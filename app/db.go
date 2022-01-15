@@ -92,12 +92,12 @@ func testDBConnection(db *sql.DB) error {
 func performDBMigrations(db *sql.DB) error {
 	currentVersion, err := retrieveCurrentDBVersion(db)
 	if err != nil {
-		return errors.Wrap(err, "retrieve current db version")
+		return errors.Wrap(err, "retrieve current db version", nil)
 	}
 	logrus.Infof("current database version: %v", currentVersion)
 	migrationsToDo, err := getDBMigrationsToDo(currentVersion)
 	if err != nil {
-		return errors.Wrap(err, "get db migrations to do")
+		return errors.Wrap(err, "get db migrations to do", nil)
 	}
 	// Check if migrations need to be performed.
 	if len(migrationsToDo) == 0 {
@@ -214,7 +214,7 @@ func retrieveCurrentDBVersion(db *sql.DB) (dbVersion, error) {
 				return dbVersionZero, nil
 			}
 		}
-		return "", errors.Wrap(err, "retrieve key val from db")
+		return "", errors.Wrap(err, "retrieve key val from db", nil)
 	}
 	return dbVersion(versionStr), nil
 }

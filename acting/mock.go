@@ -194,7 +194,7 @@ func (a *MockActor) Send(message ActorOutgoingMessage) error {
 	// Marshal message.
 	rawMessage, err := json.Marshal(message.Content)
 	if err != nil {
-		return errors.Wrap(err, "marshal message content")
+		return errors.Wrap(err, "marshal message content", nil)
 	}
 	a.outgoingSM.HandleMessage(Message{
 		MessageType: message.MessageType,

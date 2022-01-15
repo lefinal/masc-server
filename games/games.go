@@ -101,7 +101,7 @@ func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster act
 // AbortMatchOrLog aborts the match or logs the occurred error.
 func AbortMatchOrLog(match Match, reason string) {
 	err := match.Abort(reason)
-	errors.Log(match.Logger().WithFields(logrus.Fields{}), errors.Wrap(err, "abort match"))
+	errors.Log(match.Logger().WithFields(logrus.Fields{}), errors.Wrap(err, "abort match", nil))
 }
 
 // AbortMatchBecauseOfErrorOrLog logs the given error to the given logger

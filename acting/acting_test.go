@@ -215,7 +215,7 @@ type mockGatekeeper struct {
 	mock.Mock
 }
 
-func (gk *mockGatekeeper) AcceptClient(ctx context.Context, client *ws.Client) {
+func (gk *mockGatekeeper) AcceptWSClient(ctx context.Context, client *ws.Client) {
 	gk.Called(ctx, client)
 }
 

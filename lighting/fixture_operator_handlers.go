@@ -87,7 +87,7 @@ func (dm *FixtureOperatorHandlers) HandleNewActor(actor acting.Actor, role actin
 	// Hire.
 	err := actorDM.Hire(fmt.Sprintf("fixture-operator-%d", dm.managerCounter))
 	if err != nil {
-		errors.Log(logging.AppLogger, errors.Wrap(err, "hire"))
+		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
 	<-actorDM.Quit()
@@ -110,7 +110,7 @@ func (a *fixtureOperatorHandler) Hire(displayedName string) error {
 	// Hire normally.
 	err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor")
+		return errors.Wrap(err, "hire actor", nil)
 	}
 	// Message handlers.
 	go func() {
@@ -164,7 +164,7 @@ func (a *fixtureOperatorHandler) handleSetFixturesEnabled(message messages.Messa
 		fixture.SetEnabled(newFixtureState.IsEnabled)
 		err := fixture.Apply()
 		if err != nil {
-			err = errors.Wrap(err, "apply update after setting enabled state")
+			err = errors.Wrap(err, "apply update after setting enabled state", nil)
 			errors.Log(logging.LightingLogger, err)
 			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
 			return
@@ -196,7 +196,7 @@ func (a *fixtureOperatorHandler) handleSetFixturesLocating(message messages.Mess
 		fixture.SetLocating(newFixtureState.IsLocating)
 		err := fixture.Apply()
 		if err != nil {
-			err = errors.Wrap(err, "apply update after setting locating-mode")
+			err = errors.Wrap(err, "apply update after setting locating-mode", nil)
 			errors.Log(logging.LightingLogger, err)
 			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
 			return

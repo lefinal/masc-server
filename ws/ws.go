@@ -2,20 +2,12 @@ package ws
 
 import (
 	"context"
+	"github.com/LeFinal/masc-server/client"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 )
-
-// ClientListener provides methods for accepting new clients and unregister
-// events.
-type ClientListener interface {
-	// AcceptClient is called when a new Client connects.
-	AcceptClient(ctx context.Context, client *Client)
-	// SayGoodbyeToClient is called when a Client's connection has been closed.
-	SayGoodbyeToClient(client *Client)
-}
 
 // HandleWS handles websocket requests. The passed context is used in order to
 // stop all remaining read-pumps.
@@ -33,17 +25,19 @@ func HandleWS(hub *Hub, ctx context.Context) http.HandlerFunc {
 			log.Println(err)
 			return
 		}
-		client := &Client{
-			ID:         uuid.New(),
+		c := &Client{
+			Client: &client.Client{
+				ID:      uuid.New().String(),
+				Send:    make(chan []byte, 256),
+				Receive: make(chan []byte, 256),
+			},
 			hub:        hub,
 			connection: conn,
-			Send:       make(chan []byte, 256),
-			Receive:    make(chan []byte, 256),
 		}
 		// Use the client's hub so that the reference from the handler can be dropped.
-		client.hub.register <- client
+		c.hub.register <- c
 		// Power the pumps.
-		go client.writePump()
-		go client.readPump(ctx)
+		go c.writePump()
+		go c.readPump(ctx)
 	}
 }

@@ -60,7 +60,7 @@ func (dm *ManagementHandlers) HandleNewActor(actor acting.Actor, role acting.Rol
 	// Hire.
 	err := actorDM.Hire(fmt.Sprintf("fixture-manager-%d", dm.managerCounter))
 	if err != nil {
-		errors.Log(logging.AppLogger, errors.Wrap(err, "hire"))
+		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
 	<-actorDM.Quit()
@@ -82,7 +82,7 @@ func (a *managementHandler) Hire(displayedName string) error {
 	// Hire normally.
 	err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor")
+		return errors.Wrap(err, "hire actor", nil)
 	}
 	// Setup message handlers. We do not need to unsubscribe because this will be
 	// done when the actor is fired. Handle device retrieval.
@@ -112,7 +112,7 @@ func (a *managementHandler) Hire(displayedName string) error {
 func (a *managementHandler) handleSetFixtureName(message messages.MessageSetFixtureName) {
 	err := a.manager.SetFixtureName(message.FixtureID, message.Name)
 	if err != nil {
-		err = errors.Wrap(err, "set fixture name")
+		err = errors.Wrap(err, "set fixture name", nil)
 		errors.Log(logging.ActingLogger, err)
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return
@@ -153,7 +153,7 @@ func (a *managementHandler) handleGetFixtures() {
 func (a *managementHandler) handleDeleteFixture(message messages.MessageDeleteFixture) {
 	err := a.manager.DeleteFixture(message.FixtureID)
 	if err != nil {
-		err = errors.Wrap(err, "delete fixture")
+		err = errors.Wrap(err, "delete fixture", nil)
 		errors.Log(logging.ActingLogger, err)
 		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
 		return

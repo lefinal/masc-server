@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/doug-martin/goqu/v9 v9.18.0
+	github.com/eclipse/paho.mqtt.golang v1.3.5 // indirect
 	github.com/gobuffalo/nulls v0.4.0
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.8.0

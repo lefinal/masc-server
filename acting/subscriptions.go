@@ -210,7 +210,7 @@ func (m *SubscriptionManager) CancelAllSubscriptions() {
 			defer wg.Done()
 			err := m.Unsubscribe(sub)
 			if err != nil {
-				errors.Log(logging.SubscriptionManagerLogger, errors.Wrap(err, "unsubscribe for cancel all"))
+				errors.Log(logging.SubscriptionManagerLogger, errors.Wrap(err, "unsubscribe for cancel all", nil))
 			}
 		}(m.subscriptionsByToken[i])
 	}
@@ -243,7 +243,7 @@ func logSubscriptionParseError(messageType messages.MessageType, err error) {
 func Unsubscribe(newsletter Newsletter) error {
 	err := newsletter.Actor.Unsubscribe(newsletter.Subscription)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("unsubscribe message type for actor %s", newsletter.Actor.ID()))
+		return errors.Wrap(err, fmt.Sprintf("unsubscribe message type for actor %s", newsletter.Actor.ID()), nil)
 	}
 	return nil
 }

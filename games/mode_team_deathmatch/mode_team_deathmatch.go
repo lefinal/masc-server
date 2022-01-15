@@ -142,7 +142,7 @@ func NewMatch(baseMatch *games.BaseMatch, configRequest ConfigRequest) (*Match, 
 	// Set config.
 	config, err := configFromRequest(baseMatch.Logger, configRequest)
 	if err != nil {
-		return nil, errors.Wrap(err, "config from request")
+		return nil, errors.Wrap(err, "config from request", nil)
 	}
 	match.config = config
 	return match, nil
@@ -176,14 +176,14 @@ func (match *Match) run(ctx context.Context) {
 	// Castings.
 	err := match.performRoleAssignment(ctx)
 	if err != nil {
-		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "perform role assignments"))
+		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "perform role assignments", nil))
 		return
 	}
 	match.changePhase(messages.MatchPhaseSetup)
 	// Allow player joins and await ready state.
 	err = match.playerJoinsAndAwaitReady(ctx)
 	if err != nil {
-		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "player joins and await ready"))
+		games.AbortMatchBecauseOfErrorOrLog(match, errors.Wrap(err, "player joins and await ready", nil))
 		return
 	}
 	// Setup.
@@ -278,7 +278,7 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 		}
 		err := matchCasting.AddRequest(teamBaseRequests[i])
 		if err != nil {
-			return errors.Wrap(err, "add actor request for team base")
+			return errors.Wrap(err, "add actor request for team base", nil)
 		}
 		teamBaseMonitorRequests[i] = casting.ActorRequest{
 			DisplayedName: "Team Base Monitor",
@@ -287,7 +287,7 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 		}
 		err = matchCasting.AddRequest(teamBaseMonitorRequests[i])
 		if err != nil {
-			return errors.Wrap(err, "add actor request for team base monitor")
+			return errors.Wrap(err, "add actor request for team base monitor", nil)
 		}
 	}
 	matchMonitorRequest := casting.ActorRequest{
@@ -297,12 +297,12 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 	}
 	err := matchCasting.AddRequest(matchMonitorRequest)
 	if err != nil {
-		return errors.Wrap(err, "add actor request for match monitor")
+		return errors.Wrap(err, "add actor request for match monitor", nil)
 	}
 	// Perform casting.
 	err = matchCasting.PerformAndHire(ctx, match.GameMaster)
 	if err != nil {
-		return errors.Wrap(err, "perform role assignment")
+		return errors.Wrap(err, "perform role assignment", nil)
 	}
 	// Retrieve winners.
 	// Team bases and monitors.
@@ -310,11 +310,11 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 	for i := uint(0); i < match.config.TeamCount; i++ {
 		teamBases, err := matchCasting.GetWinners(teamBaseRequests[i].Key)
 		if err != nil {
-			return errors.Wrap(err, "retrieve team base winners")
+			return errors.Wrap(err, "retrieve team base winners", nil)
 		}
 		teamBaseMonitors, err := matchCasting.GetWinners(teamBaseMonitorRequests[i].Key)
 		if err != nil {
-			return errors.Wrap(err, "retrieve team base monitor winners")
+			return errors.Wrap(err, "retrieve team base monitor winners", nil)
 		}
 		t := team{
 			key:      fmt.Sprintf("team-%d", i),
@@ -333,7 +333,7 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 	// Match monitors.
 	matchMonitors, err := matchCasting.GetWinners(matchMonitorRequest.Key)
 	if err != nil {
-		return errors.Wrap(err, "retrieve match monitor winners")
+		return errors.Wrap(err, "retrieve match monitor winners", nil)
 	}
 	match.monitors = make([]acting.Actor, len(matchMonitors))
 	for i, monitor := range matchMonitors {
@@ -369,7 +369,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 			case update := <-match.PlayerManagementUpdates:
 				err := games.BroadcastPlayerManagementUpdate(update, match.PlayerProvider, match.participatingActors()...)
 				if err != nil {
-					errors.Log(match.Logger(), errors.Wrap(err, "broadcast player management update"))
+					errors.Log(match.Logger(), errors.Wrap(err, "broadcast player management update", nil))
 				}
 			}
 		}
@@ -392,7 +392,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 			case update := <-readyStateUpdates:
 				err := games.BroadcastReadyStateUpdate(update, match.participatingActors()...)
 				if err != nil {
-					errors.Log(match.Logger(), errors.Wrap(err, "broadcast ready-state update"))
+					errors.Log(match.Logger(), errors.Wrap(err, "broadcast ready-state update", nil))
 				}
 			}
 		}
@@ -400,13 +400,13 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 	err := games.RequestAndAwaitReady(ctx, readyStateUpdates, requestReadyFrom...)
 	var originalErr error
 	if err != nil {
-		originalErr = errors.Wrap(err, "request and await ready")
+		originalErr = errors.Wrap(err, "request and await ready", nil)
 	}
 	// Close all player join offices.
 	for _, office := range playerJoinOffices {
 		err = office.Close()
 		if err != nil {
-			err = errors.Wrap(err, "close player join office")
+			err = errors.Wrap(err, "close player join office", nil)
 			if originalErr != nil {
 				originalErr = err
 			} else {
@@ -418,7 +418,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 	// Cancel handlers.
 	cancelHandlers()
 	if handlerErr := wg.Wait(); handlerErr != nil {
-		handlerErr = errors.Wrap(err, "handlers")
+		handlerErr = errors.Wrap(err, "handlers", nil)
 		if originalErr != nil {
 			originalErr = handlerErr
 		} else {

@@ -62,7 +62,7 @@ func extractAffectedRows(result sql.Result) (int, error) {
 func assureNRowsAffected(result sql.Result, n int) error {
 	rowsAffected, err := extractAffectedRows(result)
 	if err != nil {
-		return errors.Wrap(err, "extract affected rows")
+		return errors.Wrap(err, "extract affected rows", nil)
 	}
 	if rowsAffected != n {
 		return errors.Error{
@@ -85,7 +85,7 @@ func assureNRowsAffected(result sql.Result, n int) error {
 func assureOneRowAffectedForNotFound(result sql.Result, notFoundMessage, table string, id interface{}, q string) error {
 	rowsAffected, err := extractAffectedRows(result)
 	if err != nil {
-		return errors.Wrap(err, "extract affected rows")
+		return errors.Wrap(err, "extract affected rows", nil)
 	}
 	if rowsAffected != 1 {
 		return errors.NewResourceNotFoundError(notFoundMessage, errors.Details{

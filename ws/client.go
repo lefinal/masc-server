@@ -3,9 +3,9 @@ package ws
 import (
 	"bytes"
 	"context"
+	"github.com/LeFinal/masc-server/client"
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/logging"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -32,17 +32,12 @@ var (
 
 // Client is a holds the websocket connection and is being used by Hub.
 type Client struct {
-	// ID is a temporary id assigned to the Client.
-	ID uuid.UUID
+	*client.Client
 	// hub is the actual websocket hub which is used for registering and
 	// unregistering.
 	hub *Hub
 	// connection is the actual websocket connection.
 	connection *websocket.Conn
-	// Send is the channel for outgoing messages are passed to.
-	Send chan []byte
-	// Receive is the channel for incoming messages.
-	Receive chan []byte
 }
 
 // logger returns a logrus.Entry with the Client id as field.
@@ -56,7 +51,7 @@ func (c *Client) readPump(ctx context.Context) {
 		c.hub.unregister <- c
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Debug(errors.Wrap(err, "close connection"))
+			c.logger().Debug(errors.Wrap(err, "close connection", nil))
 		}
 	}()
 	c.connection.SetReadLimit(maxMessageSize)
@@ -71,7 +66,7 @@ func (c *Client) readPump(ctx context.Context) {
 		_, message, err := c.connection.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.logger().Debug(errors.Wrap(err, "unexpected close"))
+				c.logger().Debug(errors.Wrap(err, "unexpected close", nil))
 			}
 			break
 		}
@@ -97,7 +92,7 @@ func (c *Client) writePump() {
 		// Close connection.
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Debugf(errors.Wrap(err, "close connection").Error())
+			c.logger().Debugf(errors.Wrap(err, "close connection", nil).Error())
 		}
 	}()
 	for {
@@ -118,24 +113,23 @@ func (c *Client) writePump() {
 			nextWriter, err := c.connection.NextWriter(websocket.TextMessage)
 			if err != nil {
 				// We expect the read pump to fail as well.
-				c.logger().Warn(errors.Wrap(err, "create writer for text message"))
+				c.logger().Warn(errors.Wrap(err, "create writer for text message", nil))
 				return
 			}
-			c.logger().Debugf("write message")
 			_, err = nextWriter.Write(message)
 			if err != nil {
-				c.logger().Warnf(errors.Wrap(err, "write text message").Error())
+				c.logger().Warnf(errors.Wrap(err, "write text message", nil).Error())
 			}
 			// Close writer.
 			if err := nextWriter.Close(); err != nil {
-				c.logger().Warnf(errors.Wrap(err, "close next writer").Error())
+				c.logger().Warnf(errors.Wrap(err, "close next writer", nil).Error())
 				return
 			}
 		case <-pingTicker.C:
 			// Send ping.
 			_ = c.connection.SetWriteDeadline(time.Now().Add(writeTimeout))
 			if err := c.connection.WriteMessage(websocket.PingMessage, nil); err != nil {
-				c.logger().Warnf(errors.Wrap(err, "write ping").Error())
+				c.logger().Warnf(errors.Wrap(err, "write ping", nil).Error())
 				return
 			}
 		}

@@ -422,8 +422,7 @@ func (ad *netActorDevice) routeOutgoing(ctx context.Context) {
 			encodedContent, err := util.EncodeAsJSON(message.message.Content)
 			if err != nil {
 				// Meh. We can simply log this error.
-				errors.Log(logging.ActingLogger, errors.Wrap(errors.Wrap(err, "encode message content as json"),
-					"route outgoing actor message"))
+				errors.Log(logging.ActingLogger, errors.Wrap(errors.Wrap(err, "encode message content as json", nil), "route outgoing actor message", nil))
 				return
 			}
 			// Route to device.
@@ -487,7 +486,7 @@ func (a *ProtectedAgency) WelcomeDevice(device *gatekeeping.Device) error {
 	// Boot.
 	newActors, err := ad.boot()
 	if err != nil {
-		return errors.Wrap(err, "boot actor device")
+		return errors.Wrap(err, "boot actor device", nil)
 	}
 	// Only add if successfully booted.
 	a.actorDevices[device.ID] = ad
@@ -602,7 +601,7 @@ func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Entry, a Actor,
 func SendOrLogError(logger *logrus.Entry, a Actor, message ActorOutgoingMessage) {
 	err := a.Send(message)
 	if err != nil {
-		errors.Log(logger, errors.Wrap(err, "send message"))
+		errors.Log(logger, errors.Wrap(err, "send message", nil))
 	}
 }
 
@@ -611,7 +610,7 @@ func SendOrLogError(logger *logrus.Entry, a Actor, message ActorOutgoingMessage)
 func SendOKOrLogError(logger *logrus.Entry, a Actor) {
 	err := a.Send(ActorOutgoingMessage{MessageType: messages.MessageTypeOK})
 	if err != nil {
-		errors.Log(logger, errors.Wrap(err, "send ok message"))
+		errors.Log(logger, errors.Wrap(err, "send ok message", nil))
 	}
 }
 
@@ -634,7 +633,7 @@ func FireAllActors(actors []Actor) error {
 	for i, actor := range actors {
 		err := actor.Fire()
 		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("fire actor %d of %d", i, len(actors)))
+			return errors.Wrap(err, fmt.Sprintf("fire actor %d of %d", i, len(actors)), nil)
 		}
 	}
 	return nil
