@@ -20,7 +20,7 @@ type detectedMQTTDevice struct {
 func detectDevice(topic string) (detectedMQTTDevice, bool) {
 	topicSegments := strings.Split(topic, "/")
 	// Check if shelly1.
-	if strings.HasPrefix(topic, "shellies/shelly1-") {
+	if strings.HasPrefix(topic, "shellies/shelly1-") && !strings.HasSuffix(topic, "/command") {
 		return detectedMQTTDevice{
 			mqttID:     mqttDeviceID(fmt.Sprintf("%s/%s", topicSegments[0], topicSegments[1])),
 			deviceType: DeviceTypeShelly1,
