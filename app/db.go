@@ -60,7 +60,15 @@ func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
 		}
 	}
 	// Perform test query.
-
+	err = testDBConnection(dbPool)
+	if err != nil {
+		return nil, errors.Wrap(err, "test db connection", nil)
+	}
+	// Perform db migrations.
+	err = performDBMigrations(dbPool)
+	if err != nil {
+		return nil, errors.Wrap(err, "perform db migrations", nil)
+	}
 	return dbPool, nil
 }
 
