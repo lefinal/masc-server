@@ -201,4 +201,4 @@ modules.xml
 
 # End of https://www.toptal.com/developers/gitignore/api/go,jetbrains,jetbrains+all,visualstudiocode
 
-./config.json
+/config.json
