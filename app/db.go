@@ -40,6 +40,10 @@ var dbMigrations = []dbMigration{
 		version: "1.0",
 		up:      embedded.DBMigration1x0,
 	},
+	{
+		version: "1.1",
+		up:      embedded.DBMigration1x1,
+	},
 }
 
 // connectDB connects to the database with the given connection string and returns the connection pool.
