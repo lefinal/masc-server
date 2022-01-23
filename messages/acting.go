@@ -2,6 +2,14 @@ package messages
 
 import "github.com/gobuffalo/nulls"
 
+const (
+	// MessageTypeFired is used when an actor is fired.
+	MessageTypeFired MessageType = "fired"
+	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that
+	// he now has a job.
+	MessageTypeYouAreIn MessageType = "you-are-in"
+)
+
 // MessageYouAreIn is used with MessageTypeYouAreIn.
 type MessageYouAreIn struct {
 	// ActorID is the assigned ID that the device needs to use from now on when

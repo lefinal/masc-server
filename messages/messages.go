@@ -26,6 +26,11 @@ type PlayerRank int
 // Role is used for provided functionality.
 type Role string
 
+// ProviderID is the id of an entity that is being set by the provider and
+// remembered. Through using the provider id, the provider always knows what
+// entity is being addressed.
+type ProviderID string
+
 // MessageContainer is a container for all messages that are sent and received.
 // It holds some meta information as well as the actual payload.
 type MessageContainer struct {
@@ -43,107 +48,18 @@ type MessageContainer struct {
 
 // All message types.
 const (
-	// MessageTypeAbortMatch is used
-	MessageTypeAbortMatch MessageType = "abort-match"
-	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
-	// can send messages with MessageTypeReadyState for notifying of their current
-	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
-	MessageTypeAreYouReady MessageType = "are-you-ready"
-	// MessageTypeDeleteDevice is used with MessageDeleteDevice for deleting a Device.
-	MessageTypeDeleteDevice MessageType = "delete-device"
-	// MessageTypeDeleteFixture is used with MessageDeleteFixture for deleting a
-	// Fixture.
-	MessageTypeDeleteFixture MessageType = "delete-fixture"
-	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
-	// MessageTypeGetDevices.
-	MessageTypeDeviceList MessageType = "device-list"
 	// MessageTypeError is used for error messages. The content is being set to the
 	// detailed error.
 	MessageTypeError MessageType = "error"
-	// MessageTypeFired is used when an actor is fired.
-	MessageTypeFired MessageType = "fired"
-	// MessageTypeFixtureBasicState is used for setting the state of
-	// FixtureTypeBasic.
-	MessageTypeFixtureBasicState MessageType = "fixture-basic-state"
-	// MessageTypeFixtureDimmerState is used for setting the state of
-	// FixtureTypeDimmer.
-	MessageTypeFixtureDimmerState MessageType = "fixture-dimmer-state"
-	// MessageTypeFixtureList is used with MessageFixtureList as an answer to
-	// MessageTypeGetFixtures.
-	MessageTypeFixtureList MessageType = "fixture-list"
-	// MessageTypeFixtureStates is used for transmitting the state of all known
-	// fixtures to an operator.
-	MessageTypeFixtureStates MessageType = "fixture-states"
-	// MessageTypeGetDevices is received when devices are requested.
-	MessageTypeGetDevices MessageType = "get-devices"
-	// MessageTypeGetFixtureOffers is sent to the client for requesting fixture
-	// offers.
-	MessageTypeGetFixtureOffers MessageType = "get-fixture-offers"
-	// MessageTypeGetFixtures is received for requesting all known fixtures.
-	MessageTypeGetFixtures MessageType = "get-fixtures"
-	// MessageTypeGetFixtureStates is received from fixture operators for retrieving
-	// fixture states that are being returned with MessageTypeFixtureStates.
-	MessageTypeGetFixtureStates MessageType = "get-fixture-states"
 	// MessageTypeHello is received with MessageHello for saying hello to the
 	// server.
 	MessageTypeHello MessageType = "hello"
-	// MessageTypeMatchStatus is a container for status information regarding a
-	// Match.
-	MessageTypeMatchStatus MessageType = "match-status"
-	// MessageTypeFixtureOffers provides all available fixtures from a fixture
-	// provider. Used with MessageFixtureOffers.
-	MessageTypeFixtureOffers MessageType = "fixture-offers"
 	// MessageTypeOK is used only for confirmation of actions that do not require a
 	// detailed response.
 	MessageTypeOK MessageType = "ok"
-	// MessageTypePlayerJoin is used for joining a player for a match.
-	MessageTypePlayerJoin MessageType = "player-join"
-	// MessageTypePlayerJoinClosed is used for notifying that no more player can
-	// join a match.
-	MessageTypePlayerJoinClosed MessageType = "player-join-closed"
-	// MessageTypePlayerJoinOpen notifies that players can now join.
-	MessageTypePlayerJoinOpen MessageType = "player-join-open"
-	// MessageTypePlayerJoined is sent to everyone participating in a match when a
-	// player joined.
-	MessageTypePlayerJoined MessageType = "player-joined"
-	// MessageTypePlayerLeave is received when a player wants so leave a match.
-	MessageTypePlayerLeave MessageType = "player-leave"
-	// MessageTypePlayerLeft is sent to everyone participating in a match when a
-	// player left.
-	MessageTypePlayerLeft MessageType = "player-left"
-	// MessageTypeReadyAccepted is used for ending ready-state requests that were
-	// initially started with MessageTypeAreYouReady.
-	MessageTypeReadyAccepted MessageType = "ready-accepted"
-	// MessageTypeReadyState is used with MessageReadyState for notifying that an
-	// actor is (not) ready.
-	MessageTypeReadyState MessageType = "ready-state"
-	// MessageTypeReadyStateUpdate is used with MessageReadyStateUpdate for
-	// broadcasting ready-states to all actors participating in a match.
-	MessageTypeReadyStateUpdate MessageType = "ready-state-update"
-	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
-	// for requesting role assignments. Usually, this is sent to a game master. Used
-	// with MessageRequestRoleAssignments.
-	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"
-	// MessageTypeRoleAssignments is used with MessageRoleAssignments for when an
-	// assignment request was fulfilled.
-	MessageTypeRoleAssignments MessageType = "role-assignments"
-	// MessageTypeSetDeviceName is used for setting the name of a Device.
-	MessageTypeSetDeviceName MessageType = "set-device-name"
-	// MessageTypeSetFixtureName is used with MessageSetFixtureName for setting the
-	// name of a OfferedFixture.
-	MessageTypeSetFixtureName MessageType = "set-fixture-name"
-	// MessageTypeSetFixturesEnabled is used with MessageSetFixturesEnabled in order
-	// to set the enabled state for fixtures.
-	MessageTypeSetFixturesEnabled MessageType = "set-fixtures-enabled"
-	// MessageTypeSetFixturesLocating is used with MessageSetFixturesLocating in
-	// order to set the enabled state for fixtures.
-	MessageTypeSetFixturesLocating MessageType = "set-fixtures-locating"
 	// MessageTypeWelcome is sent to the client when he is welcomed at the server.
 	// Used with MessageWelcome.
 	MessageTypeWelcome MessageType = "welcome"
-	// MessageTypeYouAreIn is used with MessageYouAreIn for notifying an actor that
-	// he now has a job.
-	MessageTypeYouAreIn MessageType = "you-are-in"
 )
 
 // MessageError is used with MessageTypeError for errors that need to be sent to devices.

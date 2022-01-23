@@ -4,6 +4,49 @@ import (
 	"time"
 )
 
+const (
+	// MessageTypeAbortMatch is used
+	MessageTypeAbortMatch MessageType = "abort-match"
+	// MessageTypeAreYouReady is used for requesting ready-state from actors. Actors
+	// can send messages with MessageTypeReadyState for notifying of their current
+	// ready-state. Ready request is finished with MessageTypeReadyAccepted.
+	MessageTypeAreYouReady MessageType = "are-you-ready"
+	// MessageTypeMatchStatus is a container for status information regarding a
+	// Match.
+	MessageTypeMatchStatus MessageType = "match-status"
+	// MessageTypePlayerJoin is used for joining a player for a match.
+	MessageTypePlayerJoin MessageType = "player-join"
+	// MessageTypePlayerJoinClosed is used for notifying that no more player can
+	// join a match.
+	MessageTypePlayerJoinClosed MessageType = "player-join-closed"
+	// MessageTypePlayerJoinOpen notifies that players can now join.
+	MessageTypePlayerJoinOpen MessageType = "player-join-open"
+	// MessageTypePlayerJoined is sent to everyone participating in a match when a
+	// player joined.
+	MessageTypePlayerJoined MessageType = "player-joined"
+	// MessageTypePlayerLeave is received when a player wants so leave a match.
+	MessageTypePlayerLeave MessageType = "player-leave"
+	// MessageTypePlayerLeft is sent to everyone participating in a match when a
+	// player left.
+	MessageTypePlayerLeft MessageType = "player-left"
+	// MessageTypeReadyAccepted is used for ending ready-state requests that were
+	// initially started with MessageTypeAreYouReady.
+	MessageTypeReadyAccepted MessageType = "ready-accepted"
+	// MessageTypeReadyState is used with MessageReadyState for notifying that an
+	// actor is (not) ready.
+	MessageTypeReadyState MessageType = "ready-state"
+	// MessageTypeReadyStateUpdate is used with MessageReadyStateUpdate for
+	// broadcasting ready-states to all actors participating in a match.
+	MessageTypeReadyStateUpdate MessageType = "ready-state-update"
+	// MessageTypeRequestRoleAssignments is used with MessageRequestRoleAssignments
+	// for requesting role assignments. Usually, this is sent to a game master. Used
+	// with MessageRequestRoleAssignments.
+	MessageTypeRequestRoleAssignments MessageType = "request-role-assignments"
+	// MessageTypeRoleAssignments is used with MessageRoleAssignments for when an
+	// assignment request was fulfilled.
+	MessageTypeRoleAssignments MessageType = "role-assignments"
+)
+
 // MatchID is used in order to identify a games.Match.
 type MatchID string
 

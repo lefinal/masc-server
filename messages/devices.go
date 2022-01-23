@@ -5,6 +5,18 @@ import (
 	"time"
 )
 
+const (
+	// MessageTypeDeleteDevice is used with MessageDeleteDevice for deleting a Device.
+	MessageTypeDeleteDevice MessageType = "delete-device"
+	// MessageTypeDeviceList is used with MessageDeviceList as an answer to
+	// MessageTypeGetDevices.
+	MessageTypeDeviceList MessageType = "device-list"
+	// MessageTypeGetDevices is received when devices are requested.
+	MessageTypeGetDevices MessageType = "get-devices"
+	// MessageTypeSetDeviceName is used for setting the name of a Device.
+	MessageTypeSetDeviceName MessageType = "set-device-name"
+)
+
 // MessageHello is used with MessageTypeHello for saying hello to MASC.
 type MessageHello struct {
 	// Roles contains all roles the client is able to satisfy.
