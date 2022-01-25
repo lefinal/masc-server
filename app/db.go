@@ -198,8 +198,10 @@ func getDBMigrationsToDo(currentVersion dbVersion) ([]dbMigration, error) {
 			// Continue with next one as we already performed everything for this database version.
 			continue
 		}
-		// Append migration to todos.
-		migrationsToDo = append(migrationsToDo, migration)
+		if found {
+			// Append migration to todos.
+			migrationsToDo = append(migrationsToDo, migration)
+		}
 	}
 	// Check if found.
 	if !found {
