@@ -19,7 +19,7 @@ type basicFixture struct {
 	// deviceID is the id of the device the fixture is associated with.
 	deviceID messages.DeviceID
 	// providerID is the id the fixture was assigned to from the provider.
-	providerID messages.FixtureProviderFixtureID
+	providerID messages.ProviderID
 	// actor is the acting.Actor which is used for communication.
 	actor acting.Actor
 	// isEnabled describes whether the fixture is currently enabled or turned off.
@@ -100,13 +100,13 @@ func (f *basicFixture) setDeviceID(deviceID messages.DeviceID) {
 	f.deviceID = deviceID
 }
 
-func (f *basicFixture) ProviderID() messages.FixtureProviderFixtureID {
+func (f *basicFixture) ProviderID() messages.ProviderID {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.providerID
 }
 
-func (f *basicFixture) setProviderID(providerID messages.FixtureProviderFixtureID) {
+func (f *basicFixture) setProviderID(providerID messages.ProviderID) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.providerID = providerID
@@ -123,6 +123,15 @@ func (f *basicFixture) SetEnabled(isEnabled bool) {
 	defer f.m.Unlock()
 	f.isEnabled = isEnabled
 	if !isEnabled {
+		f.isLocating = false
+	}
+}
+
+func (f *basicFixture) ToggleEnabled() {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.isEnabled = !f.isEnabled
+	if !f.isEnabled {
 		f.isLocating = false
 	}
 }

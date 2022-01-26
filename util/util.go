@@ -11,8 +11,8 @@ func EncodeAsJSON(content interface{}) (json.RawMessage, error) {
 	if err != nil {
 		return json.RawMessage{}, errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindEncodeJSON,
 			Err:     err,
+			Message: "encode json",
 			Details: errors.Details{"content": content},
 		}
 	}
@@ -25,8 +25,8 @@ func DecodeAsJSON(data json.RawMessage, target interface{}) error {
 	if err != nil {
 		return errors.Error{
 			Code:    errors.ErrBadRequest,
-			Kind:    errors.KindDecodeJSON,
 			Err:     err,
+			Message: "decode json",
 			Details: errors.Details{"content": data},
 		}
 	}

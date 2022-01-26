@@ -99,7 +99,7 @@ func (a *fixtureProviderHandler) Hire(displayedName string) error {
 		if err != nil {
 			err = errors.Wrap(err, "accept fixture provider", nil)
 			errors.Log(logging.ActingLogger, err)
-			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
+			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(err))
 			return
 		}
 	}()

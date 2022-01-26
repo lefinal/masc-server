@@ -23,9 +23,9 @@ type Fixture interface {
 	setDeviceID(deviceID messages.DeviceID)
 	// ProviderID returns the id that is being assigned to the fixture by the
 	// fixture provider.
-	ProviderID() messages.FixtureProviderFixtureID
+	ProviderID() messages.ProviderID
 	// SetProviderID sets the provider id that can be retrieved via ProviderID.
-	setProviderID(providerID messages.FixtureProviderFixtureID)
+	setProviderID(providerID messages.ProviderID)
 	// IsEnabled describes whether the fixture is turned on or off. For setting use
 	// SetEnabled.
 	IsEnabled() bool
@@ -33,6 +33,10 @@ type Fixture interface {
 	// color, etc. will have no effect when the fixture is not enabled. This also
 	// disables the locating-mode when disabling the fixture.
 	SetEnabled(isEnabled bool)
+	// ToggleEnabled toggles the enabled-state.
+	//
+	// See SetEnabled.
+	ToggleEnabled()
 	// Reset sets the state to the initial ones. Don't forget to call Apply.
 	Reset()
 	// Type returns the messages.FixtureType of the fixture.

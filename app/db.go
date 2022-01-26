@@ -44,6 +44,10 @@ var dbMigrations = []dbMigration{
 		version: "1.1",
 		up:      embedded.DBMigration1x1,
 	},
+	{
+		version: "1.2",
+		up:      embedded.DBMigration1x2,
+	},
 }
 
 // connectDB connects to the database with the given connection string and returns the connection pool.
@@ -53,7 +57,6 @@ func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
 	if err != nil {
 		return nil, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindDB,
 			Err:     err,
 			Message: "connect to database",
 			Details: errors.Details{"connectionStr": connectionStr},
@@ -84,13 +87,12 @@ func testDBConnection(db *sql.DB) error {
 	var got int
 	err = result.Scan(&got)
 	if err != nil {
-		return errors.NewScanSingleDBRowError("test query failed", err, errors.Details{})
+		return errors.NewScanSingleDBRowError(err, "test query failed", q)
 	}
 	// Assure that we got 1.
 	if got != 1 {
 		return errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindDB,
 			Message: fmt.Sprintf("test db connection: expected 1 as result but got %d", got),
 			Details: errors.Details{
 				"got": got,
@@ -188,7 +190,6 @@ func getDBMigrationsToDo(currentVersion dbVersion) ([]dbMigration, error) {
 				// do?
 				return nil, errors.Error{
 					Code:    errors.ErrInternal,
-					Kind:    errors.KindShouldNotHappen,
 					Message: fmt.Sprintf("duplicate database version %v in available migrations", currentVersion),
 					Details: errors.Details{"version": currentVersion},
 				}
@@ -251,8 +252,7 @@ func retrieveKeyValFromDB(db *sql.DB, key string) (string, error) {
 		if nativeerrors.As(err, &pgErr) && pgErr.Code == "42P01" {
 			return "", errors.NewResourceNotFoundError("key-value relation not found", errors.Details{})
 		}
-		return "", errors.NewScanSingleDBRowError(fmt.Sprintf("no entry with key %s found", key), err,
-			errors.Details{"key": key})
+		return "", errors.NewScanSingleDBRowError(err, fmt.Sprintf("no entry with key %s found", key), q)
 	}
 	// Done.
 	return value, nil
@@ -265,7 +265,6 @@ func rollbackTx(tx *sql.Tx, reason string) {
 	if err != nil {
 		errors.Log(logging.DBLogger, errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindDBRollback,
 			Message: "rollback tx",
 			Err:     err,
 			Details: errors.Details{"rollbackReason": reason},

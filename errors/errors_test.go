@@ -155,7 +155,7 @@ func TestFromErr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := FromErr(tt.args.message, tt.args.code, tt.args.kind, tt.args.err, nil); err == nil || err.Error() != tt.want.Error() {
+			if err := FromErr(tt.args.message, tt.args.code, tt.args.err, nil); err == nil || err.Error() != tt.want.Error() {
 				t.Errorf("FromErr() error = %v, want %v", err, tt.want)
 			}
 		})

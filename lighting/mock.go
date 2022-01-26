@@ -15,7 +15,7 @@ import (
 type MockFixtureProps struct {
 	id          messages.FixtureID
 	deviceID    messages.DeviceID
-	providerID  messages.FixtureProviderFixtureID
+	providerID  messages.ProviderID
 	isEnabled   bool
 	fixtureType messages.FixtureType
 	name        nulls.String
@@ -27,7 +27,7 @@ type MockFixtureProps struct {
 type MockFixture struct {
 	id          messages.FixtureID
 	deviceID    messages.DeviceID
-	providerID  messages.FixtureProviderFixtureID
+	providerID  messages.ProviderID
 	isEnabled   bool
 	fixtureType messages.FixtureType
 	name        nulls.String
@@ -78,13 +78,13 @@ func (f *MockFixture) setDeviceID(deviceID messages.DeviceID) {
 	f.deviceID = deviceID
 }
 
-func (f *MockFixture) ProviderID() messages.FixtureProviderFixtureID {
+func (f *MockFixture) ProviderID() messages.ProviderID {
 	f.m.RLock()
 	defer f.m.RUnlock()
 	return f.providerID
 }
 
-func (f *MockFixture) setProviderID(providerID messages.FixtureProviderFixtureID) {
+func (f *MockFixture) setProviderID(providerID messages.ProviderID) {
 	f.m.Lock()
 	defer f.m.Unlock()
 	f.providerID = providerID

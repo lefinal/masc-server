@@ -69,7 +69,6 @@ func (bridge *netBridge) Run(ctx context.Context, deviceRememberer DeviceRemembe
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindMQTT,
 			Err:     token.Error(),
 			Message: "connect to mqtt",
 			Details: errors.Details{"mqtt_addr": bridge.config.MQTTAddr},

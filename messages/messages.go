@@ -66,8 +66,6 @@ const (
 type MessageError struct {
 	// Code is the error code from errors.Error.
 	Code string `json:"code"`
-	// Kind is the kind code from errors.Error.
-	Kind string `json:"kind"`
 	// Err is the error from errors.Error.
 	Err string `json:"err"`
 	// Message is the message from errors.Error.
@@ -87,7 +85,6 @@ func MessageErrorFromError(err error) MessageError {
 	}
 	return MessageError{
 		Code:    string(e.Code),
-		Kind:    string(e.Kind),
 		Err:     e.Error(),
 		Message: e.Message,
 		Details: e.Details,

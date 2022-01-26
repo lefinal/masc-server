@@ -25,7 +25,7 @@ func (suite *MockFixtureTestSuite) TestNewMockFixture() {
 	props := MockFixtureProps{
 		id:          766,
 		deviceID:    messages.DeviceID("food"),
-		providerID:  messages.FixtureProviderFixtureID("boast"),
+		providerID:  messages.ProviderID("boast"),
 		isEnabled:   true,
 		fixtureType: "beak",
 		name:        nulls.NewString("gate"),

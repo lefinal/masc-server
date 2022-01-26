@@ -16,7 +16,7 @@ func (m *Mall) GetDeviceIDByMQTTID(mqttID string) (messages.DeviceID, error) {
 	var deviceID messages.DeviceID
 	err = m.db.QueryRow(q).Scan(&deviceID)
 	if err != nil {
-		return "", errors.NewScanSingleDBRowError("device not found", err, nil)
+		return "", errors.NewScanSingleDBRowError(err, "device not found", q)
 	}
 	return deviceID, nil
 }

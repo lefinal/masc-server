@@ -54,7 +54,6 @@ func readConfig(filepath string) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindIO,
 			Err:     err,
 			Message: "open config file",
 		}
@@ -65,7 +64,6 @@ func readConfig(filepath string) (app.Config, error) {
 		_ = configFile.Close()
 		return app.Config{}, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindIO,
 			Err:     err,
 			Message: "read content of config file",
 		}
@@ -77,7 +75,6 @@ func readConfig(filepath string) (app.Config, error) {
 		_ = configFile.Close()
 		return app.Config{}, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindIO,
 			Err:     err,
 			Message: "parse config file",
 		}
@@ -87,7 +84,6 @@ func readConfig(filepath string) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindIO,
 			Err:     err,
 			Message: "close config file",
 		}

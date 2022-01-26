@@ -22,14 +22,15 @@ type shelliesShelly1InputState int
 
 // Constants for ShelliesShelly1.
 const (
-	shelliesShelly1RelayStateOn       shelliesShelly1RelayState         = "on"
-	shelliesShelly1RelayStateOff      shelliesShelly1RelayState         = "off"
-	shelliesShelly1RelayCommandOn     shelliesShelly1RelayCommand       = "on"
-	shelliesShelly1RelayCommandOff    shelliesShelly1RelayCommand       = "off"
-	shelliesShelly1RelayCommandToggle shelliesShelly1RelayCommand       = "toggle"
-	shelliesShelly1InputStateHigh     shelliesShelly1InputState         = 1
-	shelliesShelly1InputStateLow      shelliesShelly1InputState         = 0
-	shelliesShelly1RelayFixtureID     messages.FixtureProviderFixtureID = "relay"
+	shelliesShelly1RelayStateOn       shelliesShelly1RelayState   = "on"
+	shelliesShelly1RelayStateOff      shelliesShelly1RelayState   = "off"
+	shelliesShelly1RelayCommandOn     shelliesShelly1RelayCommand = "on"
+	shelliesShelly1RelayCommandOff    shelliesShelly1RelayCommand = "off"
+	shelliesShelly1RelayCommandToggle shelliesShelly1RelayCommand = "toggle"
+	shelliesShelly1InputStateHigh     shelliesShelly1InputState   = 1
+	shelliesShelly1InputStateLow      shelliesShelly1InputState   = 0
+	shelliesShelly1RelayFixtureID     messages.ProviderID         = "relay"
+	shelliesShelly1InputID            messages.ProviderID         = "input"
 )
 
 type shelliesShelly1State struct {
@@ -59,8 +60,12 @@ type netShelliesShelly1 struct {
 	// state message. This is used in order to send an update with the initial state
 	// even if the default values match the first applied fixture state.
 	isStateInitialized bool
-	// fixtureProviderActorID is the assigned actor id.
+	// fixtureProviderActorID is the assigned actor id for
+	// acting.RoleTypeFixtureProvider.
 	fixtureProviderActorID messages.ActorID
+	// lightSwitchProviderActorID is the assigned actor id for
+	// acting.RoleTypeLightSwitchProvider.
+	lightSwitchProviderActorID messages.ActorID
 	// No need for synchronization as we handle message after message.
 }
 
@@ -89,7 +94,10 @@ func newNetShelliesShelly1(topic string) (*netShelliesShelly1, error) {
 
 func (shelly *netShelliesShelly1) genMessageHello() messages.MessageHello {
 	return messages.MessageHello{
-		Roles:           []messages.Role{messages.Role(acting.RoleTypeFixtureProvider)}, // TODO: ADD switch stuff
+		Roles: []messages.Role{
+			messages.Role(acting.RoleTypeFixtureProvider),
+			messages.Role(acting.RoleTypeLightSwitchProvider),
+		},
 		SelfDescription: "shelly1",
 	}
 }
@@ -140,28 +148,42 @@ func (shelly *netShelliesShelly1) handleRelayStateMessage(ctx context.Context, m
 }
 
 func (shelly *netShelliesShelly1) handleInputStateMessage(ctx context.Context, message mqtt.Message, publisher publisher) error {
-	// TODO
+	if len(shelly.lightSwitchProviderActorID) == 0 {
+		logging.MQTTLogger.WithField("shelly_mqtt_id", shelly.shellyMQTTID).
+			Debug("not publishing light switch state due to no actor id being assigned", nil)
+		return nil
+	}
+	if err := publisher.publishMASC(ctx, messages.MessageTypeLightSwitchHiLoState, shelly.lightSwitchProviderActorID,
+		messages.MessageLightSwitchHiLoState{
+			IsHigh: string(message.Payload()) == "1",
+		}); err != nil {
+		return errors.Wrap(err, "publish masc", nil)
+	}
 	return nil
 }
 
 func (shelly *netShelliesShelly1) handleFromMASC(ctx context.Context, message messages.MessageContainer, publisher publisher) error {
-	// Check if we are waiting for actor assignment.
-	if len(shelly.fixtureProviderActorID) == 0 {
-		if message.MessageType == messages.MessageTypeYouAreIn {
-			// Parse content.
-			var messageContent messages.MessageYouAreIn
-			if err := json.Unmarshal(message.Content, &messageContent); err != nil {
-				return errors.NewJSONError(err, "unmarshal you-are-in message content", false)
-			}
-			// Set assigned actor id.
-			shelly.fixtureProviderActorID = messageContent.ActorID
-			return nil
-		} else {
-			logging.MQTTLogger.WithField("message_type", "unexpected message type while not being hired.")
-			return nil
-		}
-	}
+	// A bit hacky, but we do not expect two messages with the same type for
+	// different roles.
 	switch message.MessageType {
+	case messages.MessageTypeYouAreIn:
+		// Parse content.
+		var messageContent messages.MessageYouAreIn
+		if err := json.Unmarshal(message.Content, &messageContent); err != nil {
+			return errors.NewJSONError(err, "unmarshal you-are-in message content", false)
+		}
+		// Set assigned actor id.
+		switch messageContent.Role {
+		case messages.Role(acting.RoleTypeFixtureProvider):
+			shelly.fixtureProviderActorID = messageContent.ActorID
+		case messages.Role(acting.RoleTypeLightSwitchProvider):
+			shelly.lightSwitchProviderActorID = messageContent.ActorID
+		default:
+			return errors.NewInternalError("assignment of unexpected role", errors.Details{
+				"role": messageContent.Role,
+			})
+		}
+		return nil
 	case messages.MessageTypeFixtureBasicState:
 		// Parse content.
 		var messageContent messages.MessageFixtureBasicState
@@ -175,6 +197,10 @@ func (shelly *netShelliesShelly1) handleFromMASC(ctx context.Context, message me
 	case messages.MessageTypeGetFixtureOffers:
 		if err := shelly.publishFixtureOffers(ctx, publisher); err != nil {
 			return errors.Wrap(err, "publish fixture offers", nil)
+		}
+	case messages.MessageTypeGetLightSwitchOffers:
+		if err := shelly.publishLightSwitchOffers(ctx, publisher); err != nil {
+			return errors.Wrap(err, "publish light switch offers", nil)
 		}
 	}
 	// Unknown message.
@@ -220,10 +246,25 @@ func (shelly *netShelliesShelly1) publishFixtureOffers(ctx context.Context, publ
 	return nil
 }
 
+func (shelly *netShelliesShelly1) publishLightSwitchOffers(ctx context.Context, publisher publisher) error {
+	if err := publisher.publishMASC(ctx, messages.MessageTypeLightSwitchOffers, shelly.lightSwitchProviderActorID,
+		messages.MessageLightSwitchOffers{
+			DeviceID: shelly.deviceID,
+			LightSwitches: []messages.OfferedLightSwitch{{
+				ProviderID: shelliesShelly1InputID,
+				Type:       messages.LightSwitchTypeHiLo,
+			}},
+		}); err != nil {
+		return errors.Wrap(err, "publish masc", nil)
+	}
+	return nil
+}
+
 func (shelly *netShelliesShelly1) publishFixtureState(ctx context.Context, publisher publisher) error {
 	if len(shelly.fixtureProviderActorID) == 0 {
 		logging.MQTTLogger.WithField("shelly_mqtt_id", shelly.shellyMQTTID).
 			Debug("called publish fixture state with no actor id", nil)
+		return nil
 	}
 	if err := publisher.publishMASC(ctx, messages.MessageTypeFixtureBasicState, shelly.fixtureProviderActorID,
 		genShelliesShelly1FixtureState(shelly.state)); err != nil {

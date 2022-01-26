@@ -17,12 +17,12 @@ type ManagementHandlers struct {
 	agency acting.Agency
 	// manager is the Manager that is used for management operations.
 	manager Manager
-	// activeManagers holds all active management handlers.
-	activeManagers map[*managementHandler]struct{}
-	// managerCounter is a counter that is incremented for each new manager in
-	// activeManagers in order to set the displayed name.
-	managerCounter int
-	// m locks activeManagers and managerCounter.
+	// activeHandlers holds all active management handlers.
+	activeHandlers map[*managementHandler]struct{}
+	// handlerCounter is a counter that is incremented for each new manager in
+	// activeHandlers in order to set the displayed name.
+	handlerCounter int
+	// m locks activeHandlers and handlerCounter.
 	m sync.Mutex
 }
 
@@ -32,7 +32,7 @@ func NewManagementHandlers(agency acting.Agency, manager Manager) *ManagementHan
 	return &ManagementHandlers{
 		agency:         agency,
 		manager:        manager,
-		activeManagers: make(map[*managementHandler]struct{}),
+		activeHandlers: make(map[*managementHandler]struct{}),
 	}
 }
 
@@ -54,11 +54,11 @@ func (dm *ManagementHandlers) HandleNewActor(actor acting.Actor, role acting.Rol
 	}
 	// Add to active ones.
 	dm.m.Lock()
-	dm.activeManagers[actorDM] = struct{}{}
-	dm.managerCounter++
+	dm.activeHandlers[actorDM] = struct{}{}
+	dm.handlerCounter++
 	dm.m.Unlock()
 	// Hire.
-	err := actorDM.Hire(fmt.Sprintf("fixture-manager-%d", dm.managerCounter))
+	err := actorDM.Hire(fmt.Sprintf("fixture-manager-%d", dm.handlerCounter))
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
@@ -66,7 +66,7 @@ func (dm *ManagementHandlers) HandleNewActor(actor acting.Actor, role acting.Rol
 	<-actorDM.Quit()
 	// Remove from active ones.
 	dm.m.Lock()
-	delete(dm.activeManagers, actorDM)
+	delete(dm.activeHandlers, actorDM)
 	dm.m.Unlock()
 }
 
@@ -114,10 +114,10 @@ func (a *managementHandler) handleSetFixtureName(message messages.MessageSetFixt
 	if err != nil {
 		err = errors.Wrap(err, "set fixture name", nil)
 		errors.Log(logging.ActingLogger, err)
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
+		acting.SendOrLogError(a, acting.ActorErrorMessageFromError(err))
 		return
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a)
+	acting.SendOKOrLogError(a)
 }
 
 // handleGetFixtures handles an incoming message with type
@@ -142,7 +142,7 @@ func (a *managementHandler) handleGetFixtures() {
 			LastSeen:   fixture.LastSeen(),
 		}
 	}
-	acting.SendOrLogError(logging.AppLogger, a, acting.ActorOutgoingMessage{
+	acting.SendOrLogError(a, acting.ActorOutgoingMessage{
 		MessageType: messages.MessageTypeFixtureList,
 		Content:     res,
 	})
@@ -155,8 +155,8 @@ func (a *managementHandler) handleDeleteFixture(message messages.MessageDeleteFi
 	if err != nil {
 		err = errors.Wrap(err, "delete fixture", nil)
 		errors.Log(logging.ActingLogger, err)
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
+		acting.SendOrLogError(a, acting.ActorErrorMessageFromError(err))
 		return
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a)
+	acting.SendOKOrLogError(a)
 }

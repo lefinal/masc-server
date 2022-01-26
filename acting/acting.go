@@ -21,8 +21,8 @@ type RoleType string
 const (
 	// RoleTypeDeviceManager manages devices. This also includes setting up new devices.
 	//
-	// Warning: This is the only RoleType that is managed within an Agency, because it
-	// needs to be able to accept new devices.
+	// Warning: This is the only RoleType that is managed within an Agency, because
+	// it needs to be able to accept new devices.
 	RoleTypeDeviceManager RoleType = "device-manager"
 	// RoleTypeFixtureManager sets up and manages fixtures.
 	RoleTypeFixtureManager RoleType = "fixture-manager"
@@ -32,20 +32,26 @@ const (
 	RoleTypeFixtureProvider RoleType = "fixture-provider"
 	// RoleTypeGameMaster sets up and controls matches.
 	RoleTypeGameMaster RoleType = "game-master"
-	// RoleTypeTeamBase allows managing a team. Mostly used for devices that are located
-	// in team bases. Also used in-game.
+	// RoleTypeGlobalMonitor receives global status information. Allows no
+	// interaction.
+	RoleTypeGlobalMonitor RoleType = "global-spectator"
+	// RoleTypeMatchMonitor received status information for a specific match. Allows
+	// no interaction.
+	RoleTypeMatchMonitor RoleType = "match-monitor"
+	// RoleTypeLightSwitchManager is used for managing and assigning light switches.
+	RoleTypeLightSwitchManager RoleType = "light-switch-manager"
+	// RoleTypeLightSwitchProvider provides light switches.
+	RoleTypeLightSwitchProvider RoleType = "light-switch-provider"
+	// RoleTypeTeamBase allows managing a team. Mostly used for devices that are
+	// located in team bases. Also used in-game.
 	RoleTypeTeamBase RoleType = "team-base"
 	// RoleTypeTeamBaseMonitor receives status information for team bases. Allows no
 	// interaction.
 	RoleTypeTeamBaseMonitor RoleType = "team-base-spectator"
-	// RoleTypeMatchMonitor received status information for a specific match. Allows no
-	// interaction.
-	RoleTypeMatchMonitor RoleType = "match-monitor"
-	// RoleTypeGlobalMonitor receives global status information. Allows no interaction.
-	RoleTypeGlobalMonitor RoleType = "global-spectator"
 )
 
-// getRole returns the RoleType matching the given one. If it is unknown, false will be returned.
+// getRole returns the RoleType matching the given one. If it is unknown, false
+// will be returned.
 func getRole(role messages.Role) (RoleType, bool) {
 	r := RoleType(role)
 	switch r {
@@ -54,9 +60,11 @@ func getRole(role messages.Role) (RoleType, bool) {
 		RoleTypeFixtureOperator,
 		RoleTypeFixtureProvider,
 		RoleTypeGameMaster,
+		RoleTypeGlobalMonitor,
 		RoleTypeTeamBase,
 		RoleTypeTeamBaseMonitor,
-		RoleTypeGlobalMonitor:
+		RoleTypeLightSwitchManager,
+		RoleTypeLightSwitchProvider:
 		return r, true
 	}
 	return "", false
@@ -64,7 +72,8 @@ func getRole(role messages.Role) (RoleType, bool) {
 
 // ActorNewsletterRecipient is used for handling a new Actor for an Agency.
 type ActorNewsletterRecipient interface {
-	// HandleNewActor is called when a new Actor is welcomed to the Agency.
+	// HandleNewActor is called in a new goroutine when a new Actor is welcomed to
+	// the Agency.
 	HandleNewActor(actor Actor, role RoleType)
 }
 
@@ -120,7 +129,8 @@ type Actor interface {
 	Send(message ActorOutgoingMessage) error
 	// SubscribeMessageType subscribes to all messages with the given
 	// messages.MessageType by returning Newsletter. Remember to unsubscribe via
-	// Unsubscribe using the created Newsletter.
+	// Unsubscribe using the created Newsletter. However, you should be aware, that
+	// the channel is NOT self-closing. If you want that, use SubscribeMessageType.
 	SubscribeMessageType(messageType messages.MessageType) GeneralNewsletter
 	// Unsubscribe make the actor remove an existing subscription for the passed
 	// subscription.
@@ -174,7 +184,6 @@ func (a *netActor) Hire(displayedName string) error {
 	if a.isHired {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindActorAlreadyHired,
 			Message: fmt.Sprintf("actor %s is already hired", a.id),
 			Details: errors.Details{"actorID": a.id},
 		}
@@ -213,7 +222,6 @@ func (a *netActor) Fire() error {
 	if !a.isHired {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindActorNotHired,
 			Message: fmt.Sprintf("actor %s is not even hired", a.id),
 			Details: errors.Details{"actorID": a.id},
 		}
@@ -244,7 +252,6 @@ func (a *netActor) Send(message ActorOutgoingMessage) error {
 	if !a.isHired {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindActorNotHired,
 			Message: "actor must not send when not hired or hiring",
 			Details: errors.Details{"id": a.id, "message": message},
 		}
@@ -331,7 +338,6 @@ func (ad *netActorDevice) boot() ([]actorWithRole, error) {
 		if !knownRole {
 			return nil, errors.Error{
 				Code:    errors.ErrBadRequest,
-				Kind:    errors.KindUnknownRole,
 				Message: fmt.Sprintf("unknown role: %s", role),
 				Details: errors.Details{"role": role},
 			}
@@ -392,7 +398,6 @@ func (ad *netActorDevice) routeIncoming(ctx context.Context) {
 				ad.send <- netActorDeviceOutgoingMessage{
 					message: ActorErrorMessageFromError(errors.Error{
 						Code:    errors.ErrBadRequest,
-						Kind:    errors.KindUnknownActor,
 						Message: fmt.Sprintf("unknown actor: %s", message.ActorID),
 						Details: errors.Details{"id": message.ActorID},
 					}),
@@ -504,12 +509,8 @@ func (a *ProtectedAgency) SayGoodbyeToDevice(deviceID messages.DeviceID) error {
 	a.m.Lock()
 	device, ok := a.actorDevices[deviceID]
 	if !ok {
-		return errors.Error{
-			Code:    errors.ErrInternal,
-			Kind:    errors.KindUnknownDevice,
-			Message: fmt.Sprintf("unknown device: %v", deviceID),
-			Details: errors.Details{"deviceID": deviceID},
-		}
+		// Device may not have registered successfully due to bad request, etc.
+		return nil
 	}
 	device.shutdown()
 	// Remove from known actor devices.
@@ -592,25 +593,31 @@ func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 // SendForbiddenMessageTypeErrToActorOrLogError does everything the function
 // name already includes lol.
 func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Entry, a Actor, message ActorIncomingMessage) {
-	SendOrLogError(logger, a,
-		ActorErrorMessageFromError(NewForbiddenMessageError(message.MessageType, message.Content)))
+	LogErrorAndSendOrLog(logger, a, NewForbiddenMessageError(message.MessageType, message.Content))
+}
+
+// LogErrorAndSendOrLog logs the given error and then sends it to the given
+// Actor. If that fails, the send error is logged, too.
+func LogErrorAndSendOrLog(logger *logrus.Entry, a Actor, e error) {
+	errors.Log(logger, e)
+	SendOrLogError(a, ActorErrorMessageFromError(e))
 }
 
 // SendOrLogError sends the message to the given Actor and logs the error if
 // delivery failed.
-func SendOrLogError(logger *logrus.Entry, a Actor, message ActorOutgoingMessage) {
+func SendOrLogError(a Actor, message ActorOutgoingMessage) {
 	err := a.Send(message)
 	if err != nil {
-		errors.Log(logger, errors.Wrap(err, "send message", nil))
+		errors.Log(logging.CommunicationFailLogger, errors.Wrap(err, "send message", nil))
 	}
 }
 
 // SendOKOrLogError sends a message with messages.MessageTypeOK to the given
 // Actor and logs the error if delivery failed.
-func SendOKOrLogError(logger *logrus.Entry, a Actor) {
+func SendOKOrLogError(a Actor) {
 	err := a.Send(ActorOutgoingMessage{MessageType: messages.MessageTypeOK})
 	if err != nil {
-		errors.Log(logger, errors.Wrap(err, "send ok message", nil))
+		errors.Log(logging.CommunicationFailLogger, errors.Wrap(err, "send ok message", nil))
 	}
 }
 
@@ -619,11 +626,10 @@ func SendOKOrLogError(logger *logrus.Entry, a Actor) {
 func NewForbiddenMessageError(messageType messages.MessageType, content json.RawMessage) error {
 	return errors.Error{
 		Code:    errors.ErrProtocolViolation,
-		Kind:    errors.KindForbiddenMessage,
 		Message: fmt.Sprintf("forbidden message type: %s", messageType),
 		Details: errors.Details{
-			"messageType": messageType,
-			"content":     content,
+			"message_type":    messageType,
+			"message_content": string(content),
 		},
 	}
 }

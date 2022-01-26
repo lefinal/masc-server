@@ -158,7 +158,6 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 	if !subFoundByToken {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindUnknown,
 			Message: fmt.Sprintf("unknown message subscription token %v", sub),
 			Details: errors.Details{"token": sub},
 		}
@@ -169,7 +168,6 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 		// LOL.
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindUnknown,
 			Message: "no subscriptions for token by message type although it should exist. what?",
 			Details: errors.Details{"token": sub, "alreadyFoundSubscription": sub},
 		}
@@ -185,7 +183,6 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 		// WHAT?
 		return errors.Error{
 			Code: errors.ErrInternal,
-			Kind: errors.KindUnknown,
 			Message: fmt.Sprintf("subscription with token %v not found in subscriptions by message type %v although it should exist. why?",
 				sub, sub.messageType),
 			Details: errors.Details{"token": sub, "alreadyFoundSubscription": sub},
@@ -254,6 +251,33 @@ func UnsubscribeOrLogError(newsletter Newsletter) {
 	err := Unsubscribe(newsletter)
 	if err != nil {
 		errors.Log(logging.ActingLogger, err)
+	}
+}
+
+// SubscribeNotifyForMessageType subscribes to the given messages.MessageType
+// for the Actor and returns a NotifyingNewsletter with a self-closing
+// receive-channel.
+func SubscribeNotifyForMessageType(messageType messages.MessageType, actor Actor) NotifyingNewsletter {
+	newsletter := actor.SubscribeMessageType(messageType)
+	cc := make(chan struct{})
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case <-newsletter.Receive:
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- struct{}{}:
+				}
+			}
+		}
+	}()
+	return NotifyingNewsletter{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
 	}
 }
 
@@ -782,6 +806,154 @@ func SubscribeMessageTypeSetFixturesLocating(actor Actor) NewsletterSetFixturesL
 		}
 	}()
 	return NewsletterSetFixturesLocating{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterLightSwitchHiLoState wraps Newsletter with a self-closing
+// receive-channel for messages.MessageLightSwitchHiLoState.
+type NewsletterLightSwitchHiLoState struct {
+	Newsletter
+	Receive <-chan messages.MessageLightSwitchHiLoState
+}
+
+// SubscribeMessageTypeLightSwitchHiLoState subscribes messages with
+// messages.SubscribeMessageTypeLightSwitchHiLoState for the given Actor.
+func SubscribeMessageTypeLightSwitchHiLoState(actor Actor) NewsletterLightSwitchHiLoState {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeLightSwitchHiLoState)
+	cc := make(chan messages.MessageLightSwitchHiLoState)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageLightSwitchHiLoState
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeLightSwitchHiLoState, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterLightSwitchHiLoState{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterLightSwitchOffers wraps Newsletter with a self-closing
+// receive-channel for messages.MessageLightSwitchOffers.
+type NewsletterLightSwitchOffers struct {
+	Newsletter
+	Receive <-chan messages.MessageLightSwitchOffers
+}
+
+// SubscribeMessageTypeLightSwitchOffers subscribes messages with
+// messages.MessageTypeLightSwitchOffers for the given Actor.
+func SubscribeMessageTypeLightSwitchOffers(actor Actor) NewsletterLightSwitchOffers {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeLightSwitchOffers)
+	cc := make(chan messages.MessageLightSwitchOffers)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageLightSwitchOffers
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeLightSwitchOffers, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterLightSwitchOffers{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterUpdateLightSwitch wraps Newsletter with a self-closing
+// receive-channel for messages.MessageUpdateLightSwitch.
+type NewsletterUpdateLightSwitch struct {
+	Newsletter
+	Receive <-chan messages.MessageUpdateLightSwitch
+}
+
+// SubscribeMessageTypeUpdateLightSwitch subscribes messages with
+// messages.MessageTypeUpdateLightSwitch for the given Actor.
+func SubscribeMessageTypeUpdateLightSwitch(actor Actor) NewsletterUpdateLightSwitch {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeUpdateLightSwitch)
+	cc := make(chan messages.MessageUpdateLightSwitch)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageUpdateLightSwitch
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeUpdateLightSwitch, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterUpdateLightSwitch{
+		Newsletter: newsletter.Newsletter,
+		Receive:    cc,
+	}
+}
+
+// NewsletterDeleteLightSwitch wraps Newsletter with a self-closing
+// receive-channel for messages.MessageDeleteLightSwitch.
+type NewsletterDeleteLightSwitch struct {
+	Newsletter
+	Receive <-chan messages.MessageDeleteLightSwitch
+}
+
+// SubscribeMessageTypeDeleteLightSwitch subscribes messages with
+// messages.MessageTypeDeleteLightSwitch for the given Actor.
+func SubscribeMessageTypeDeleteLightSwitch(actor Actor) NewsletterDeleteLightSwitch {
+	newsletter := actor.SubscribeMessageType(messages.MessageTypeDeleteLightSwitch)
+	cc := make(chan messages.MessageDeleteLightSwitch)
+	go func() {
+		defer close(cc)
+		for {
+			select {
+			case <-newsletter.Subscription.Ctx.Done():
+				return
+			case raw := <-newsletter.Receive:
+				var m messages.MessageDeleteLightSwitch
+				if !decodeAsJSONOrLogSubscriptionParseError(messages.MessageTypeDeleteLightSwitch, raw, &m) {
+					continue
+				}
+				select {
+				case <-newsletter.Subscription.Ctx.Done():
+					return
+				case cc <- m:
+				}
+			}
+		}
+	}()
+	return NewsletterDeleteLightSwitch{
 		Newsletter: newsletter.Newsletter,
 		Receive:    cc,
 	}

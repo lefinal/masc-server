@@ -40,7 +40,7 @@ func (m *Mall) GetDevices() ([]Device, error) {
 		var device Device
 		err = rows.Scan(&device.ID, &device.Name, &device.SelfDescription, &device.LastSeen)
 		if err != nil {
-			return nil, errors.NewScanDBRowError(err, nil)
+			return nil, errors.NewScanDBRowError(err, q)
 		}
 		devices = append(devices, device)
 	}
@@ -65,8 +65,7 @@ func (m *Mall) CreateNewDevice(selfDescription string) (Device, error) {
 	row := m.db.QueryRow(q)
 	err = row.Scan(&createdDevice.ID)
 	if err != nil {
-		return Device{}, errors.NewScanSingleDBRowError(fmt.Sprintf("what"), err,
-			errors.Details{"selfDescription": selfDescription})
+		return Device{}, errors.NewScanSingleDBRowError(err, fmt.Sprintf("what"), q)
 	}
 	return createdDevice, nil
 }
@@ -84,7 +83,7 @@ func (m *Mall) RefreshLastSeenForDevice(deviceID messages.DeviceID) error {
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errors.Details{"device": deviceID})
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), deviceID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure found", nil)
 	}
@@ -108,7 +107,7 @@ func (m *Mall) SetDeviceName(deviceID messages.DeviceID, name string) error {
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errDetails)
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), deviceID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure found", nil)
 	}
@@ -125,7 +124,7 @@ func (m *Mall) DeleteDevice(deviceID messages.DeviceID) error {
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errors.Details{"device": deviceID})
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), deviceID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure found", nil)
 	}
@@ -149,7 +148,7 @@ func (m *Mall) SetDeviceSelfDescription(deviceID messages.DeviceID, selfDescript
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errDetails)
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), "devices", deviceID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("device %v not found", deviceID), deviceID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure found", nil)
 	}

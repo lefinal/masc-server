@@ -117,7 +117,7 @@ func (a *actorDeviceManager) handleGetDevices() {
 	if err != nil {
 		err = errors.Wrap(err, "get devices", nil)
 		errors.Log(logging.ActingLogger, err)
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
+		acting.SendOrLogError(a, acting.ActorErrorMessageFromError(err))
 		return
 	}
 	res := messages.MessageDeviceList{
@@ -133,7 +133,7 @@ func (a *actorDeviceManager) handleGetDevices() {
 			Roles:           device.Roles,
 		}
 	}
-	acting.SendOrLogError(logging.AppLogger, a, acting.ActorOutgoingMessage{
+	acting.SendOrLogError(a, acting.ActorOutgoingMessage{
 		MessageType: messages.MessageTypeDeviceList,
 		Content:     res,
 	})
@@ -146,10 +146,10 @@ func (a *actorDeviceManager) handleSetDeviceName(message messages.MessageSetDevi
 	if err != nil {
 		err = errors.Wrap(err, "set-device-name", nil)
 		errors.Log(logging.ActingLogger, err)
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
+		acting.SendOrLogError(a, acting.ActorErrorMessageFromError(err))
 		return
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a)
+	acting.SendOKOrLogError(a)
 }
 
 // handleDeleteDevice handles an incoming message with type
@@ -159,8 +159,8 @@ func (a *actorDeviceManager) handleDeleteDevice(message messages.MessageDeleteDe
 	if err != nil {
 		err = errors.Wrap(err, "delete device", nil)
 		errors.Log(logging.ActingLogger, err)
-		acting.SendOrLogError(logging.ActingLogger, a, acting.ActorErrorMessageFromError(err))
+		acting.SendOrLogError(a, acting.ActorErrorMessageFromError(err))
 		return
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a)
+	acting.SendOKOrLogError(a)
 }

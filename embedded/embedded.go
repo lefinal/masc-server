@@ -10,3 +10,6 @@ var DBMigration1x0 string
 
 //go:embed sql/1x1.sql
 var DBMigration1x1 string
+
+//go:embed sql/1x2.sql
+var DBMigration1x2 string

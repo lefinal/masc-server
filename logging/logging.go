@@ -6,6 +6,8 @@ import "github.com/sirupsen/logrus"
 var (
 	// AppLogger is the main app.App logger.
 	AppLogger *logrus.Entry
+	// CommunicationFailLogger is the logger for failed communication.
+	CommunicationFailLogger *logrus.Entry
 	// DBLogger is used for stuff regarding the database connection.
 	DBLogger *logrus.Entry
 	// GamesLogger is the logger for package games.
@@ -21,6 +23,8 @@ var (
 	SubscriptionManagerLogger *logrus.Entry
 	// LightingLogger is used for all stuff regarding lighting.
 	LightingLogger *logrus.Entry
+	// LightSwitchLogger is used for all stuff regarding light switches.
+	LightSwitchLogger *logrus.Entry
 	// WebServerLogger is used for all stuff regarding web servers.
 	WebServerLogger *logrus.Entry
 	// WSLogger is used for all stuff regarding websocket connections.
@@ -33,6 +37,7 @@ var (
 
 func SetLogger(logger *logrus.Logger) {
 	AppLogger = logger.WithField("topic", "app")
+	CommunicationFailLogger = logger.WithField("topic", "communication-fail")
 	DBLogger = logger.WithField("topic", "db")
 	GamesLogger = logger.WithField("topic", "games")
 	GatekeepingLogger = logger.WithField("topic", "gatekeeping")
@@ -40,6 +45,7 @@ func SetLogger(logger *logrus.Logger) {
 	ActingLogger = logger.WithField("topic", "acting")
 	SubscriptionManagerLogger = logger.WithField("topic", "subscription-manager")
 	LightingLogger = logger.WithField("topic", "lighting")
+	LightSwitchLogger = logger.WithField("topic", "light-switches")
 	WebServerLogger = logger.WithField("topic", "web-server")
 	WSLogger = logger.WithField("topic", "ws")
 	MQTTLogger = logger.WithField("topic", "mqtt")

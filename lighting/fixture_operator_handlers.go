@@ -60,7 +60,7 @@ func (dm *FixtureOperatorHandlers) handleFixtureStateBroadcastUpdates(ctx contex
 		case m := <-dm.manager.GetFixtureStatesBroadcast():
 			dm.m.Lock()
 			for handler := range dm.activeManagers {
-				acting.SendOrLogError(logging.ActingLogger, handler.Actor, acting.ActorOutgoingMessage{
+				acting.SendOrLogError(handler.Actor, acting.ActorOutgoingMessage{
 					MessageType: messages.MessageTypeFixtureStates,
 					Content:     m,
 				})
@@ -135,7 +135,7 @@ func (a *fixtureOperatorHandler) Hire(displayedName string) error {
 }
 
 func (a *fixtureOperatorHandler) handleGetFixtureStates() {
-	acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorOutgoingMessage{
+	acting.SendOrLogError(a.Actor, acting.ActorOutgoingMessage{
 		MessageType: messages.MessageTypeFixtureStates,
 		Content:     a.manager.FixtureStates(),
 	})
@@ -153,9 +153,8 @@ func (a *fixtureOperatorHandler) handleSetFixturesEnabled(message messages.Messa
 	for _, newFixtureState := range message.Fixtures {
 		fixture, ok := fixtureMap[newFixtureState.FixtureID]
 		if !ok {
-			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(errors.Error{
+			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(errors.Error{
 				Code:    errors.ErrBadRequest,
-				Kind:    errors.KindUnknownFixture,
 				Message: fmt.Sprintf("fixture %v not found", newFixtureState.FixtureID),
 				Details: errors.Details{"fixture": newFixtureState.FixtureID},
 			}))
@@ -166,11 +165,11 @@ func (a *fixtureOperatorHandler) handleSetFixturesEnabled(message messages.Messa
 		if err != nil {
 			err = errors.Wrap(err, "apply update after setting enabled state", nil)
 			errors.Log(logging.LightingLogger, err)
-			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
+			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(err))
 			return
 		}
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a.Actor)
+	acting.SendOKOrLogError(a.Actor)
 }
 
 // handleSetFixturesLocating handles a received
@@ -185,9 +184,8 @@ func (a *fixtureOperatorHandler) handleSetFixturesLocating(message messages.Mess
 	for _, newFixtureState := range message.Fixtures {
 		fixture, ok := fixtureMap[newFixtureState.FixtureID]
 		if !ok {
-			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(errors.Error{
+			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(errors.Error{
 				Code:    errors.ErrBadRequest,
-				Kind:    errors.KindUnknownFixture,
 				Message: fmt.Sprintf("fixture %v not found", newFixtureState.FixtureID),
 				Details: errors.Details{"fixture": newFixtureState.FixtureID},
 			}))
@@ -198,9 +196,9 @@ func (a *fixtureOperatorHandler) handleSetFixturesLocating(message messages.Mess
 		if err != nil {
 			err = errors.Wrap(err, "apply update after setting locating-mode", nil)
 			errors.Log(logging.LightingLogger, err)
-			acting.SendOrLogError(logging.ActingLogger, a.Actor, acting.ActorErrorMessageFromError(err))
+			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(err))
 			return
 		}
 	}
-	acting.SendOKOrLogError(logging.ActingLogger, a.Actor)
+	acting.SendOKOrLogError(a.Actor)
 }

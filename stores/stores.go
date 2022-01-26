@@ -30,7 +30,6 @@ func closeRows(rows *sql.Rows) {
 	if err != nil {
 		errors.Log(logging.DBLogger, errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindDB,
 			Err:     err,
 			Message: "close rows",
 		})
@@ -46,7 +45,6 @@ func extractAffectedRows(result sql.Result) (int, error) {
 	if err != nil {
 		return -1, errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindShouldNotHappen,
 			Message: "rows affected not supported by current database driver",
 			Err:     err,
 		}
@@ -67,7 +65,6 @@ func assureNRowsAffected(result sql.Result, n int) error {
 	if rowsAffected != n {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindDB,
 			Message: fmt.Sprintf("expected %d affected rows but only got %d", n, rowsAffected),
 			Details: errors.Details{
 				"expectedAffectedRows": n,
@@ -82,17 +79,16 @@ func assureNRowsAffected(result sql.Result, n int) error {
 // sql.Result is affected. If getting the affected rows is not possible, an
 // errors.ErrFatal error is returned. If the affected rows do not equal 1, an
 // errors.ErrNotFound error is returned with the given details.
-func assureOneRowAffectedForNotFound(result sql.Result, notFoundMessage, table string, id interface{}, q string) error {
+func assureOneRowAffectedForNotFound(result sql.Result, notFoundMessage string, id interface{}, q string) error {
 	rowsAffected, err := extractAffectedRows(result)
 	if err != nil {
 		return errors.Wrap(err, "extract affected rows", nil)
 	}
 	if rowsAffected != 1 {
 		return errors.NewResourceNotFoundError(notFoundMessage, errors.Details{
-			"table":        table,
-			"id":           id,
-			"query":        q,
-			"rowsAffected": rowsAffected,
+			"entity_id":     id,
+			"query":         q,
+			"rows_affected": rowsAffected,
 		})
 	}
 	return nil
@@ -119,7 +115,6 @@ func rollbackTx(tx *sql.Tx, reason string) {
 	if err != nil {
 		errors.Log(logging.DBLogger, errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindDBRollback,
 			Message: "rollback tx",
 			Err:     err,
 			Details: errors.Details{"rollbackReason": reason},

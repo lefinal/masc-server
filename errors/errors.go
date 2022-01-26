@@ -13,8 +13,6 @@ type Details map[string]interface{}
 type Error struct {
 	// Code is the error code.
 	Code Code
-	// Kind is the kind of code.
-	Kind Kind
 	// Err is the original error that occurred.
 	Err error
 	// Message is the manually created message that can be used in order to trace the error.
@@ -38,7 +36,6 @@ func Cast(err error) (Error, bool) {
 	}
 	e := Error{
 		Code:    ErrUnexpected,
-		Kind:    KindUnexpected,
 		Err:     err,
 		Message: "unknown operation",
 		Details: make(map[string]interface{}),
@@ -71,7 +68,6 @@ func Wrap(err error, message string, details Details) error {
 	}
 	wrappedErr := Error{
 		Code:    e.Code,
-		Kind:    e.Kind,
 		Err:     e.Err,
 		Message: errMsg,
 		Details: e.Details,
@@ -80,10 +76,9 @@ func Wrap(err error, message string, details Details) error {
 }
 
 // FromErr creates an Error with the given details.
-func FromErr(message string, code Code, kind Kind, err error, details Details) error {
+func FromErr(message string, code Code, err error, details Details) error {
 	createdError := Error{
 		Code:    code,
-		Kind:    kind,
 		Err:     err,
 		Message: message,
 		Details: details,
@@ -102,7 +97,6 @@ func detailsAsJSON(logger *logrus.Entry, err error) []byte {
 	if err != nil {
 		Log(logger, Error{
 			Code:    ErrInternal,
-			Kind:    KindEncodeJSON,
 			Message: "marshal error details",
 			Err:     err,
 			Details: Details{
@@ -119,7 +113,6 @@ func Log(logger *logrus.Entry, err error) {
 	e, _ := Cast(err)
 	fields := logrus.Fields{
 		"err_code":    e.Code,
-		"err_kind":    e.Kind,
 		"err_details": string(detailsAsJSON(logger, err)),
 	}
 
@@ -134,7 +127,7 @@ func Log(logger *logrus.Entry, err error) {
 	entry := logger.WithFields(fields)
 	switch e.Code {
 	case ErrBadRequest, ErrProtocolViolation, ErrNotFound:
-		entry.Debug(e.Error())
+		entry.Warn(e.Error())
 	case ErrFatal:
 		entry.Fatal(e.Error())
 	default:
@@ -145,8 +138,8 @@ func Log(logger *logrus.Entry, err error) {
 // Prettify returns a detailed error string with error details.
 func Prettify(err error) string {
 	e, _ := Cast(err)
-	return fmt.Sprintf("Code: %s\nKind: %s\nOriginal Error: %+v\nMessage: %s\nDetails: %s\n",
-		e.Code, e.Kind, e.Err, e.Message, detailsAsJSON(nil, e))
+	return fmt.Sprintf("Code: %s\nOriginal Error: %+v\nMessage: %s\nDetails: %s\n",
+		e.Code, e.Err, e.Message, detailsAsJSON(nil, e))
 }
 
 // BlameUser checks if the given error is ErrBadRequest, ErrProtocolViolation or

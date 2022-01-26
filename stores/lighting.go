@@ -17,7 +17,7 @@ type Fixture struct {
 	// fixtures.
 	Device messages.DeviceID
 	// ProviderID is the id for the fixture the provider assigned to it.
-	ProviderID messages.FixtureProviderFixtureID
+	ProviderID messages.ProviderID
 	// Name is a human-readable description of the fixture.
 	Name nulls.String
 	// Type is the fixture type.
@@ -44,7 +44,7 @@ func (m *Mall) GetFixtures() ([]Fixture, error) {
 		var fixture Fixture
 		err = rows.Scan(&fixture.ID, &fixture.Device, &fixture.ProviderID, &fixture.Name, &fixture.Type, &fixture.LastSeen)
 		if err != nil {
-			return nil, errors.NewScanDBRowError(err, nil)
+			return nil, errors.NewScanDBRowError(err, q)
 		}
 		fixtures = append(fixtures, fixture)
 	}
@@ -67,7 +67,7 @@ func (m *Mall) CreateFixture(fixture Fixture) (Fixture, error) {
 	row := m.db.QueryRow(q)
 	err = row.Scan(&fixture.ID)
 	if err != nil {
-		return Fixture{}, errors.NewScanSingleDBRowError("sad life", err, errors.Details{"fixture": fixture})
+		return Fixture{}, errors.NewScanSingleDBRowError(err, "sad life", q)
 	}
 	return fixture, nil
 }
@@ -82,7 +82,7 @@ func (m *Mall) DeleteFixture(fixtureID messages.FixtureID) error {
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID})
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), fixtureID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure one affected", nil)
 	}
@@ -100,7 +100,7 @@ func (m *Mall) SetFixtureName(fixtureID messages.FixtureID, name nulls.String) e
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID, "name": name})
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), fixtureID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure one affected", nil)
 	}
@@ -118,7 +118,7 @@ func (m *Mall) RefreshLastSeenForFixture(fixtureID messages.FixtureID) error {
 	if err != nil {
 		return errors.NewExecQueryError(err, q, errors.Details{"fixture": fixtureID})
 	}
-	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), "fixtures", fixtureID, q)
+	err = assureOneRowAffectedForNotFound(result, fmt.Sprintf("fixture %v not found", fixtureID), fixtureID, q)
 	if err != nil {
 		return errors.Wrap(err, "assure one affected", nil)
 	}

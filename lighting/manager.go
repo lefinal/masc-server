@@ -72,6 +72,22 @@ type StoredManager struct {
 	m sync.RWMutex
 }
 
+func (manager *StoredManager) ToggleFixtureEnabledByID(id messages.FixtureID) error {
+	manager.m.RLock()
+	defer manager.m.RUnlock()
+	fixture, ok := manager.fixtures[id]
+	if !ok {
+		return errors.NewResourceNotFoundError("fixture not found", nil)
+	}
+	// Toggle enabled state.
+	fixture.ToggleEnabled()
+	err := fixture.Apply()
+	if err != nil {
+		return errors.Wrap(err, "fixture apply", nil)
+	}
+	return nil
+}
+
 // NewStoredManager creates a new Manager.
 func NewStoredManager(store ManagerStore) *StoredManager {
 	m := &StoredManager{
@@ -174,7 +190,6 @@ addFixtures:
 					// Shit.
 					return nil, errors.Error{
 						Code: errors.ErrInternal,
-						Kind: errors.KindFixtureTypeConflict,
 						Message: fmt.Sprintf("fixture %v from device %v already known with type %v but now is %v",
 							fixtureToAdd.ProviderID, m.DeviceID, knownFixture.Type(), fixtureToAdd.Type),
 						Details: errors.Details{

@@ -7,6 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/gatekeeping"
 	"github.com/LeFinal/masc-server/lighting"
+	"github.com/LeFinal/masc-server/lightswitch"
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/mqttbridge"
 	"github.com/LeFinal/masc-server/stores"
@@ -31,6 +32,8 @@ type App struct {
 	agency *acting.ProtectedAgency
 	// lightingManager is the manager for fixture operation, handling, etc.
 	lightingManager *lighting.StoredManager
+	// lightSwitchManager is the manager for light switches.
+	lightSwitchManager lightswitch.Manager
 	// mqttBridge is used for connecting to a MQTT-server.
 	mqttBridge mqttbridge.Bridge
 	// mainHandlers holds general actor handlers like device management or fixture
@@ -51,7 +54,6 @@ func (app *App) Boot(ctx context.Context) error {
 	if err != nil {
 		return errors.Error{
 			Code:    errors.ErrFatal,
-			Kind:    errors.KindInvalidConfig,
 			Err:     err,
 			Message: "invalid config",
 		}
@@ -73,6 +75,8 @@ func (app *App) Boot(ctx context.Context) error {
 	if err := app.lightingManager.LoadKnownFixtures(); err != nil {
 		return errors.Wrap(err, "load known fixtures for lighting manager", nil)
 	}
+	// Create light switch manager.
+	app.lightSwitchManager = lightswitch.NewManager(app.mall, app.lightingManager)
 	// Create MQTT bridge if address is provided.
 	if app.config.MQTTAddr.Valid {
 		app.mqttBridge = mqttbridge.NewBridge(mqttbridge.Config{MQTTAddr: app.config.MQTTAddr.String})
@@ -99,6 +103,7 @@ func (app *App) Boot(ctx context.Context) error {
 		return errors.Wrap(err, "wake up gatekeeper and protect", nil)
 	}
 	go app.lightingManager.Run(ctx)
+	go lightswitch.RunActorReception(ctx, app.agency, app.lightSwitchManager)
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if app.mqttBridge != nil {
