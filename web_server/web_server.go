@@ -7,6 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -82,10 +83,12 @@ func (server *WebServer) Run(ctx context.Context) error {
 		handler := cors.New(cors.Options{
 			AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
 		}).Handler(server.router)
-		logging.WebServerLogger.Infof("web server running at %s", server.config.ServeAddr)
+		logging.WebServerLogger.Info("web server running",
+			zap.String("serve_addr", server.config.ServeAddr))
 		err := http.ListenAndServe(server.config.ServeAddr, handler)
 		if err != nil {
-			logging.WebServerLogger.Error(errors.Wrap(err, "listen and serve", nil))
+			errors.Log(logging.WebServerLogger, errors.Wrap(err, "listen and serve", nil))
+			return
 		}
 	}()
 	// Wait for stop command.

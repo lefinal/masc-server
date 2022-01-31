@@ -10,7 +10,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/util"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -380,11 +380,10 @@ func (ad *netActorDevice) boot() ([]actorWithRole, error) {
 	ad.routers.Add(2)
 	go ad.routeIncoming(routerCtx)
 	go ad.routeOutgoing(routerCtx)
-	logging.ActingLogger.WithFields(logrus.Fields{
-		"device_id":    ad.device.ID,
-		"device_name":  ad.device.Name,
-		"device_roles": ad.device.Roles,
-	}).Info("net actor device ready")
+	logging.ActingLogger.Info("net actor device ready",
+		zap.Any("device_id", ad.device.ID),
+		zap.String("device_name", ad.device.Name.String),
+		zap.Any("device_roles", roles))
 	return createdActors, nil
 }
 
@@ -469,10 +468,9 @@ func (ad *netActorDevice) shutdown() {
 	ad.actorsMutex.Unlock()
 	ad.shutdownRouter()
 	ad.routers.Wait()
-	logging.ActingLogger.WithFields(logrus.Fields{
-		"device_id":   ad.device.ID,
-		"device_name": ad.device.Name,
-	}).Info("net actor device shut down")
+	logging.ActingLogger.Info("net actor device shut down",
+		zap.Any("device_id", ad.device.ID),
+		zap.String("device_name", ad.device.Name.String))
 }
 
 // ProtectedAgency is an Agency that uses the gatekeeping.Gatekeeper for
@@ -608,13 +606,13 @@ func ActorErrorMessageFromError(err error) ActorOutgoingMessage {
 
 // SendForbiddenMessageTypeErrToActorOrLogError does everything the function
 // name already includes lol.
-func SendForbiddenMessageTypeErrToActorOrLogError(logger *logrus.Entry, a Actor, message ActorIncomingMessage) {
+func SendForbiddenMessageTypeErrToActorOrLogError(logger *zap.Logger, a Actor, message ActorIncomingMessage) {
 	LogErrorAndSendOrLog(logger, a, NewForbiddenMessageError(message.MessageType, message.Content))
 }
 
 // LogErrorAndSendOrLog logs the given error and then sends it to the given
 // Actor. If that fails, the send error is logged, too.
-func LogErrorAndSendOrLog(logger *logrus.Entry, a Actor, e error) {
+func LogErrorAndSendOrLog(logger *zap.Logger, a Actor, e error) {
 	errors.Log(logger, e)
 	SendOrLogError(a, ActorErrorMessageFromError(e))
 }

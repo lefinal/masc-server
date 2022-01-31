@@ -8,3 +8,21 @@
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lefinal/masc-server)
 
 Backend for Mission Airsoft Control
+
+## Configuration
+
+Example config:
+```json
+{
+  "log": {
+    "stdout_log_level": "debug",
+    "high_priority_output": "/tmp/high-priority-output.log",
+    "debug_output": "/tmp/debug-output.log",
+    "max_size": 100,
+    "keep_days": 180
+  },
+  "db_conn": "postgres://masc:masc@localhost:5432/masc",
+  "websocket_addr": ":8080",
+  "mqtt_addr": "tcp://localhost:1883"
+}
+```

@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"github.com/LeFinal/masc-server/client"
-	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -38,11 +37,7 @@ type Client struct {
 	hub *Hub
 	// connection is the actual websocket connection.
 	connection *websocket.Conn
-}
-
-// logger returns a logrus.Entry with the Client id as field.
-func (c *Client) logger() *logrus.Entry {
-	return logging.WSLogger.WithField("client", c.ID)
+	logger     *zap.Logger
 }
 
 // readPump forwards messages from the websocket connection to the hub.
@@ -51,7 +46,7 @@ func (c *Client) readPump(ctx context.Context) {
 		c.hub.unregister <- c
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Debug(errors.Wrap(err, "close connection", nil))
+			c.logger.Debug("close connection failed", zap.Error(err))
 		}
 	}()
 	c.connection.SetReadLimit(maxMessageSize)
@@ -66,7 +61,7 @@ func (c *Client) readPump(ctx context.Context) {
 		_, message, err := c.connection.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				c.logger().Debug(errors.Wrap(err, "unexpected close", nil))
+				c.logger.Debug("unexpected close", zap.Error(err))
 			}
 			break
 		}
@@ -75,7 +70,8 @@ func (c *Client) readPump(ctx context.Context) {
 		// Forward.
 		select {
 		case <-ctx.Done():
-			c.logger().WithField("message", message).Warn("dropping message due to ctx done")
+			c.logger.Debug("dropping message due to ctx done",
+				zap.Any("message", message))
 		case c.Receive <- message:
 		}
 	}
@@ -92,7 +88,7 @@ func (c *Client) writePump() {
 		// Close connection.
 		err := c.connection.Close()
 		if err != nil {
-			c.logger().Debugf(errors.Wrap(err, "close connection", nil).Error())
+			c.logger.Debug("close connection failed", zap.Error(err))
 		}
 	}()
 	for {
@@ -104,7 +100,7 @@ func (c *Client) writePump() {
 			if !ok {
 				err := c.connection.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
-					logging.WSLogger.Debugf("write close message: %v", err)
+					logging.WSLogger.Debug("write close message failed", zap.Error(err))
 					return
 				}
 				return
@@ -113,23 +109,23 @@ func (c *Client) writePump() {
 			nextWriter, err := c.connection.NextWriter(websocket.TextMessage)
 			if err != nil {
 				// We expect the read pump to fail as well.
-				c.logger().Warn(errors.Wrap(err, "create writer for text message", nil))
+				c.logger.Warn("create writer for text message failed", zap.Error(err))
 				return
 			}
 			_, err = nextWriter.Write(message)
 			if err != nil {
-				c.logger().Warnf(errors.Wrap(err, "write text message", nil).Error())
+				c.logger.Debug("write text message failed", zap.Error(err))
 			}
 			// Close writer.
 			if err := nextWriter.Close(); err != nil {
-				c.logger().Warnf(errors.Wrap(err, "close next writer", nil).Error())
+				c.logger.Warn("close next writer failed", zap.Error(err))
 				return
 			}
 		case <-pingTicker.C:
 			// Send ping.
 			_ = c.connection.SetWriteDeadline(time.Now().Add(writeTimeout))
 			if err := c.connection.WriteMessage(websocket.PingMessage, nil); err != nil {
-				c.logger().Warnf(errors.Wrap(err, "write ping", nil).Error())
+				c.logger.Debug("write ping message failed", zap.Error(err))
 				return
 			}
 		}

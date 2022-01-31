@@ -3,7 +3,8 @@ package errors
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Details holds additional error details that can be viewed and logged.
@@ -88,7 +89,7 @@ func FromErr(message string, code Code, err error, details Details) error {
 }
 
 // detailsAsJSON encodes the Details of the given Error as JSON string.
-func detailsAsJSON(logger *logrus.Entry, err error) []byte {
+func detailsAsJSON(logger *zap.Logger, err error) []byte {
 	e, _ := Cast(err)
 	if e.Details == nil {
 		return nil
@@ -109,11 +110,10 @@ func detailsAsJSON(logger *logrus.Entry, err error) []byte {
 }
 
 // Log logs the given error with its details. If the error is ErrFatal, the error will be logged is fatal.
-func Log(logger *logrus.Entry, err error) {
+func Log(logger *zap.Logger, err error) {
 	e, _ := Cast(err)
-	fields := logrus.Fields{
-		"err_code":    e.Code,
-		"err_details": string(detailsAsJSON(logger, err)),
+	fields := Details{
+		"err_code": e.Code,
 	}
 
 	// Add each details entry as separate field for better readability.
@@ -124,14 +124,34 @@ func Log(logger *logrus.Entry, err error) {
 	if e.Err != nil {
 		fields["err_orig"] = err.Error()
 	}
-	entry := logger.WithFields(fields)
+	// Convert to zap fields.
+	zapFields := make([]zap.Field, 0, len(fields))
+	for k, v := range fields {
+		zapField := zap.Field{Key: k}
+		// Check content type.
+		vInt, ok := v.(int64)
+		if ok {
+			zapField.Type = zapcore.Int64Type
+			zapField.Integer = vInt
+			continue
+		}
+		vString, ok := v.(string)
+		if ok {
+			zapField.Type = zapcore.StringType
+			zapField.String = vString
+			continue
+		}
+		zapField.Type = zapcore.ReflectType
+		zapField.Interface = v
+	}
+	logger = logger.With(zapFields...)
 	switch e.Code {
 	case ErrBadRequest, ErrProtocolViolation, ErrNotFound:
-		entry.Warn(e.Error())
+		logger.Warn(e.Error())
 	case ErrFatal:
-		entry.Fatal(e.Error())
+		logger.Fatal(e.Error())
 	default:
-		entry.Error(e.Error())
+		logger.Error(e.Error())
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"

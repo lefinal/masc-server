@@ -5,6 +5,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/gobuffalo/nulls"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -92,6 +93,8 @@ func newFixture(fixtureID messages.FixtureID, fixtureType messages.FixtureType) 
 	case messages.FixtureTypeDimmer:
 		return newDimmerFixture(fixtureID)
 	}
-	logging.LightingLogger.Warnf("unsupported fixture type %v for fixture %v. using basic one...", fixtureType, fixtureID)
+	logging.LightingLogger.Warn("unsupported fixture type. using basic one...",
+		zap.Any("fixture_type", fixtureType),
+		zap.Any("fixture_id", fixtureID))
 	return newBasicFixture(fixtureID)
 }

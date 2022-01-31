@@ -6,6 +6,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/gobuffalo/nulls"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -72,7 +73,8 @@ func (f *basicFixture) sendStateUpdate(message acting.ActorOutgoingMessage) erro
 		f.updateNotifier.HandleFixtureStateUpdated()
 	}
 	if f.actor == nil {
-		logging.LightingLogger.Warnf("dropping apply for fixture %v due to no actor being set", f.ID())
+		logging.LightingLogger.Warn("dropping apply for fixture due to no actor being set",
+			zap.Any("fixture_id", f.ID()))
 		return nil
 	}
 	err := f.actor.Send(message)

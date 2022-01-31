@@ -10,7 +10,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // defaultMaxDBConnections is the maximum number of database connections that is used when no other one is provided
@@ -53,15 +53,15 @@ var dbMigrations = []dbMigration{
 // connectDB connects to the database with the given connection string and returns the connection pool.
 func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
 	dbPool, err := sql.Open("pgx", connectionStr)
-	dbPool.SetMaxOpenConns(maxDBConnections)
 	if err != nil {
 		return nil, errors.Error{
 			Code:    errors.ErrFatal,
 			Err:     err,
-			Message: "connect to database",
+			Message: "connection to database failed",
 			Details: errors.Details{"connectionStr": connectionStr},
 		}
 	}
+	dbPool.SetMaxOpenConns(maxDBConnections)
 	// Perform test query.
 	err = testDBConnection(dbPool)
 	if err != nil {
@@ -108,7 +108,8 @@ func performDBMigrations(db *sql.DB) error {
 	if err != nil {
 		return errors.Wrap(err, "retrieve current db version", nil)
 	}
-	logrus.Infof("current database version: %v", currentVersion)
+	logging.AppLogger.Info("extracted current database version",
+		zap.Any("db_version", currentVersion))
 	migrationsToDo, err := getDBMigrationsToDo(currentVersion)
 	if err != nil {
 		return errors.Wrap(err, "get db migrations to do", nil)
@@ -125,12 +126,12 @@ func performDBMigrations(db *sql.DB) error {
 	// Perform migrations.
 	var newVersion dbVersion
 	for i, migration := range migrationsToDo {
-		logrus.Infof("performing database migration %d/%d...", i+1, len(migrationsToDo))
+		logging.AppLogger.Info(fmt.Sprintf("performing database migration %d/%d...", i+1, len(migrationsToDo)))
 		// Perform migration according to the version.
 		_, err = tx.Exec(migration.up)
 		if err != nil {
 			rollbackTx(tx, "database migration failed")
-			return errors.NewExecQueryError(err, migration.up, errors.Details{"targetVersion": migration.version})
+			return errors.NewExecQueryError(err, migration.up, errors.Details{"target_version": migration.version})
 		}
 		newVersion = migration.version
 	}

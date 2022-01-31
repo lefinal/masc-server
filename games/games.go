@@ -4,9 +4,10 @@ import (
 	"context"
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/errors"
+	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -21,8 +22,6 @@ type Match interface {
 	Abort(reason string) error
 	// Done receives when the match is done.
 	Done() <-chan MatchDone
-	// Logger is the match logger which contains all match information.
-	Logger() *logrus.Entry
 }
 
 // BaseMatch holds some basic fields that every Match needs and provides the
@@ -63,7 +62,7 @@ type BaseMatch struct {
 	// DoneUpdates sends when the match has finished.
 	DoneUpdates chan MatchDone
 	// Logger holds all information regarding the match.
-	Logger *logrus.Entry
+	Logger *zap.Logger
 	// Start is the time when the match was started.
 	Start time.Time
 	// End is the time when the match had finished.
@@ -91,7 +90,7 @@ func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster act
 		PlayerManagement:        NewPlayerManagement(playerManagementUpdates),
 		PlayerManagementUpdates: playerManagementUpdates,
 		PlayerProvider:          nil, // TODO: ADD PLEASE
-		Logger:                  logrus.New().WithField("match", matchID),
+		Logger:                  logging.GamesLogger.With(zap.Any("match_id", matchID)),
 	}
 	// TODO
 	// TODO: Remember to listen for game master quit in order to abort the match.
@@ -101,14 +100,14 @@ func StartMatch(gameMode messages.GameMode, agency acting.Agency, gameMaster act
 // AbortMatchOrLog aborts the match or logs the occurred error.
 func AbortMatchOrLog(match Match, reason string) {
 	err := match.Abort(reason)
-	errors.Log(match.Logger().WithFields(logrus.Fields{}), errors.Wrap(err, "abort match", nil))
+	errors.Log(logging.GamesLogger, errors.Wrap(err, "abort match failed", nil))
 }
 
 // AbortMatchBecauseOfErrorOrLog logs the given error to the given logger
 // and aborts the Match. If aborting fails, the error is also logged to the
 // logger.
 func AbortMatchBecauseOfErrorOrLog(match Match, e error) {
-	match.Logger().Errorf("abort match because of error: %v", e)
+	errors.Log(logging.GamesLogger, errors.Wrap(e, "abort match because of error", nil))
 	AbortMatchOrLog(match, "internal error")
 }
 

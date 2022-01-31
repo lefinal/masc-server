@@ -6,7 +6,7 @@ import (
 	"flag"
 	"github.com/LeFinal/masc-server/app"
 	"github.com/LeFinal/masc-server/errors"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -20,7 +20,7 @@ func main() {
 	// Read config.
 	mascConfig, err := readConfig(*configPath)
 	if err != nil {
-		logrus.Error(errors.Wrap(err, "read config", nil))
+		zap.Error(errors.Wrap(err, "read config", nil))
 		return
 	}
 	a := app.NewApp(mascConfig)
@@ -28,7 +28,7 @@ func main() {
 	go func() {
 		err := a.Boot(ctx)
 		if err != nil {
-			logrus.Error(errors.Wrap(err, "boot", nil))
+			zap.Error(errors.Wrap(err, "boot", nil))
 		}
 	}()
 	awaitTerminateSignal()

@@ -8,6 +8,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/util"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -232,7 +233,8 @@ func decodeAsJSONOrLogSubscriptionParseError(messageType messages.MessageType, r
 
 // logSubscriptionParseError logs decoding errors for message subscriptions.
 func logSubscriptionParseError(messageType messages.MessageType, err error) {
-	logging.ActingLogger.Infof("parse subscription message for type %s: %s", messageType, err)
+	logging.ActingLogger.Warn("parse subscription message failed",
+		zap.Any("message_type", messageType), zap.Error(err))
 }
 
 // Unsubscribe uses the wrapped Actor in the given Newsletter in order to

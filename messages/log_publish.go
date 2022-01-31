@@ -16,7 +16,7 @@ type MessageNextLogEntriesEntry struct {
 	// Level is the log level of the entry.
 	Level string `json:"level"`
 	// Fields are the set fields for the log entry.
-	Fields interface{} `json:"fields"`
+	Fields map[string]interface{} `json:"fields"`
 }
 
 // MessageNextLogEntries is the message content for MessageTypeNextLogEntries.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/LeFinal/masc-server/client"
 	"github.com/LeFinal/masc-server/logging"
+	"go.uber.org/zap"
 )
 
 // Hub holds all active clients and manages centralized receiving and sending.
@@ -37,14 +38,14 @@ func (h *Hub) Run(ctx context.Context) {
 		case c := <-h.register:
 			// Register client.
 			h.clients[c] = struct{}{}
-			logging.WSLogger.WithField("client_id", c.ID).Info("client connected")
+			logging.WSLogger.Info("client connected", zap.String("client_id", c.ID))
 			go h.clientListener.AcceptClient(ctx, c.Client)
 		case c := <-h.unregister:
 			// Unregister client.
 			if _, ok := h.clients[c]; ok {
 				h.clientListener.SayGoodbyeToClient(ctx, c.Client)
 				delete(h.clients, c)
-				logging.WSLogger.WithField("client_id", c.ID).Info("client disconnected")
+				logging.WSLogger.Info("client disconnected", zap.String("client_id", c.ID))
 				// Close the send-channel which leads to stopping the write-pump.
 				close(c.Send)
 			}

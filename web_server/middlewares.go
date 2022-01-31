@@ -2,7 +2,7 @@ package web_server
 
 import (
 	"github.com/LeFinal/masc-server/logging"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -30,12 +30,11 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			ResponseWriter: w,
 		}
 		next.ServeHTTP(wrappedWriter, r)
-		logging.WebServerLogger.WithFields(logrus.Fields{
-			"status":   wrappedWriter.status,
-			"method":   r.Method,
-			"path":     r.URL.EscapedPath(),
-			"duration": time.Since(start),
-		}).Debug(r.URL.String())
+		logging.WebServerLogger.Debug(r.URL.String(),
+			zap.Int("status", wrappedWriter.status),
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.EscapedPath()),
+			zap.Duration("duration", time.Since(start)))
 	})
 }
 

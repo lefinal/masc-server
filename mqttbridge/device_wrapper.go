@@ -8,6 +8,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"sync"
 	"time"
@@ -80,7 +81,9 @@ func (w *deviceWrapper) run(ctx context.Context) error {
 		}
 	}
 	w.deviceID = assignedDeviceID
-	logging.MQTTLogger.Debugf("mqtt device %v welcomed as %v", w.mqttDeviceID, w.deviceID)
+	logging.MQTTLogger.Debug("mqtt device welcomed",
+		zap.Any("mqtt_device_id", w.mqttDeviceID),
+		zap.Any("device_id", w.deviceID))
 	// Run.
 	eg, egCtx := errgroup.WithContext(ctx)
 	// Start up the device.
@@ -163,11 +166,12 @@ func (w *deviceWrapper) handleMQTTMessage(message mqtt.Message) {
 	select {
 	case w.fromMQTT <- message:
 	case <-time.After(10 * time.Second):
-		logging.MQTTLogger.WithFields(map[string]interface{}{
-			"mqtt_device_id": w.mqttDeviceID,
-			"device_id":      w.deviceID,
-			"message_id":     message.MessageID(),
-		}).Debug("dropping incoming mqtt message due to not being picked up")
+		logging.MQTTLogger.Warn("dropping incoming mqtt message due to not being picked up",
+			zap.Any("mqtt_device_id", w.mqttDeviceID),
+			zap.Any("device_id", w.deviceID),
+			zap.Any("message_id", message.MessageID()),
+			zap.Any("message_topic", message.Topic()),
+			zap.Any("message_payload", message.Payload()))
 	}
 }
 

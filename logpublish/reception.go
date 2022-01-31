@@ -8,7 +8,6 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -22,7 +21,7 @@ type actorReception struct {
 }
 
 // RunActorReception runs a reception that subscribes
-func RunActorReception(ctx context.Context, agency acting.ActorNewsletter, logEntriesToPublish <-chan *logrus.Entry) {
+func RunActorReception(ctx context.Context, agency acting.ActorNewsletter, logEntriesToPublish <-chan logging.LogEntry) {
 	r := &actorReception{
 		ctx:               ctx,
 		activeLogMonitors: make(map[acting.Actor]struct{}),
@@ -35,7 +34,7 @@ run:
 			break run
 		case e := <-logEntriesToPublish:
 			// Read for 200ms in order to avoid to many single messages.
-			entries := make([]*logrus.Entry, 0, 1)
+			entries := make([]logging.LogEntry, 0, 1)
 			entries = append(entries, e)
 			readTimeout, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 		readBufferedEntries:
@@ -56,11 +55,11 @@ run:
 
 // handleNewLogEntries takes a list of new log entries and publishes them to all
 // actorReception.activeLogMonitors.
-func (r *actorReception) handleNewLogEntries(entries []*logrus.Entry) {
+func (r *actorReception) handleNewLogEntries(entries []logging.LogEntry) {
 	// Create the message.
 	messageEntries := make([]messages.MessageNextLogEntriesEntry, 0, len(entries))
 	for _, entry := range entries {
-		messageEntries = append(messageEntries, messageLogEntryFromLogrusEntry(entry))
+		messageEntries = append(messageEntries, messageLogEntryFromLogEntry(entry))
 	}
 	message := messages.MessageNextLogEntries{Entries: messageEntries}
 	// Publish to all.
@@ -85,14 +84,14 @@ func (r *actorReception) handleNewLogEntries(entries []*logrus.Entry) {
 	wg.Wait()
 }
 
-// messageLogEntryFromLogrusEntry creates a messages.MessageNextLogEntriesEntry
+// messageLogEntryFromLogEntry creates a messages.MessageNextLogEntriesEntry
 // from the given logrus.Entry.
-func messageLogEntryFromLogrusEntry(entry *logrus.Entry) messages.MessageNextLogEntriesEntry {
+func messageLogEntryFromLogEntry(entry logging.LogEntry) messages.MessageNextLogEntriesEntry {
 	return messages.MessageNextLogEntriesEntry{
 		Time:    entry.Time,
 		Message: entry.Message,
 		Level:   entry.Level.String(),
-		Fields:  entry.Data,
+		Fields:  entry.Fields,
 	}
 }
 

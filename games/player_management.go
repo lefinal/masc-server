@@ -7,7 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/errors"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
@@ -152,7 +152,7 @@ type PlayerJoinOffice struct {
 	// from others when using shared PlayerManagement.
 	Team PlayerManagementTeamKey
 	// Logger for non-critical errors.
-	Logger *logrus.Entry
+	Logger *zap.Logger
 	// PlayerProvider is a store interface for retrieving users and creating guest
 	// ones.
 	PlayerProvider PlayerProvider
@@ -230,7 +230,6 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 					// Already joined.
 					if blameErr := actor.Send(acting.ActorErrorMessageFromError(errors.Error{
 						Code:    errors.ErrBadRequest,
-						Kind:    errors.KindPlayerAlreadyJoined,
 						Message: fmt.Sprintf("player already joined match"),
 						Details: errors.Details{"player": user.ID},
 					})); blameErr != nil {
@@ -242,7 +241,6 @@ func (office *PlayerJoinOffice) handlePlayerJoins(ctx context.Context, actor act
 					// Player not found in active ones.
 					if blameErr := actor.Send(acting.ActorErrorMessageFromError(errors.Error{
 						Code:    errors.ErrBadRequest,
-						Kind:    errors.KindPlayerNotJoined,
 						Message: fmt.Sprintf("player did not join the match"),
 						Details: errors.Details{"player": m.Player},
 					})); blameErr != nil {

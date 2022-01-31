@@ -14,7 +14,10 @@ import (
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/LeFinal/masc-server/web_server"
 	"github.com/LeFinal/masc-server/ws"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"os"
 	"sync"
 )
 
@@ -61,16 +64,14 @@ func (app *App) Boot(ctx context.Context) error {
 		}
 	}
 	// Setup logger.
-	logger := logrus.New()
-	logLevel := logrus.InfoLevel
-	if app.config.LogLevel.Valid {
-		logLevel, err = logrus.ParseLevel(app.config.LogLevel.String)
+	logger, publishLog := app.setupLogging(ctx, app.config.Log)
+	defer func(loggerToSync *zap.Logger) {
+		err := logger.Sync()
 		if err != nil {
-			return errors.NewInternalErrorFromErr(err, "invalid log level",
-				errors.Details{"was": app.config.LogLevel.String})
+			errors.Log(logging.AppLogger, errors.NewInternalErrorFromErr(err, "sync loggers", nil))
+			return
 		}
-	}
-	logger.SetLevel(logLevel)
+	}(logger)
 	logging.ApplyToGlobalLoggers(logger)
 	// Connect database.
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
@@ -118,7 +119,7 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	go app.lightingManager.Run(ctx)
 	go lightswitch.RunActorReception(ctx, app.agency, app.lightSwitchManager)
-	go logpublish.RunActorReception(ctx, app.agency, logging.SubscribeLogEntries(ctx, logger))
+	go logpublish.RunActorReception(ctx, app.agency, publishLog)
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if app.mqttBridge != nil {
@@ -141,6 +142,7 @@ func (app *App) Boot(ctx context.Context) error {
 	}()
 	// Wait for exit.
 	<-ctx.Done()
+	logger.Info("shutting down")
 	if err := app.gatekeeper.Retire(); err != nil {
 		return errors.Wrap(err, "retire gatekeeper", nil)
 	}
@@ -158,6 +160,72 @@ type mainHandlers struct {
 	fixtureOperators  *lighting.FixtureOperatorHandlers
 	// wg waits for all running handlers.
 	wg sync.WaitGroup
+}
+
+func (app *App) setupLogging(ctx context.Context, config LogConfig) (*zap.Logger, <-chan logging.LogEntry) {
+	encConfig := zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		FunctionKey:    zapcore.OmitKey,
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+	cores := make([]zapcore.Core, 0)
+	// Setup stdout logger with colorful level output.
+	stdOutEncConfig := encConfig
+	stdOutEncConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	cores = append(cores, zapcore.NewCore(
+		zapcore.NewConsoleEncoder(stdOutEncConfig),
+		zapcore.Lock(os.Stdout),
+		zap.LevelEnablerFunc(func(level zapcore.Level) bool {
+			return level >= config.StdoutLogLevel
+		})))
+	// Setup error logger.
+	cores = append(cores, zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encConfig),
+		zapcore.Lock(os.Stderr),
+		zap.LevelEnablerFunc(func(level zapcore.Level) bool {
+			return level >= zap.ErrorLevel
+		})))
+	// Setup high priority logger.
+	if config.HighPriorityOutput.Valid {
+		cores = append(cores, zapcore.NewCore(
+			zapcore.NewConsoleEncoder(encConfig),
+			zapcore.AddSync(&lumberjack.Logger{
+				Filename: config.HighPriorityOutput.String,
+				MaxSize:  config.MaxSize,
+				MaxAge:   config.KeepDays,
+			}),
+			zap.LevelEnablerFunc(func(level zapcore.Level) bool {
+				return level >= zap.WarnLevel
+			})))
+	}
+	// Setup debug logger.
+	if config.DebugOutput.Valid {
+		cores = append(cores, zapcore.NewCore(
+			zapcore.NewConsoleEncoder(encConfig),
+			zapcore.AddSync(&lumberjack.Logger{
+				Filename: config.DebugOutput.String,
+				MaxSize:  config.MaxSize,
+				MaxAge:   config.KeepDays,
+			}),
+			zap.LevelEnablerFunc(func(level zapcore.Level) bool {
+				return level >= zap.DebugLevel
+			})))
+	}
+	// Setup publish logger.
+	publishLogger, publishLog := logging.NewNoPublishOmitCore(ctx)
+	cores = append(cores, publishLogger)
+	// Combine.
+	logger := zap.New(zapcore.NewTee(cores...))
+	return logger, publishLog
 }
 
 func (mh *mainHandlers) Run(ctx context.Context) {

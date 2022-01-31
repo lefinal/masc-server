@@ -2,106 +2,145 @@ package logging
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"time"
 )
 
 // Loggers.
 var (
 	// AppLogger is the main app.App logger.
-	AppLogger *logrus.Entry
+	AppLogger *zap.Logger
 	// CommunicationFailLogger is the logger for failed communication.
-	CommunicationFailLogger *logrus.Entry
+	CommunicationFailLogger *zap.Logger
 	// DBLogger is used for stuff regarding the database connection.
-	DBLogger *logrus.Entry
+	DBLogger *zap.Logger
 	// GamesLogger is the logger for package games.
-	GamesLogger *logrus.Entry
+	GamesLogger *zap.Logger
 	// GatekeepingLogger is the logger for gatekeeping.
-	GatekeepingLogger *logrus.Entry
+	GatekeepingLogger *zap.Logger
 	// MessageLogger is used for all incoming and outgoing messages.
-	MessageLogger *logrus.Entry
+	MessageLogger *zap.Logger
 	// ActingLogger is the logger for acting.
-	ActingLogger *logrus.Entry
+	ActingLogger *zap.Logger
 	// SubscriptionManagerLogger is used in acting package for managing
 	// subscriptions.
-	SubscriptionManagerLogger *logrus.Entry
+	SubscriptionManagerLogger *zap.Logger
 	// LightingLogger is used for all stuff regarding lighting.
-	LightingLogger *logrus.Entry
+	LightingLogger *zap.Logger
 	// LightSwitchLogger is used for all stuff regarding light switches.
-	LightSwitchLogger *logrus.Entry
+	LightSwitchLogger *zap.Logger
 	// LogPublishLogger is used for stuff regarding publishing logs.
-	LogPublishLogger *logrus.Entry
+	LogPublishLogger *zap.Logger
 	// NoPublishLogger is for internal stuff and does NOT call the infoLogHook.
-	NoPublishLogger *logrus.Entry
+	NoPublishLogger *zap.Logger
 	// WebServerLogger is used for all stuff regarding web servers.
-	WebServerLogger *logrus.Entry
+	WebServerLogger *zap.Logger
 	// WSLogger is used for all stuff regarding websocket connections.
-	WSLogger *logrus.Entry
+	WSLogger *zap.Logger
 	// MQTTLogger is the logger for all MQTT stuff.
-	MQTTLogger *logrus.Entry
+	MQTTLogger *zap.Logger
 	// MQTTMessageLogger is the logger for incoming and outgoing MQTT messages.
-	MQTTMessageLogger *logrus.Entry
+	MQTTMessageLogger *zap.Logger
 )
 
-// infoLogHook is a logrus.Hook. It is created when SubscribeLogEntries is called.
-type infoLogHook struct {
+// ApplyToGlobalLoggers initializes the global loggers with the given
+// zap.Logger.
+func ApplyToGlobalLoggers(logger *zap.Logger) {
+	ActingLogger = logger.With(zap.String("topic", "acting"))
+	AppLogger = logger.With(zap.String("topic", "app"))
+	CommunicationFailLogger = logger.With(zap.String("topic", "communication-fail"))
+	DBLogger = logger.With(zap.String("topic", "db"))
+	GamesLogger = logger.With(zap.String("topic", "games"))
+	GatekeepingLogger = logger.With(zap.String("topic", "gatekeeping"))
+	NoPublishLogger = logger.With(zap.String("topic", "logging-internal"), zap.Bool("no_publish", true))
+	LightingLogger = logger.With(zap.String("topic", "lighting"))
+	LightSwitchLogger = logger.With(zap.String("topic", "light-switches"))
+	LogPublishLogger = logger.With(zap.String("topic", "log-publish"))
+	MessageLogger = logger.With(zap.String("topic", "message"))
+	SubscriptionManagerLogger = logger.With(zap.String("topic", "subscription-manager"))
+	WebServerLogger = logger.With(zap.String("topic", "web-server"))
+	WSLogger = logger.With(zap.String("topic", "ws"))
+	MQTTLogger = logger.With(zap.String("topic", "mqtt"))
+	MQTTMessageLogger = logger.With(zap.String("topic", "mqtt_message"))
+}
+
+type LogEntry struct {
+	// Time is the timestamp the log entry was created.
+	Time time.Time `json:"time"`
+	// Message is the log entry message.
+	Message string `json:"message"`
+	// Level is the log level of the entry.
+	Level zapcore.Level `json:"level"`
+	// Fields are the set fields for the log entry.
+	Fields map[string]interface{} `json:"fields"`
+}
+
+// noPublishOmitCore wraps a zapcore.Core with a custom write function that
+// sends entries to the given publish channel.
+type noPublishOmitCore struct {
+	zapcore.Core
+	fields  []zap.Field
 	ctx     context.Context
-	entries chan *logrus.Entry
+	publish chan<- LogEntry
 }
 
-func (h *infoLogHook) Levels() []logrus.Level {
-	return []logrus.Level{logrus.InfoLevel, logrus.WarnLevel, logrus.ErrorLevel}
-}
-
-func (h *infoLogHook) Fire(entry *logrus.Entry) error {
-	// Check if no publish is desired.
-	if isNoPublishRaw, ok := entry.Data["no_publish"]; ok {
-		isNoPublish, ok := isNoPublishRaw.(bool)
-		if !ok {
-			go AppLogger.WithField("entry_message", entry.Message).
-				Warn("log entry used no_publish field without bool value type.")
-			return nil
-		}
-		if isNoPublish {
-			// Skip publish.
-			return nil
-		}
+// NewNoPublishOmitCore creates a zapcore.Core that publishes log entries with
+// level zap.InfoLevel or above not containing the field no_publish to the
+// returned buffered LogEntry channel.
+//
+// Do NOT use With on this zapcore.Core!
+func NewNoPublishOmitCore(ctx context.Context) (zapcore.Core, <-chan LogEntry) {
+	publish := make(chan LogEntry, 256)
+	core := &noPublishOmitCore{
+		Core:    zapcore.NewNopCore(),
+		ctx:     ctx,
+		publish: publish,
 	}
+	return core, publish
+}
+
+func (c *noPublishOmitCore) With(fields []zap.Field) zapcore.Core {
+	return &noPublishOmitCore{
+		Core:    c.Core.With(fields),
+		fields:  append(c.fields, fields...),
+		ctx:     c.ctx,
+		publish: c.publish,
+	}
+}
+
+func (c *noPublishOmitCore) Enabled(level zapcore.Level) bool {
+	return level >= zap.InfoLevel
+}
+
+func (c *noPublishOmitCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if !c.Enabled(entry.Level) {
+		return ce
+	}
+	return ce.AddCore(entry, c)
+}
+
+func (c *noPublishOmitCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	// Bake fields and check for no_publish field.
+	fields = append(fields, c.fields...)
+	enc := zapcore.NewMapObjectEncoder()
+	for _, field := range fields {
+		if field.Key == "no_publish" {
+			// Omit entry.
+			return nil
+		}
+		field.AddTo(enc)
+	}
+	// Log entry.
 	select {
-	case <-h.ctx.Done():
+	case <-c.ctx.Done():
 		return nil
-	case h.entries <- entry:
+	case c.publish <- LogEntry{
+		Time:    entry.Time,
+		Message: entry.Message,
+		Level:   entry.Level,
+		Fields:  enc.Fields,
+	}:
 	}
 	return nil
-}
-
-// SubscribeLogEntries creates a channel for logrus entries that receives all
-// entries with level info and above. You MUST read from this channel.
-func SubscribeLogEntries(ctx context.Context, logger *logrus.Logger) <-chan *logrus.Entry {
-	h := &infoLogHook{
-		ctx:     ctx,
-		entries: make(chan *logrus.Entry, 256),
-	}
-	logger.AddHook(h)
-	return h.entries
-}
-
-// ApplyToGlobalLoggers initializes the global loggers with the given
-// logrus.Logger.
-func ApplyToGlobalLoggers(logger *logrus.Logger) {
-	ActingLogger = logger.WithField("topic", "acting")
-	AppLogger = logger.WithField("topic", "app")
-	CommunicationFailLogger = logger.WithField("topic", "communication-fail")
-	DBLogger = logger.WithField("topic", "db")
-	GamesLogger = logger.WithField("topic", "games")
-	GatekeepingLogger = logger.WithField("topic", "gatekeeping")
-	NoPublishLogger = logger.WithField("topic", "logging-internal").WithField("no_publish", true)
-	LightingLogger = logger.WithField("topic", "lighting")
-	LightSwitchLogger = logger.WithField("topic", "light-switches")
-	LogPublishLogger = logger.WithField("topic", "log-publish")
-	MessageLogger = logger.WithField("topic", "message")
-	SubscriptionManagerLogger = logger.WithField("topic", "subscription-manager")
-	WebServerLogger = logger.WithField("topic", "web-server")
-	WSLogger = logger.WithField("topic", "ws")
-	MQTTLogger = logger.WithField("topic", "mqtt")
-	MQTTMessageLogger = logger.WithField("topic", "mqtt_message")
 }

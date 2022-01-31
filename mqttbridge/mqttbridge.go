@@ -7,7 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -76,7 +76,8 @@ func (bridge *netBridge) Run(ctx context.Context, deviceRememberer DeviceRemembe
 		}
 	}
 	c.Subscribe("#", 0, nil)
-	logging.MQTTLogger.Infof("connected to mqtt server at %s", bridge.config.MQTTAddr)
+	logging.MQTTLogger.Info("connected to mqtt server",
+		zap.String("mqtt_addr", bridge.config.MQTTAddr))
 	// Start message forwarding.
 	go forwardMQTT(ctx, bridge.publish, c)
 	// Wait for ctx finished.
@@ -93,10 +94,8 @@ func forwardMQTT(ctx context.Context, from chan mqttMessage, to mqtt.Client) {
 		case <-ctx.Done():
 			return
 		case message := <-from:
-			logging.MQTTMessageLogger.WithFields(map[string]interface{}{
-				"message_topic": message.topic,
-				"direction":     "outgoing",
-			}).Trace(message.payload)
+			logging.MQTTMessageLogger.Debug(message.payload,
+				zap.String("message_topic", message.topic))
 			token := to.Publish(message.topic, mqttQOS, false, message.payload)
 			token.Wait()
 			if err := token.Error(); err != nil {
@@ -113,11 +112,10 @@ func forwardMQTT(ctx context.Context, from chan mqttMessage, to mqtt.Client) {
 // defaultMessageHandler is the default message handler used for the TODO
 func (bridge *netBridge) defaultMessageHandler(ctx context.Context) mqtt.MessageHandler {
 	return func(_ mqtt.Client, message mqtt.Message) {
-		logging.MQTTMessageLogger.WithFields(map[string]interface{}{
-			"mqtt_topic":      message.Topic(),
-			"mqtt_message_id": message.MessageID(),
-			"direction":       "incoming",
-		}).Trace(string(message.Payload()))
+		logging.MQTTMessageLogger.Debug(string(message.Payload()),
+			zap.String("mqtt_topic", message.Topic()),
+			zap.Uint16("mqtt_message_id", message.MessageID()),
+			zap.String("direction", "incoming"))
 		// Detect device.
 		detected, ok := detectDevice(message.Topic())
 		if !ok {
@@ -200,12 +198,11 @@ func createAndBootDevice(ctx context.Context, message mqtt.Message, detected det
 	// Boot device.
 	go func() {
 		defer listener.SayGoodbyeToClient(ctx, c)
-		logFields := logrus.Fields{
-			"mqtt_device_id":   detected.mqttID,
-			"mqtt_device_type": detected.deviceType,
-			"client_id":        c.ID,
-		}
-		logging.MQTTLogger.WithFields(logFields).Info("device bridge ready")
+		statusLogger := logging.MQTTLogger.With(
+			zap.Any("mqtt_device_id", detected.mqttID),
+			zap.Any("mqtt_device_type", detected.deviceType),
+			zap.String("client_id", c.ID))
+		statusLogger.Info("device bridge ready")
 		err := deviceBridgeWrapper.run(deviceCtx)
 		if err != nil && err != context.Canceled {
 			errors.Log(logging.MQTTLogger, errors.Wrap(err, "run device bridge wrapper", errors.Details{
@@ -216,7 +213,7 @@ func createAndBootDevice(ctx context.Context, message mqtt.Message, detected det
 			return
 		}
 		if err == context.Canceled {
-			logging.MQTTLogger.WithFields(logFields).Info("device bridge timed out")
+			statusLogger.Info("device bridge timed out")
 		}
 	}()
 	// Start timeout.

@@ -9,6 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -110,7 +111,8 @@ func (gk *NetGatekeeper) AcceptClient(ctx context.Context, client *client.Client
 			errors.Log(logging.GatekeepingLogger, errors.NewContextAbortedError("wait for hello message"))
 		case helloMessageRaw, ok := <-client.Receive:
 			if !ok {
-				logging.GatekeepingLogger.Warnf("client %v disconnected while waiting for hello", client.ID)
+				logging.GatekeepingLogger.Warn("client disconnected while waiting for hello",
+					zap.String("client_id", client.ID))
 				return
 			}
 			newDevice, err := gk.handleHelloFromNewClient(helloMessageRaw)
@@ -184,16 +186,17 @@ func deviceIncomingPump(ctx context.Context, client *client.Client, deviceReceiv
 				continue
 			}
 			// Log.
-			logging.MessageLogger.WithFields(map[string]interface{}{
-				"device":      messageContainer.DeviceID,
-				"dir":         "incoming",
-				"actor":       messageContainer.ActorID,
-				"messageType": messageContainer.MessageType,
-			}).Trace(string(messageContainer.Content))
+			logging.MessageLogger.Debug(string(messageContainer.Content),
+				zap.Any("device_id", messageContainer.DeviceID),
+				zap.String("dir", "incoming"),
+				zap.Any("actor_id", messageContainer.ActorID),
+				zap.Any("message_type", messageContainer.MessageType))
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger.Warnf("aborting incoming message forward for device %v: %v", deviceID, messageContainer)
+				logging.MessageLogger.Warn("aborting incoming message forward for device",
+					zap.Any("device_id", deviceID),
+					zap.Any("message", messageContainer))
 				return
 			case deviceReceive <- messageContainer:
 			}
@@ -216,16 +219,17 @@ func deviceOutgoingPump(ctx context.Context, send chan<- []byte, deviceSend <-ch
 				continue
 			}
 			// Log.
-			logging.MessageLogger.WithFields(map[string]interface{}{
-				"device":      message.DeviceID,
-				"dir":         "outgoing",
-				"actor":       message.ActorID,
-				"messageType": message.MessageType,
-			}).Trace(string(message.Content))
+			logging.MessageLogger.Debug(string(message.Content),
+				zap.Any("device_id", message.DeviceID),
+				zap.String("dir", "outgoing"),
+				zap.Any("actor_id", message.ActorID),
+				zap.Any("message_type", message.MessageType))
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger.Warnf("aborting outgoing message forward for device %v: %v", deviceID, message)
+				logging.MessageLogger.Warn("aborting outgoing message forward for device",
+					zap.Any("device_id", deviceID),
+					zap.Any("message", message))
 				return
 			case send <- raw:
 			}
@@ -279,8 +283,6 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 					if err != nil {
 						return nil, errors.Wrap(err, "update device self-description", nil)
 					}
-					logging.GatekeepingLogger.Infof("updated self-description for device %v (%v) from %s to %s",
-						knownDevice.ID, knownDevice.Name, knownDevice.SelfDescription, newDevice.SelfDescription)
 				}
 				// Apply already known fields.
 				newDevice.ID = knownDevice.ID
@@ -312,7 +314,8 @@ func (gk *NetGatekeeper) SayGoodbyeToClient(ctx context.Context, client *client.
 	device, ok := gk.onlineDevices[client]
 	if !ok {
 		// Device did not complete hello-process.
-		logging.GatekeepingLogger.Warnf("client %v disconnected without completing handshake", client.ID)
+		logging.GatekeepingLogger.Warn("client disconnected without completing handshake",
+			zap.Any("client_id", client.ID))
 		return
 	}
 	delete(gk.onlineDevices, client)

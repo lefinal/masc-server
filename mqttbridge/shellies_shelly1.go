@@ -9,6 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	"github.com/LeFinal/masc-server/messages"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"go.uber.org/zap"
 	"strings"
 )
 
@@ -149,8 +150,8 @@ func (shelly *netShelliesShelly1) handleRelayStateMessage(ctx context.Context, m
 
 func (shelly *netShelliesShelly1) handleInputStateMessage(ctx context.Context, message mqtt.Message, publisher publisher) error {
 	if len(shelly.lightSwitchProviderActorID) == 0 {
-		logging.MQTTLogger.WithField("shelly_mqtt_id", shelly.shellyMQTTID).
-			Debug("not publishing light switch state due to no actor id being assigned", nil)
+		logging.MQTTLogger.Debug("not publishing light switch state due to no actor id being assigned",
+			zap.Any("shelly_mqtt_id", shelly.shellyMQTTID))
 		return nil
 	}
 	if err := publisher.publishMASC(ctx, messages.MessageTypeLightSwitchHiLoState, shelly.lightSwitchProviderActorID,
@@ -262,8 +263,8 @@ func (shelly *netShelliesShelly1) publishLightSwitchOffers(ctx context.Context, 
 
 func (shelly *netShelliesShelly1) publishFixtureState(ctx context.Context, publisher publisher) error {
 	if len(shelly.fixtureProviderActorID) == 0 {
-		logging.MQTTLogger.WithField("shelly_mqtt_id", shelly.shellyMQTTID).
-			Debug("called publish fixture state with no actor id", nil)
+		logging.MQTTLogger.Debug("called publish fixture state with no actor id",
+			zap.Any("shelly_mqtt_id", shelly.shellyMQTTID))
 		return nil
 	}
 	if err := publisher.publishMASC(ctx, messages.MessageTypeFixtureBasicState, shelly.fixtureProviderActorID,

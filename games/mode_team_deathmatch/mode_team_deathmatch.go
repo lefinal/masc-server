@@ -9,7 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/games"
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/gobuffalo/nulls"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"time"
 )
@@ -52,7 +52,7 @@ type Config struct {
 // config has invalid values, it returns an error. If everything is okay, the
 // created Config is returned. The passed logger is used for logging warnings
 // for unset fields.
-func configFromRequest(logger *logrus.Entry, r ConfigRequest) (Config, error) {
+func configFromRequest(logger *zap.Logger, r ConfigRequest) (Config, error) {
 	config := Config{}
 	// Team count.
 	if r.TeamCount.Valid {
@@ -62,8 +62,8 @@ func configFromRequest(logger *logrus.Entry, r ConfigRequest) (Config, error) {
 		}
 		config.TeamCount = uint(r.TeamCount.Int)
 	} else {
-		logger.Warnf("config request contains no team count. using default value: %d",
-			defaultConfigTeamCount)
+		logger.Warn("config request contains no team count. using default value...",
+			zap.Uint("default", defaultConfigTeamCount))
 		config.TeamCount = defaultConfigTeamCount
 	}
 	// Lives per player.
@@ -74,8 +74,8 @@ func configFromRequest(logger *logrus.Entry, r ConfigRequest) (Config, error) {
 		}
 		config.LivesPerPlayer = uint(r.LivesPerPlayer.Int)
 	} else {
-		logger.Warnf("config request contains no lives per player. using default value: %d",
-			defaultLivesPerPlayer)
+		logger.Warn("config request contains no lives per player. using default value...",
+			zap.Uint("default", defaultLivesPerPlayer))
 		config.LivesPerPlayer = defaultLivesPerPlayer
 	}
 	// Respawn team size.
@@ -90,8 +90,8 @@ func configFromRequest(logger *logrus.Entry, r ConfigRequest) (Config, error) {
 		}
 		config.RespawnTeamSize = r.RespawnTeamSize.Float64
 	} else {
-		logger.Warnf("config request contains no respawn team size. using default value: %g",
-			defaultRespawnTeamSize)
+		logger.Warn("config request contains no respawn team size. using default value...",
+			zap.Float64("default", defaultRespawnTeamSize))
 		config.RespawnTeamSize = defaultRespawnTeamSize
 	}
 	return config, nil
@@ -159,7 +159,7 @@ func (match *Match) Start(ctx context.Context) error {
 		match.M.Unlock()
 		return errors.NewMatchAlreadyStartedError()
 	}
-	match.Logger().Info("match start")
+	match.Logger.Info("match start")
 	match.Phase = messages.MatchPhaseSetup
 	match.BaseMatch.Start = time.Now()
 	match.M.Unlock()
@@ -236,10 +236,6 @@ func (match *Match) subscribeMatchAbort(ctx context.Context) {
 	}
 }
 
-func (match *Match) Logger() *logrus.Entry {
-	return match.BaseMatch.Logger
-}
-
 func (match *Match) participatingActors() []acting.Actor {
 	match.M.RLock()
 	defer match.M.RUnlock()
@@ -261,7 +257,6 @@ func (match *Match) performRoleAssignment(ctx context.Context) error {
 	if match.Phase != messages.MatchPhaseSetup {
 		return errors.Error{
 			Code:    errors.ErrInternal,
-			Kind:    errors.KindMatchPhaseViolation,
 			Message: fmt.Sprintf("perform role assignment only allowed in setup phase but was %v", match.Phase),
 		}
 	}
@@ -369,7 +364,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 			case update := <-match.PlayerManagementUpdates:
 				err := games.BroadcastPlayerManagementUpdate(update, match.PlayerProvider, match.participatingActors()...)
 				if err != nil {
-					errors.Log(match.Logger(), errors.Wrap(err, "broadcast player management update", nil))
+					errors.Log(match.Logger, errors.Wrap(err, "broadcast player management update", nil))
 				}
 			}
 		}
@@ -392,7 +387,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 			case update := <-readyStateUpdates:
 				err := games.BroadcastReadyStateUpdate(update, match.participatingActors()...)
 				if err != nil {
-					errors.Log(match.Logger(), errors.Wrap(err, "broadcast ready-state update", nil))
+					errors.Log(match.Logger, errors.Wrap(err, "broadcast ready-state update", nil))
 				}
 			}
 		}
@@ -411,7 +406,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 				originalErr = err
 			} else {
 				// Only log the error.
-				errors.Log(match.Logger(), err)
+				errors.Log(match.Logger, err)
 			}
 		}
 	}
@@ -422,7 +417,7 @@ func (match *Match) playerJoinsAndAwaitReady(ctx context.Context) error {
 		if originalErr != nil {
 			originalErr = handlerErr
 		} else {
-			errors.Log(match.Logger(), handlerErr)
+			errors.Log(match.Logger, handlerErr)
 		}
 	}
 	// Done.
