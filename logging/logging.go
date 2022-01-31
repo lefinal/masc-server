@@ -68,7 +68,7 @@ func (h *infoLogHook) Fire(entry *logrus.Entry) error {
 	}
 	select {
 	case <-h.ctx.Done():
-		return h.ctx.Err()
+		return nil
 	case h.entries <- entry:
 	}
 	return nil
