@@ -13,16 +13,13 @@ type detectedMQTTDevice struct {
 	deviceType DeviceType
 }
 
-// TODO: Add device detector for each device with all topics or something like that because outgoing messages are also received again!
-
 // detectAndCreateDevice tries to detect a Device from the given topic and
 // creates it.
 func detectDevice(topic string) (detectedMQTTDevice, bool) {
 	topicSegments := strings.Split(topic, "/")
 	// Check if shelly1.
-	if strings.HasPrefix(topic, "shellies/shelly1-") &&
-		!strings.HasSuffix(topic, "/command") &&
-		!strings.HasSuffix(topic, "/online") {
+	if strings.HasPrefix(topic, "shellies/shelly1-") && (strings.HasSuffix(topic, "/relay/0") ||
+		strings.HasSuffix(topic, "/input/0")) {
 		return detectedMQTTDevice{
 			mqttID:     mqttDeviceID(fmt.Sprintf("%s/%s", topicSegments[0], topicSegments[1])),
 			deviceType: DeviceTypeShelly1,
