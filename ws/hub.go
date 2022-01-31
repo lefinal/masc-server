@@ -37,14 +37,14 @@ func (h *Hub) Run(ctx context.Context) {
 		case c := <-h.register:
 			// Register client.
 			h.clients[c] = struct{}{}
-			logging.WSLogger.Infof("client %v connected", c.ID)
+			logging.WSLogger.WithField("client_id", c.ID).Info("client connected")
 			go h.clientListener.AcceptClient(ctx, c.Client)
 		case c := <-h.unregister:
 			// Unregister client.
 			if _, ok := h.clients[c]; ok {
 				h.clientListener.SayGoodbyeToClient(ctx, c.Client)
 				delete(h.clients, c)
-				logging.WSLogger.Infof("client %v disconnected", c.ID)
+				logging.WSLogger.WithField("client_id", c.ID).Info("client disconnected")
 				// Close the send-channel which leads to stopping the write-pump.
 				close(c.Send)
 			}

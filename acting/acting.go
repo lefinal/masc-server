@@ -380,7 +380,11 @@ func (ad *netActorDevice) boot() ([]actorWithRole, error) {
 	ad.routers.Add(2)
 	go ad.routeIncoming(routerCtx)
 	go ad.routeOutgoing(routerCtx)
-	logging.ActingLogger.Infof("net actor device %s with roles %s ready.", ad.device.ID, ad.device.Roles)
+	logging.ActingLogger.WithFields(logrus.Fields{
+		"device_id":    ad.device.ID,
+		"device_name":  ad.device.Name,
+		"device_roles": ad.device.Roles,
+	}).Info("net actor device ready")
 	return createdActors, nil
 }
 
@@ -465,7 +469,10 @@ func (ad *netActorDevice) shutdown() {
 	ad.actorsMutex.Unlock()
 	ad.shutdownRouter()
 	ad.routers.Wait()
-	logging.ActingLogger.Infof("net actor device %v shut down.", ad.device.ID)
+	logging.ActingLogger.WithFields(logrus.Fields{
+		"device_id":   ad.device.ID,
+		"device_name": ad.device.Name,
+	}).Info("net actor device shut down")
 }
 
 // ProtectedAgency is an Agency that uses the gatekeeping.Gatekeeper for
