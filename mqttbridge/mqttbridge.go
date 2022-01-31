@@ -7,6 +7,7 @@ import (
 	"github.com/LeFinal/masc-server/logging"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -199,14 +200,23 @@ func createAndBootDevice(ctx context.Context, message mqtt.Message, detected det
 	// Boot device.
 	go func() {
 		defer listener.SayGoodbyeToClient(ctx, c)
+		logFields := logrus.Fields{
+			"mqtt_device_id":   detected.mqttID,
+			"mqtt_device_type": detected.deviceType,
+			"client_id":        c.ID,
+		}
+		logging.MQTTLogger.WithFields(logFields).Info("device bridge ready")
 		err := deviceBridgeWrapper.run(deviceCtx)
-		if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+		if err != nil && err != context.Canceled {
 			errors.Log(logging.MQTTLogger, errors.Wrap(err, "run device bridge wrapper", errors.Details{
 				"mqtt_device_id":   detected.mqttID,
 				"mqtt_device_type": detected.deviceType,
 				"client":           c.ID,
 			}))
 			return
+		}
+		if err == context.Canceled {
+			logging.MQTTLogger.WithFields(logFields).Info("device bridge timed out")
 		}
 	}()
 	// Start timeout.
