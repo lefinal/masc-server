@@ -18,7 +18,7 @@ Example config:
     "stdout_log_level": "debug",
     "high_priority_output": "/tmp/high-priority-output.log",
     "debug_output": "/tmp/debug-output.log",
-    "max_size": 100,
+    "max_size": 8,
     "keep_days": 180
   },
   "db_conn": "postgres://masc:masc@localhost:5432/masc",
