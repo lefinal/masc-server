@@ -42,6 +42,8 @@ const (
 	RoleTypeLightSwitchManager RoleType = "light-switch-manager"
 	// RoleTypeLightSwitchProvider provides light switches.
 	RoleTypeLightSwitchProvider RoleType = "light-switch-provider"
+	// RoleTypeLogMonitor receives all log entries with at least info level.
+	RoleTypeLogMonitor RoleType = "log-monitor"
 	// RoleTypeTeamBase allows managing a team. Mostly used for devices that are
 	// located in team bases. Also used in-game.
 	RoleTypeTeamBase RoleType = "team-base"
@@ -61,10 +63,11 @@ func getRole(role messages.Role) (RoleType, bool) {
 		RoleTypeFixtureProvider,
 		RoleTypeGameMaster,
 		RoleTypeGlobalMonitor,
-		RoleTypeTeamBase,
-		RoleTypeTeamBaseMonitor,
 		RoleTypeLightSwitchManager,
-		RoleTypeLightSwitchProvider:
+		RoleTypeLightSwitchProvider,
+		RoleTypeLogMonitor,
+		RoleTypeTeamBase,
+		RoleTypeTeamBaseMonitor:
 		return r, true
 	}
 	return "", false
@@ -77,8 +80,21 @@ type ActorNewsletterRecipient interface {
 	HandleNewActor(actor Actor, role RoleType)
 }
 
+// ActorNewsletter provides methods that are used in order to subscribe to new
+// actors.
+type ActorNewsletter interface {
+	// SubscribeNewActors adds the given ActorNewsletterRecipient to the list of
+	// subscribers for when a new Actor is welcomed. Don't forget to call
+	// UnsubscribeNewActors!
+	SubscribeNewActors(recipient ActorNewsletterRecipient)
+	// UnsubscribeNewActors unsubscribes a subscription that was originally set up
+	// using SubscribeNewActors.
+	UnsubscribeNewActors(recipient ActorNewsletterRecipient)
+}
+
 // Agency manages actors.
 type Agency interface {
+	ActorNewsletter
 	// ActorByID retrieves an Actor by its Actor.ID. Returns false when the Actor is
 	// not found.
 	ActorByID(id messages.ActorID) (Actor, bool)
@@ -89,13 +105,6 @@ type Agency interface {
 	Open() error
 	// Close closes the agency.
 	Close() error
-	// SubscribeNewActors adds the given ActorNewsletterRecipient to the list of
-	// subscribers for when a new Actor is welcomed. Don't forget to call
-	// UnsubscribeNewActors!
-	SubscribeNewActors(recipient ActorNewsletterRecipient)
-	// UnsubscribeNewActors unsubscribes a subscription that was originally set up
-	// using SubscribeNewActors.
-	UnsubscribeNewActors(recipient ActorNewsletterRecipient)
 }
 
 // ActorOutgoingMessage is a message that is sent from an Actor.

@@ -6,7 +6,6 @@ import (
 	"flag"
 	"github.com/LeFinal/masc-server/app"
 	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/logging"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
@@ -25,10 +24,6 @@ func main() {
 		return
 	}
 	a := app.NewApp(mascConfig)
-	// TODO: From config.
-	logger := logrus.New()
-	logger.SetLevel(logrus.TraceLevel)
-	logging.SetLogger(logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		err := a.Boot(ctx)

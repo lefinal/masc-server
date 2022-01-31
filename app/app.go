@@ -9,10 +9,12 @@ import (
 	"github.com/LeFinal/masc-server/lighting"
 	"github.com/LeFinal/masc-server/lightswitch"
 	"github.com/LeFinal/masc-server/logging"
+	"github.com/LeFinal/masc-server/logpublish"
 	"github.com/LeFinal/masc-server/mqttbridge"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/LeFinal/masc-server/web_server"
 	"github.com/LeFinal/masc-server/ws"
+	"github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -58,6 +60,18 @@ func (app *App) Boot(ctx context.Context) error {
 			Message: "invalid config",
 		}
 	}
+	// Setup logger.
+	logger := logrus.New()
+	logLevel := logrus.InfoLevel
+	if app.config.LogLevel.Valid {
+		logLevel, err = logrus.ParseLevel(app.config.LogLevel.String)
+		if err != nil {
+			return errors.NewInternalErrorFromErr(err, "invalid log level",
+				errors.Details{"was": app.config.LogLevel.String})
+		}
+	}
+	logger.SetLevel(logLevel)
+	logging.ApplyToGlobalLoggers(logger)
 	// Connect database.
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
 		return errors.Wrap(err, "connect database", nil)
@@ -104,6 +118,7 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	go app.lightingManager.Run(ctx)
 	go lightswitch.RunActorReception(ctx, app.agency, app.lightSwitchManager)
+	go logpublish.RunActorReception(ctx, app.agency, logging.SubscribeLogEntries(ctx, logger))
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if app.mqttBridge != nil {
