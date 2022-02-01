@@ -134,6 +134,7 @@ func performDBMigrations(db *sql.DB) error {
 			return errors.NewExecQueryError(err, migration.up, errors.Details{"target_version": migration.version})
 		}
 		newVersion = migration.version
+		logging.AppLogger.Debug("finished database migration step", zap.Any("new_version", newVersion))
 	}
 	err = tx.Commit()
 	if err != nil {
@@ -145,6 +146,7 @@ func performDBMigrations(db *sql.DB) error {
 		return errors.NewDBTxBeginError(err)
 	}
 	// Update database version.
+	logging.AppLogger.Debug("updating database version...")
 	var updateDBVersionQuery string
 	if currentVersion == dbVersionZero {
 		updateDBVersionQuery, _, err = goqu.Dialect("postgres").Insert(goqu.T("masc")).Rows(goqu.Record{
@@ -171,6 +173,7 @@ func performDBMigrations(db *sql.DB) error {
 		return errors.NewDBTxCommitError(err)
 	}
 	// All done.
+	logging.AppLogger.Debug("finished database version update")
 	return nil
 }
 

@@ -44,6 +44,7 @@ type App struct {
 	// mainHandlers holds general actor handlers like device management or fixture
 	// manager.
 	mainHandlers mainHandlers
+	publishLog   <-chan logging.LogEntry
 }
 
 func NewApp(config Config) *App {
@@ -65,6 +66,8 @@ func (app *App) Boot(ctx context.Context) error {
 	}
 	// Setup logger.
 	logger, publishLog := app.setupLogging(ctx, app.config.Log)
+	app.publishLog = publishLog
+	logging.ApplyToGlobalLoggers(logger)
 	defer func(loggerToSync *zap.Logger) {
 		err := logger.Sync()
 		if err != nil {
@@ -72,13 +75,26 @@ func (app *App) Boot(ctx context.Context) error {
 			return
 		}
 	}(logger)
-	logging.ApplyToGlobalLoggers(logger)
+	// Boot.
+	err = app.boot(ctx)
+	if err != nil {
+		err = errors.Wrap(err, "boot", nil)
+		errors.Log(logging.AppLogger, err)
+		return err
+	}
+	return nil
+}
+
+func (app *App) boot(ctx context.Context) error {
 	// Connect database.
+	logging.AppLogger.Debug("connecting to database")
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
 		return errors.Wrap(err, "connect database", nil)
 	} else {
 		app.mall = stores.NewMall(db)
 	}
+	logging.AppLogger.Debug("database ready")
+	logging.AppLogger.Debug("setting up...")
 	// Create gatekeeper.
 	app.gatekeeper = gatekeeping.NewNetGatekeeper(app.mall)
 	// Create websocket hub.
@@ -113,13 +129,14 @@ func (app *App) Boot(ctx context.Context) error {
 		fixtureProviders:  lighting.NewFixtureProviderHandlers(app.agency, app.lightingManager),
 		fixtureOperators:  lighting.NewFixtureOperatorHandlers(app.agency, app.lightingManager),
 	}
+	logging.AppLogger.Debug("setup completed. booting...")
 	// Boot everything.
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
 		return errors.Wrap(err, "wake up gatekeeper and protect", nil)
 	}
 	go app.lightingManager.Run(ctx)
 	go lightswitch.RunActorReception(ctx, app.agency, app.lightSwitchManager)
-	go logpublish.RunActorReception(ctx, app.agency, publishLog)
+	go logpublish.RunActorReception(ctx, app.agency, app.publishLog)
 	go app.mainHandlers.Run(ctx)
 	go app.wsHub.Run(ctx)
 	if app.mqttBridge != nil {
@@ -140,9 +157,10 @@ func (app *App) Boot(ctx context.Context) error {
 			return
 		}
 	}()
+	logging.AppLogger.Debug("boot completed")
 	// Wait for exit.
 	<-ctx.Done()
-	logger.Info("shutting down")
+	logging.AppLogger.Info("shutting down")
 	if err := app.gatekeeper.Retire(); err != nil {
 		return errors.Wrap(err, "retire gatekeeper", nil)
 	}

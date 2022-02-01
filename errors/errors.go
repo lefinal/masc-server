@@ -127,22 +127,7 @@ func Log(logger *zap.Logger, err error) {
 	// Convert to zap fields.
 	zapFields := make([]zap.Field, 0, len(fields))
 	for k, v := range fields {
-		zapField := zap.Field{Key: k}
-		// Check content type.
-		vInt, ok := v.(int64)
-		if ok {
-			zapField.Type = zapcore.Int64Type
-			zapField.Integer = vInt
-			continue
-		}
-		vString, ok := v.(string)
-		if ok {
-			zapField.Type = zapcore.StringType
-			zapField.String = vString
-			continue
-		}
-		zapField.Type = zapcore.ReflectType
-		zapField.Interface = v
+		zapFields = append(zapFields, keyValToZap(k, v))
 	}
 	logger = logger.With(zapFields...)
 	switch e.Code {
@@ -153,6 +138,23 @@ func Log(logger *zap.Logger, err error) {
 	default:
 		logger.Error(e.Error())
 	}
+}
+
+// keyValToZap converts the given key-value-pair to zap.Field.
+func keyValToZap(k string, v interface{}) zap.Field {
+	zapField := zap.Field{Key: k}
+	// Check content type.
+	if vInt, ok := v.(int64); ok {
+		zapField.Type = zapcore.Int64Type
+		zapField.Integer = vInt
+	} else if vString, ok := v.(string); ok {
+		zapField.Type = zapcore.StringType
+		zapField.String = vString
+	} else {
+		zapField.Type = zapcore.ReflectType
+		zapField.Interface = v
+	}
+	return zapField
 }
 
 // Prettify returns a detailed error string with error details.

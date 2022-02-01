@@ -6,8 +6,8 @@ import (
 	"flag"
 	"github.com/LeFinal/masc-server/app"
 	"github.com/LeFinal/masc-server/errors"
-	"go.uber.org/zap"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,26 +20,28 @@ func main() {
 	// Read config.
 	mascConfig, err := readConfig(*configPath)
 	if err != nil {
-		zap.Error(errors.Wrap(err, "read config", nil))
-		return
+		log.Fatalln(errors.Wrap(err, "read config", nil).Error())
 	}
 	a := app.NewApp(mascConfig)
-	ctx, cancel := context.WithCancel(context.Background())
+	appCtx, shutdownApp := context.WithCancel(context.Background())
 	go func() {
-		err := a.Boot(ctx)
+		err := a.Boot(appCtx)
 		if err != nil {
-			zap.Error(errors.Wrap(err, "boot", nil))
+			log.Fatalln(errors.Wrap(err, "boot", nil))
 		}
 	}()
-	awaitTerminateSignal()
-	cancel()
+	awaitTerminateSignal(appCtx)
+	shutdownApp()
 }
 
 // awaitTerminateSignal waits until a terminate signal is received.
-func awaitTerminateSignal() {
+func awaitTerminateSignal(ctx context.Context) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	<-signals
+	select {
+	case <-ctx.Done():
+	case <-signals:
+	}
 }
 
 // readConfig reads and parses the app.Config in the given filepath.
