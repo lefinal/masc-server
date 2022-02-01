@@ -69,11 +69,7 @@ func (app *App) Boot(ctx context.Context) error {
 	app.publishLog = publishLog
 	logging.ApplyToGlobalLoggers(logger)
 	defer func(loggerToSync *zap.Logger) {
-		err := logger.Sync()
-		if err != nil {
-			errors.Log(logging.AppLogger, errors.NewInternalErrorFromErr(err, "sync loggers", nil))
-			return
-		}
+		_ = logger.Sync()
 	}(logger)
 	// Boot.
 	err = app.boot(ctx)
@@ -86,6 +82,9 @@ func (app *App) Boot(ctx context.Context) error {
 }
 
 func (app *App) boot(ctx context.Context) error {
+	appCtx, shutdown := context.WithCancel(context.Background())
+	defer shutdown()
+	logging.AppLogger.Warn("booting up")
 	// Connect database.
 	logging.AppLogger.Debug("connecting to database")
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
@@ -134,14 +133,14 @@ func (app *App) boot(ctx context.Context) error {
 	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
 		return errors.Wrap(err, "wake up gatekeeper and protect", nil)
 	}
-	go app.lightingManager.Run(ctx)
-	go lightswitch.RunActorReception(ctx, app.agency, app.lightSwitchManager)
-	go logpublish.RunActorReception(ctx, app.agency, app.publishLog)
-	go app.mainHandlers.Run(ctx)
-	go app.wsHub.Run(ctx)
+	go app.lightingManager.Run(appCtx)
+	go lightswitch.RunActorReception(appCtx, app.agency, app.lightSwitchManager)
+	go logpublish.RunActorReception(appCtx, app.agency, app.publishLog)
+	go app.mainHandlers.Run(appCtx)
+	go app.wsHub.Run(appCtx)
 	if app.mqttBridge != nil {
 		go func() {
-			if err := app.mqttBridge.Run(ctx, app.mall, app.gatekeeper); err != nil {
+			if err := app.mqttBridge.Run(appCtx, app.mall, app.gatekeeper); err != nil {
 				errors.Log(logging.AppLogger, errors.Wrap(err, "run mqtt bridge", nil))
 			}
 		}()
@@ -149,18 +148,18 @@ func (app *App) boot(ctx context.Context) error {
 	if err := app.agency.Open(); err != nil {
 		return errors.Wrap(err, "open agency", nil)
 	}
-	app.webServer.PopulateRoutes(app.wsHub, ctx)
+	app.webServer.PopulateRoutes(app.wsHub, appCtx)
 	go func() {
-		err := app.webServer.Run(ctx)
+		err := app.webServer.Run(appCtx)
 		if err != nil {
 			errors.Log(logging.AppLogger, errors.Wrap(err, "run web server", nil))
 			return
 		}
 	}()
-	logging.AppLogger.Debug("boot completed")
+	logging.AppLogger.Warn("completed issuing boot commands")
 	// Wait for exit.
 	<-ctx.Done()
-	logging.AppLogger.Info("shutting down")
+	logging.AppLogger.Warn("shutting down")
 	if err := app.gatekeeper.Retire(); err != nil {
 		return errors.Wrap(err, "retire gatekeeper", nil)
 	}

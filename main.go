@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -24,7 +25,10 @@ func main() {
 	}
 	a := app.NewApp(mascConfig)
 	appCtx, shutdownApp := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := a.Boot(appCtx)
 		if err != nil {
 			log.Fatalln(errors.Wrap(err, "boot", nil))
@@ -32,6 +36,7 @@ func main() {
 	}()
 	awaitTerminateSignal(appCtx)
 	shutdownApp()
+	wg.Wait()
 }
 
 // awaitTerminateSignal waits until a terminate signal is received.
