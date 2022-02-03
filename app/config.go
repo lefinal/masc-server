@@ -33,6 +33,9 @@ type LogConfig struct {
 	MaxSize int `json:"max_size"`
 	// KeepDays is the amount of days to keep log files.
 	KeepDays int `json:"keep_days"`
+	// SystemStateLogInterval is the interval in time.Minute to optionally log the
+	// current system state including stats and current stack.
+	SystemStateLogInterval nulls.Int `json:"system_state_log_interval"`
 }
 
 // ValidateConfig assures that the given Config is valid.

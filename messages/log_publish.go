@@ -15,6 +15,8 @@ type MessageNextLogEntriesEntry struct {
 	Message string `json:"message"`
 	// Level is the log level of the entry.
 	Level string `json:"level"`
+	// LoggerName is the name of the logger.
+	LoggerName string `json:"logger_name"`
 	// Fields are the set fields for the log entry.
 	Fields map[string]interface{} `json:"fields"`
 }

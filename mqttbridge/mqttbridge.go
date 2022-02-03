@@ -249,7 +249,12 @@ func runTimeout(ctx context.Context, meow chan struct{}, onTimeout context.Cance
 func (bridge *netBridge) publishMQTT(ctx context.Context, topic string, payload string) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil
+	case <-time.After(forwardTimeout):
+		return errors.NewInternalError("timeout while publishing mqtt message", errors.Details{
+			"mqtt_topic": topic,
+			"payload":    payload,
+		})
 	case bridge.publish <- mqttMessage{topic: topic, payload: payload}:
 	}
 	return nil

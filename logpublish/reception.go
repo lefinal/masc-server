@@ -88,10 +88,11 @@ func (r *actorReception) handleNewLogEntries(entries []logging.LogEntry) {
 // from the given logrus.Entry.
 func messageLogEntryFromLogEntry(entry logging.LogEntry) messages.MessageNextLogEntriesEntry {
 	return messages.MessageNextLogEntriesEntry{
-		Time:    entry.Time,
-		Message: entry.Message,
-		Level:   entry.Level.String(),
-		Fields:  entry.Fields,
+		Time:       entry.Time,
+		Message:    entry.Message,
+		Level:      entry.Level.String(),
+		LoggerName: entry.LoggerName,
+		Fields:     entry.Fields,
 	}
 }
 

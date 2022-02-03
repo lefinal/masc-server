@@ -9,6 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/google/uuid"
+	"sync"
 )
 
 type actorReception struct {
@@ -190,15 +191,30 @@ func (h *actorProviderHandler) Hire(displayedName string) error {
 	if err != nil {
 		return errors.Wrap(err, "hire actor", nil)
 	}
+	lightSwitchProviderAlive, killLightSwitchProvider := context.WithCancel(h.ctx)
+	var wg sync.WaitGroup
 	// Register.
+	wg.Add(1)
 	go func() {
-		err := h.manager.AcceptLightSwitchProvider(h.ctx, h)
+		defer wg.Done()
+		err := h.manager.AcceptLightSwitchProvider(lightSwitchProviderAlive, h)
 		if err != nil {
 			acting.LogErrorAndSendOrLog(logging.LightSwitchLogger, h,
 				errors.Wrap(err, "accept light switch provider", nil))
+			// Fire.
+			err = h.Fire()
+			if err != nil {
+				errors.Log(logging.LightSwitchLogger, errors.Wrap(err, "fire", nil))
+			}
 			return
 		}
 	}()
+	select {
+	case <-h.ctx.Done():
+	case <-h.Quit():
+	}
+	killLightSwitchProvider()
+
 	// No message handlers needed. We also do NOT read from the quit channel because
 	// the manager will do so.
 	return nil

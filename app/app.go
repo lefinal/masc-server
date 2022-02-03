@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"github.com/LeFinal/masc-server/acting"
 	"github.com/LeFinal/masc-server/device_management"
 	"github.com/LeFinal/masc-server/errors"
@@ -18,7 +19,9 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
+	"runtime"
 	"sync"
+	"time"
 )
 
 // App is a complete MASC server instance.
@@ -156,6 +159,12 @@ func (app *App) boot(ctx context.Context) error {
 			return
 		}
 	}()
+	// Setup periodic stack log if desired.
+	if app.config.Log.SystemStateLogInterval.Valid {
+		interval := time.Duration(app.config.Log.SystemStateLogInterval.Int) * time.Minute
+		logging.PeriodicStackLogger.Debug(fmt.Sprintf("logging system state every %gs", interval.Seconds()))
+		go logSystemStatePeriodically(appCtx, interval, logging.PeriodicStackLogger)
+	}
 	logging.AppLogger.Warn("completed issuing boot commands")
 	// Wait for exit.
 	<-ctx.Done()
@@ -252,4 +261,39 @@ func (mh *mainHandlers) Run(ctx context.Context) {
 	go mh.fixtureOperators.Run(ctx)
 	go mh.fixtureManagement.Run(ctx)
 	go mh.fixtureProviders.Run(ctx)
+}
+
+// logSystemStatePeriodically logs the current system state like memory stats,
+// current stack, etc. to the given zap.Logger in the given interval.
+func logSystemStatePeriodically(ctx context.Context, interval time.Duration, logger *zap.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+			// Num CPU.
+			numCPU := runtime.NumCPU()
+			// Num goroutines.
+			numGoroutine := runtime.NumGoroutine()
+			// Memory usage.
+			var memStats runtime.MemStats
+			runtime.ReadMemStats(&memStats)
+			memoryUsageMB := memStats.Sys / 1000 / 1000
+			// Get current stack.
+			buf := make([]byte, 1<<16)
+			stackSize := runtime.Stack(buf, true)
+			// Log it.
+			logger.Debug(fmt.Sprintf(`
+-------BEGIN OF SYSTEM STATS-----------
+       Num CPU: %d
+Num goroutines: %d
+ Memory in use: %dMB
+-------END OF SYSTEM STATS-------------
+
+------BEGIN OF PERIODIC STACK----------
+%s
+------END OF PERIODIC STACK------------
+`, numCPU, numGoroutine, memoryUsageMB, string(buf[0:stackSize])))
+		}
+	}
 }

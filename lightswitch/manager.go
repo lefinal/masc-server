@@ -9,6 +9,7 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/gobuffalo/nulls"
+	"go.uber.org/zap"
 	"math/rand"
 	"sync"
 	"time"
@@ -45,9 +46,8 @@ type Manager interface {
 	// AcceptLightSwitchProvider accepts an acting.Actor with
 	// acting.RoleTypeLightSwitchProvider and handles light switch discovery.
 	//
-	// Warning: We expect the calling functions to hand over the acting.Actor so we
-	// assume that waiting for the quit-channel is allowed. Therefore, no manual
-	// unregistering needs to be done.
+	// Warning: We expect the calling functions to hand over a context.Context that
+	// is done when we no longer need the provider. Then all unregistering happens.
 	AcceptLightSwitchProvider(ctx context.Context, actor acting.Actor) error
 	// UpdateLightSwitchByID updates a light switch by its id.
 	UpdateLightSwitchByID(id messages.LightSwitchID, payload stores.EditLightSwitch) error
@@ -83,7 +83,9 @@ func (m *manager) GetFixtures() ([]stores.Fixture, error) {
 	return m.store.GetFixtures()
 }
 
-func (m *manager) AcceptLightSwitchProvider(ctx context.Context, actor acting.Actor) error {
+func (m *manager) AcceptLightSwitchProvider(providerLifetime context.Context, actor acting.Actor) error {
+	logging.LightSwitchLogger.Debug("accepting light switch provider...",
+		zap.Any("actor_id", actor.ID()))
 	// Request available light switches.
 	offersRes := acting.SubscribeMessageTypeLightSwitchOffers(actor)
 	defer acting.UnsubscribeOrLogError(offersRes.Newsletter)
@@ -93,8 +95,8 @@ func (m *manager) AcceptLightSwitchProvider(ctx context.Context, actor acting.Ac
 	}
 	var messageOffers messages.MessageLightSwitchOffers
 	select {
-	case <-ctx.Done():
-		return errors.NewContextAbortedError("request available light switches")
+	case <-providerLifetime.Done():
+		return nil
 	case messageOffers = <-offersRes.Receive:
 	}
 	// Create them.
@@ -105,14 +107,17 @@ func (m *manager) AcceptLightSwitchProvider(ctx context.Context, actor acting.Ac
 		})
 	}
 	// Add and run them.
+	logging.LightSwitchLogger.Debug("starting up light switches...",
+		zap.Any("actor_id", actor.ID()),
+		zap.Int("light_switch_count", len(lightSwitches)))
 	m.activeLightSwitchesMutex.Lock()
 	defer m.activeLightSwitchesMutex.Unlock()
-	lightSwitchCtx, cancelLightSwitches := context.WithCancel(ctx)
+	lightSwitchLifetime, shutdownLightSwitches := context.WithCancel(providerLifetime)
 	for _, lightSwitch := range lightSwitches {
 		// Assure not already registered as overwriting would maybe lead to a memory
 		// leak due to running stuff.
 		if _, ok := m.activeLightSwitches[lightSwitch.ID()]; ok {
-			cancelLightSwitches()
+			shutdownLightSwitches()
 			return errors.NewInternalError("light switch already registered", errors.Details{
 				"light_switch_id": lightSwitch.ID(),
 			})
@@ -121,7 +126,12 @@ func (m *manager) AcceptLightSwitchProvider(ctx context.Context, actor acting.Ac
 		m.activeLightSwitches[lightSwitch.ID()] = lightSwitch
 		// Run it.
 		go func(lightSwitch LightSwitch) {
-			err := lightSwitch.run(lightSwitchCtx, actor)
+			logging.LightSwitchLogger.Debug("running light switch",
+				zap.Any("actor_id", actor.ID()),
+				zap.Any("light_switch_id", lightSwitch.ID()),
+				zap.Any("device_id", lightSwitch.DeviceID()),
+				zap.Any("light_switch_type", lightSwitch.Type()))
+			err := lightSwitch.run(lightSwitchLifetime, actor)
 			if err != nil {
 				errors.Log(logging.LightSwitchLogger, errors.Wrap(err, "run light switch",
 					errors.Details{
@@ -129,23 +139,25 @@ func (m *manager) AcceptLightSwitchProvider(ctx context.Context, actor acting.Ac
 						"light_switch_type": lightSwitch.Type(),
 					}))
 			}
+			logging.LightSwitchLogger.Debug("light switch shut down",
+				zap.Any("actor_id", actor.ID()),
+				zap.Any("light_switch_id", lightSwitch.ID()))
 		}(lightSwitch)
 	}
 	// Okay, so every light switch should be running now. Finally, we add a listener
-	// for when the actor quits so that we can cancel all light switches.
+	// for when the context is done so that we can cancel all light switches.
 	go func() {
-		select {
-		case <-ctx.Done():
-		case <-actor.Quit():
-			cancelLightSwitches()
-			m.activeLightSwitchesMutex.Lock()
-			defer m.activeLightSwitchesMutex.Unlock()
-			// Remove all light switches from active ones.
-			for _, lightSwitch := range lightSwitches {
-				delete(m.activeLightSwitches, lightSwitch.ID())
-			}
+		<-providerLifetime.Done()
+		shutdownLightSwitches()
+		m.activeLightSwitchesMutex.Lock()
+		defer m.activeLightSwitchesMutex.Unlock()
+		// Remove all light switches from active ones.
+		for _, lightSwitch := range lightSwitches {
+			delete(m.activeLightSwitches, lightSwitch.ID())
 		}
 	}()
+	logging.LightSwitchLogger.Debug("light switch provider accepted",
+		zap.Any("actor_id", actor.ID()))
 	return nil
 }
 

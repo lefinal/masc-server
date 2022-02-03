@@ -209,6 +209,11 @@ func (a *netActor) Hire(displayedName string) error {
 	})
 	a.isHired = true
 	a.name = displayedName
+	logging.ActingLogger.Debug("actor hired",
+		zap.Any("actor_id", a.id),
+		zap.String("displayed_name", displayedName),
+		zap.String("actor_name", a.name),
+		zap.Any("role", a.role))
 	return nil
 }
 

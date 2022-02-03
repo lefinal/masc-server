@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const topicField = "logger_type"
+
 // Loggers.
 var (
 	// AppLogger is the main app.App logger.
@@ -19,8 +21,8 @@ var (
 	GamesLogger *zap.Logger
 	// GatekeepingLogger is the logger for gatekeeping.
 	GatekeepingLogger *zap.Logger
-	// MessageLogger is used for all incoming and outgoing messages.
-	MessageLogger *zap.Logger
+	// MASCMessageLogger is used for all incoming and outgoing MASC messages.
+	MASCMessageLogger *zap.Logger
 	// ActingLogger is the logger for acting.
 	ActingLogger *zap.Logger
 	// SubscriptionManagerLogger is used in acting package for managing
@@ -42,27 +44,31 @@ var (
 	MQTTLogger *zap.Logger
 	// MQTTMessageLogger is the logger for incoming and outgoing MQTT messages.
 	MQTTMessageLogger *zap.Logger
+	// PeriodicStackLogger is the logger for logging periodic stack traces in
+	// order to get debug information regarding deadlocks.
+	PeriodicStackLogger *zap.Logger
 )
 
 // ApplyToGlobalLoggers initializes the global loggers with the given
 // zap.Logger.
 func ApplyToGlobalLoggers(logger *zap.Logger) {
-	ActingLogger = logger.With(zap.String("topic", "acting"))
-	AppLogger = logger.With(zap.String("topic", "app"))
-	CommunicationFailLogger = logger.With(zap.String("topic", "communication-fail"))
-	DBLogger = logger.With(zap.String("topic", "db"))
-	GamesLogger = logger.With(zap.String("topic", "games"))
-	GatekeepingLogger = logger.With(zap.String("topic", "gatekeeping"))
-	NoPublishLogger = logger.With(zap.String("topic", "logging-internal"), zap.Bool("no_publish", true))
-	LightingLogger = logger.With(zap.String("topic", "lighting"))
-	LightSwitchLogger = logger.With(zap.String("topic", "light-switches"))
-	LogPublishLogger = logger.With(zap.String("topic", "log-publish"))
-	MessageLogger = logger.With(zap.String("topic", "message"))
-	SubscriptionManagerLogger = logger.With(zap.String("topic", "subscription-manager"))
-	WebServerLogger = logger.With(zap.String("topic", "web-server"))
-	WSLogger = logger.With(zap.String("topic", "ws"))
-	MQTTLogger = logger.With(zap.String("topic", "mqtt"))
-	MQTTMessageLogger = logger.With(zap.String("topic", "mqtt_message"))
+	ActingLogger = logger.Named("acting")
+	AppLogger = logger.Named("app")
+	CommunicationFailLogger = logger.Named("communication-fail")
+	DBLogger = logger.Named("db")
+	GamesLogger = logger.Named("games")
+	GatekeepingLogger = logger.Named("gatekeeping")
+	NoPublishLogger = logger.Named("logging-internal").With(zap.Bool("no_publish", true))
+	LightingLogger = logger.Named("lighting")
+	LightSwitchLogger = logger.Named("light-switches")
+	LogPublishLogger = logger.Named("log-publish")
+	MASCMessageLogger = logger.Named("masc-message")
+	SubscriptionManagerLogger = logger.Named("subscription-manager")
+	WebServerLogger = logger.Named("web-server")
+	WSLogger = logger.Named("ws")
+	MQTTLogger = logger.Named("mqtt")
+	MQTTMessageLogger = logger.Named("mqtt-message")
+	PeriodicStackLogger = logger.Named("periodic-stack-trace").With(zap.Bool("no_publish", true))
 }
 
 type LogEntry struct {
@@ -72,6 +78,8 @@ type LogEntry struct {
 	Message string `json:"message"`
 	// Level is the log level of the entry.
 	Level zapcore.Level `json:"level"`
+	// LoggerName is the name of the logger.
+	LoggerName string `json:"logger_name"`
 	// Fields are the set fields for the log entry.
 	Fields map[string]interface{} `json:"fields"`
 }
@@ -136,10 +144,11 @@ func (c *noPublishOmitCore) Write(entry zapcore.Entry, fields []zapcore.Field) e
 	case <-c.ctx.Done():
 		return nil
 	case c.publish <- LogEntry{
-		Time:    entry.Time,
-		Message: entry.Message,
-		Level:   entry.Level,
-		Fields:  enc.Fields,
+		Time:       entry.Time,
+		LoggerName: entry.LoggerName,
+		Message:    entry.Message,
+		Level:      entry.Level,
+		Fields:     enc.Fields,
 	}:
 	}
 	return nil

@@ -16,6 +16,9 @@ import (
 
 const mqttBuffer = 16
 
+// forwardTimeout is a timeout for forwarding messages.
+var forwardTimeout = 10 * time.Second
+
 type DeviceType string
 
 const (
@@ -66,6 +69,7 @@ func newDeviceBridgeWrapper(c *client.Client, mqttDeviceID mqttDeviceID, deviceI
 func (w *deviceWrapper) run(ctx context.Context) error {
 	// First, we perform authentication as this always happens before any other
 	// communication is done.
+	logging.MQTTLogger.Debug("authenticating", zap.Any("initial_device_id", w.deviceID))
 	assignedDeviceID, err := authenticate(ctx, w.deviceID, w.deviceBridge.genMessageHello(), w.c)
 	if err != nil {
 		return errors.Wrap(err, "authenticate", nil)
@@ -73,6 +77,9 @@ func (w *deviceWrapper) run(ctx context.Context) error {
 	// Check if new device id assigned.
 	if w.deviceID != assignedDeviceID {
 		// Remember the device.
+		logging.MQTTLogger.Debug("got assigned new device id",
+			zap.Any("initial_device_id", w.deviceID),
+			zap.Any("assigned_device_id", assignedDeviceID))
 		if err = w.deviceRememberer.RememberDevice(string(w.mqttDeviceID), assignedDeviceID); err != nil {
 			return errors.Wrap(err, "remember device", errors.Details{
 				"mqtt_device_id":     w.mqttDeviceID,
@@ -112,7 +119,12 @@ func (w *deviceWrapper) run(ctx context.Context) error {
 				// Forward.
 				select {
 				case <-egCtx.Done():
-					return egCtx.Err()
+					return nil
+				case <-time.After(forwardTimeout):
+					logging.MQTTLogger.Error("timeout while forwarding message from masc to handler. dropping...",
+						zap.Any("device_id", w.deviceID),
+						zap.Any("mqtt_device_id", w.mqttDeviceID),
+						zap.Any("message", message))
 				case w.fromMASC <- message:
 				}
 			}
@@ -165,7 +177,7 @@ func authenticate(ctx context.Context, initialDeviceID messages.DeviceID, helloM
 func (w *deviceWrapper) handleMQTTMessage(message mqtt.Message) {
 	select {
 	case w.fromMQTT <- message:
-	case <-time.After(10 * time.Second):
+	case <-time.After(forwardTimeout):
 		logging.MQTTLogger.Warn("dropping incoming mqtt message due to not being picked up",
 			zap.Any("mqtt_device_id", w.mqttDeviceID),
 			zap.Any("device_id", w.deviceID),
@@ -201,7 +213,14 @@ func (w *deviceWrapper) publishMASC(ctx context.Context, messageType messages.Me
 	// Forward to MASC.
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil
+	case <-time.After(forwardTimeout):
+		return errors.NewInternalError("timeout while publishing masc message", errors.Details{
+			"message_type": messageType,
+			"actor_id":     actorID,
+			"device_id":    w.deviceID,
+			"content":      content,
+		})
 	case w.c.Receive <- messageRaw:
 	}
 	return nil

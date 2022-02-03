@@ -186,7 +186,7 @@ func deviceIncomingPump(ctx context.Context, client *client.Client, deviceReceiv
 				continue
 			}
 			// Log.
-			logging.MessageLogger.Debug(string(messageContainer.Content),
+			logging.MASCMessageLogger.Debug(string(messageContainer.Content),
 				zap.Any("device_id", messageContainer.DeviceID),
 				zap.String("dir", "incoming"),
 				zap.Any("actor_id", messageContainer.ActorID),
@@ -194,7 +194,7 @@ func deviceIncomingPump(ctx context.Context, client *client.Client, deviceReceiv
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger.Warn("aborting incoming message forward for device",
+				logging.MASCMessageLogger.Warn("aborting incoming message forward for device",
 					zap.Any("device_id", deviceID),
 					zap.Any("message", messageContainer))
 				return
@@ -219,7 +219,7 @@ func deviceOutgoingPump(ctx context.Context, send chan<- []byte, deviceSend <-ch
 				continue
 			}
 			// Log.
-			logging.MessageLogger.Debug(string(message.Content),
+			logging.MASCMessageLogger.Debug(string(message.Content),
 				zap.Any("device_id", message.DeviceID),
 				zap.String("dir", "outgoing"),
 				zap.Any("actor_id", message.ActorID),
@@ -227,7 +227,7 @@ func deviceOutgoingPump(ctx context.Context, send chan<- []byte, deviceSend <-ch
 			// Forward.
 			select {
 			case <-ctx.Done():
-				logging.MessageLogger.Warn("aborting outgoing message forward for device",
+				logging.MASCMessageLogger.Warn("aborting outgoing message forward for device",
 					zap.Any("device_id", deviceID),
 					zap.Any("message", message))
 				return
