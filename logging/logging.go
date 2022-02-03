@@ -44,9 +44,9 @@ var (
 	MQTTLogger *zap.Logger
 	// MQTTMessageLogger is the logger for incoming and outgoing MQTT messages.
 	MQTTMessageLogger *zap.Logger
-	// PeriodicStackLogger is the logger for logging periodic stack traces in
+	// SystemDebugStats is the logger for logging periodic stack traces in
 	// order to get debug information regarding deadlocks.
-	PeriodicStackLogger *zap.Logger
+	SystemDebugStats *zap.Logger
 )
 
 // ApplyToGlobalLoggers initializes the global loggers with the given
@@ -68,7 +68,7 @@ func ApplyToGlobalLoggers(logger *zap.Logger) {
 	WSLogger = logger.Named("ws")
 	MQTTLogger = logger.Named("mqtt")
 	MQTTMessageLogger = logger.Named("mqtt-message")
-	PeriodicStackLogger = logger.Named("periodic-stack-trace").With(zap.Bool("no_publish", true))
+	SystemDebugStats = logger.Named("system-debug-stats").With(zap.Bool("no_publish", true))
 }
 
 type LogEntry struct {

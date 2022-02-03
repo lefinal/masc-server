@@ -160,10 +160,10 @@ func (app *App) boot(ctx context.Context) error {
 		}
 	}()
 	// Setup periodic stack log if desired.
-	if app.config.Log.SystemStateLogInterval.Valid {
-		interval := time.Duration(app.config.Log.SystemStateLogInterval.Int) * time.Minute
-		logging.PeriodicStackLogger.Debug(fmt.Sprintf("logging system state every %gs", interval.Seconds()))
-		go logSystemStatePeriodically(appCtx, interval, logging.PeriodicStackLogger)
+	if app.config.Log.SystemDebugStatsInterval.Valid {
+		interval := time.Duration(app.config.Log.SystemDebugStatsInterval.Int) * time.Minute
+		logging.SystemDebugStats.Debug(fmt.Sprintf("logging system state every %gs", interval.Seconds()))
+		go logSystemDebugStats(appCtx, interval, logging.SystemDebugStats)
 	}
 	logging.AppLogger.Warn("completed issuing boot commands")
 	// Wait for exit.
@@ -263,9 +263,9 @@ func (mh *mainHandlers) Run(ctx context.Context) {
 	go mh.fixtureProviders.Run(ctx)
 }
 
-// logSystemStatePeriodically logs the current system state like memory stats,
-// current stack, etc. to the given zap.Logger in the given interval.
-func logSystemStatePeriodically(ctx context.Context, interval time.Duration, logger *zap.Logger) {
+// logSystemDebugStats logs the current system state like memory stats, current
+// stack, etc. to the given zap.Logger in the given interval.
+func logSystemDebugStats(ctx context.Context, interval time.Duration, logger *zap.Logger) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -284,15 +284,15 @@ func logSystemStatePeriodically(ctx context.Context, interval time.Duration, log
 			stackSize := runtime.Stack(buf, true)
 			// Log it.
 			logger.Debug(fmt.Sprintf(`
--------BEGIN OF SYSTEM STATS-----------
+----------BEGIN OF DEBUG SYSTEM STATS-----------
        Num CPU: %d
 Num goroutines: %d
  Memory in use: %dMB
--------END OF SYSTEM STATS-------------
 
-------BEGIN OF PERIODIC STACK----------
+----------BEGIN OF STACK----------
 %s
-------END OF PERIODIC STACK------------
+----------END OF STACK------------
+----------END OF DEBUG SYSTEM STATS-------------
 `, numCPU, numGoroutine, memoryUsageMB, string(buf[0:stackSize])))
 		}
 	}
