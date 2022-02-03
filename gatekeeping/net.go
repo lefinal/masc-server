@@ -308,7 +308,7 @@ func (gk *NetGatekeeper) handleHelloFromNewClient(helloMessageRaw []byte) (*Devi
 	return newDevice, nil
 }
 
-func (gk *NetGatekeeper) SayGoodbyeToClient(ctx context.Context, client *client.Client) {
+func (gk *NetGatekeeper) SayGoodbyeToClient(_ context.Context, client *client.Client) {
 	gk.m.Lock()
 	defer gk.m.Unlock()
 	device, ok := gk.onlineDevices[client]
@@ -318,7 +318,6 @@ func (gk *NetGatekeeper) SayGoodbyeToClient(ctx context.Context, client *client.
 			zap.Any("client_id", client.ID))
 		return
 	}
-	delete(gk.onlineDevices, client)
 	// Update online status.
 	err := gk.store.RefreshLastSeenForDevice(device.ID)
 	if err != nil {
@@ -330,6 +329,8 @@ func (gk *NetGatekeeper) SayGoodbyeToClient(ctx context.Context, client *client.
 		errors.Log(logging.GatekeepingLogger, errors.Wrap(err, "make protected say goodbye to device", nil))
 		return
 	}
+	device.ShutdownPumps()
+	delete(gk.onlineDevices, client)
 }
 
 // logAndSendErrorMessage logs the given error and sends it to the given
