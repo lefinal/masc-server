@@ -9,7 +9,6 @@ import (
 	"github.com/LeFinal/masc-server/messages"
 	"github.com/LeFinal/masc-server/stores"
 	"github.com/google/uuid"
-	"sync"
 )
 
 type actorReception struct {
@@ -50,7 +49,7 @@ func (r *actorReception) HandleNewActor(actor acting.Actor, role acting.RoleType
 }
 
 func runHandler(actor acting.Actor, displayedNamePrefix string) {
-	err := actor.Hire(fmt.Sprintf("%s%s", displayedNamePrefix, uuid.New().String()))
+	_, err := actor.Hire(fmt.Sprintf("%s%s", displayedNamePrefix, uuid.New().String()))
 	if err != nil {
 		errors.Log(logging.LightSwitchLogger, errors.Wrap(err, "hire", nil))
 		return
@@ -65,10 +64,10 @@ type actorManagerHandler struct {
 	manager Manager
 }
 
-func (h *actorManagerHandler) Hire(displayedName string) error {
-	err := h.Actor.Hire(displayedName)
+func (h *actorManagerHandler) Hire(displayedName string) (acting.Contract, error) {
+	contract, err := h.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
 	// Message handlers.
 	go func() {
@@ -95,11 +94,7 @@ func (h *actorManagerHandler) Hire(displayedName string) error {
 			h.handleGetFixtures()
 		}
 	}()
-	go func() {
-		// Read from quit channel as this would block otherwise somewhere else.
-		<-h.Quit()
-	}()
-	return nil
+	return contract, nil
 }
 
 // handleGetLightSwitches handles an incoming message with type
@@ -186,36 +181,20 @@ type actorProviderHandler struct {
 	ctx     context.Context
 }
 
-func (h *actorProviderHandler) Hire(displayedName string) error {
-	err := h.Actor.Hire(displayedName)
+func (h *actorProviderHandler) Hire(displayedName string) (acting.Contract, error) {
+	contract, err := h.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
-	lightSwitchProviderAlive, killLightSwitchProvider := context.WithCancel(h.ctx)
-	var wg sync.WaitGroup
-	// Register.
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		err := h.manager.AcceptLightSwitchProvider(lightSwitchProviderAlive, h)
+		err := h.manager.AcceptLightSwitchProvider(contract, h)
 		if err != nil {
 			acting.LogErrorAndSendOrLog(logging.LightSwitchLogger, h,
 				errors.Wrap(err, "accept light switch provider", nil))
 			// Fire.
-			err = h.Fire()
-			if err != nil {
-				errors.Log(logging.LightSwitchLogger, errors.Wrap(err, "fire", nil))
-			}
+			contract.Cancel()
 			return
 		}
 	}()
-	select {
-	case <-h.ctx.Done():
-	case <-h.Quit():
-	}
-	killLightSwitchProvider()
-
-	// No message handlers needed. We also do NOT read from the quit channel because
-	// the manager will do so.
-	return nil
+	return contract, nil
 }

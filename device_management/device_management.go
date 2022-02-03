@@ -60,12 +60,12 @@ func (dm *DeviceManagementHandlers) HandleNewActor(actor acting.Actor, role acti
 	dm.managerCounter++
 	dm.m.Unlock()
 	// Hire.
-	err := actorDM.Hire(fmt.Sprintf("device-manager-%d", dm.managerCounter))
+	contract, err := actorDM.Hire(fmt.Sprintf("device-manager-%d", dm.managerCounter))
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
-	<-actorDM.Quit()
+	<-contract.Done()
 	// Remove from active ones.
 	dm.m.Lock()
 	delete(dm.activeManagers, actorDM)
@@ -80,11 +80,11 @@ type actorDeviceManager struct {
 	gatekeeper gatekeeping.Gatekeeper
 }
 
-func (a *actorDeviceManager) Hire(displayedName string) error {
+func (a *actorDeviceManager) Hire(displayedName string) (acting.Contract, error) {
 	// Hire normally.
-	err := a.Actor.Hire(displayedName)
+	contract, err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
 	// Setup message handlers. We do not need to unsubscribe because this will be
 	// done when the actor is fired. Handle device retrieval.
@@ -106,7 +106,7 @@ func (a *actorDeviceManager) Hire(displayedName string) error {
 			a.handleDeleteDevice(message)
 		}
 	}()
-	return nil
+	return contract, nil
 }
 
 // handleGetDevices handles an incoming message with type

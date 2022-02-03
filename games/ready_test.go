@@ -46,7 +46,7 @@ func (suite *ReadyAwaiterTestSuite) TestNoActors() {
 
 func (suite *ReadyAwaiterTestSuite) TestSingleActor() {
 	a := acting.NewMockActor("garden")
-	_ = a.Hire("listen")
+	_, _ = a.Hire("listen")
 
 	newsletter := a.SubscribeOutgoingMessageType(messages.MessageTypeAreYouReady)
 	go func() {
@@ -68,7 +68,7 @@ func (suite *ReadyAwaiterTestSuite) TestMultiActorAllReady() {
 	actors := make([]acting.Actor, 0, actorCount)
 	for i := 0; i < actorCount; i++ {
 		a := acting.NewMockActor(messages.ActorID(fmt.Sprintf("slight-%d", i)))
-		_ = a.Hire(fmt.Sprintf("slighter-%d", i))
+		_, _ = a.Hire(fmt.Sprintf("slighter-%d", i))
 		newsletter := a.SubscribeOutgoingMessageType(messages.MessageTypeAreYouReady)
 		go func() {
 			<-newsletter.Receive
@@ -92,7 +92,7 @@ func (suite *ReadyAwaiterTestSuite) TestMultiActorStateChanging() {
 	var changing sync.WaitGroup
 	for i := 0; i < changingActorCount; i++ {
 		a := acting.NewMockActor(messages.ActorID(fmt.Sprintf("slight-%d", i)))
-		_ = a.Hire(fmt.Sprintf("slighter-%d", i))
+		_, _ = a.Hire(fmt.Sprintf("slighter-%d", i))
 		newsletter := a.SubscribeOutgoingMessageType(messages.MessageTypeAreYouReady)
 		changing.Add(1)
 		go func() {
@@ -115,7 +115,7 @@ func (suite *ReadyAwaiterTestSuite) TestMultiActorStateChanging() {
 	}
 	// The actor that blocks until changing is done.
 	finalActor := acting.NewMockActor("the-final-one")
-	_ = finalActor.Hire("the-final-one")
+	_, _ = finalActor.Hire("the-final-one")
 	go func() {
 		changing.Wait()
 		finalActor.HandleIncomingMessage(acting.ActorOutgoingMessage{
@@ -131,7 +131,7 @@ func (suite *ReadyAwaiterTestSuite) TestMultiActorStateChanging() {
 
 func (suite *ReadyAwaiterTestSuite) TestAbort() {
 	a := acting.NewMockActor("garden")
-	_ = a.Hire("listen")
+	_, _ = a.Hire("listen")
 
 	suite.cancel()
 	err := RequestAndAwaitReady(suite.ctx, suite.eatReadyStateUpdates(suite.ctx), a)

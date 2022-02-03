@@ -148,9 +148,9 @@ func (a *MockActor) ID() messages.ActorID {
 	return a.id
 }
 
-func (a *MockActor) Hire(displayedName string) error {
+func (a *MockActor) Hire(displayedName string) (Contract, error) {
 	if a.HireErr != nil {
-		return a.HireErr
+		return Contract{}, a.HireErr
 	}
 	a.isHiredMutex.Lock()
 	defer a.isHiredMutex.Unlock()
@@ -158,7 +158,8 @@ func (a *MockActor) Hire(displayedName string) error {
 	a.nameMutex.Lock()
 	defer a.nameMutex.Unlock()
 	a.name = displayedName
-	return a.Send(ActorOutgoingMessage{
+	// TODO
+	return Contract{}, a.Send(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeYouAreIn,
 		Content:     messages.MessageYouAreIn{ActorID: a.id},
 	})
@@ -176,14 +177,14 @@ func (a *MockActor) IsHired() bool {
 	return a.isHired
 }
 
-func (a *MockActor) Fire() error {
+func (a *MockActor) fire() {
 	if a.FireErr != nil {
-		return a.FireErr
+		return
 	}
 	a.isHiredMutex.Lock()
 	defer a.isHiredMutex.Unlock()
 	a.isHired = false
-	return nil
+	return
 }
 
 func (a *MockActor) Send(message ActorOutgoingMessage) error {

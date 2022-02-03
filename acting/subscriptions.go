@@ -46,11 +46,11 @@ type NotifyingNewsletter struct {
 // subscription is a container for subscriptions that were created via
 // Actor.SubscribeMessageType.
 type subscription struct {
-	// Ctx is the context of the subscription which is done when the subscription is
+	// Lifetime is the context of the subscription which is done when the subscription is
 	// no longer active.
-	Ctx context.Context
-	// setInactive cancels the Ctx. This allows dropping messages to forward.
-	setInactive context.CancelFunc
+	Lifetime context.Context
+	// shutdown cancels the Lifetime. This allows dropping messages to forward.
+	shutdown context.CancelFunc
 	// messageType is the messages.MessageType the subscription is for.
 	messageType messages.MessageType
 	// token is the SubscriptionToken for unsubscribing.
@@ -106,10 +106,10 @@ func (m *SubscriptionManager) SubscribeMessageType(messageType messages.MessageT
 	defer m.subscriptionsMutex.Unlock()
 	m.subscriptionCounter++
 	out := make(chan json.RawMessage)
-	ctx, setInactive := context.WithCancel(context.Background())
+	subscriptionLifetime, shutdownSubscription := context.WithCancel(context.Background())
 	sub := &subscription{
-		Ctx:         ctx,
-		setInactive: setInactive,
+		Lifetime:    subscriptionLifetime,
+		shutdown:    shutdownSubscription,
 		messageType: messageType,
 		token:       SubscriptionToken(m.subscriptionCounter),
 		out:         out,
@@ -132,7 +132,7 @@ func (m *SubscriptionManager) HandleMessage(message Message) int {
 		// Forward to each subscriber.
 		for _, s := range subscriptions {
 			select {
-			case <-s.Ctx.Done():
+			case <-s.Lifetime.Done():
 				// Subscription done. We simply drop the message.
 			case s.out <- message.Content:
 				forwards++
@@ -149,7 +149,7 @@ func (m *SubscriptionManager) Unsubscribe(sub *subscription) error {
 	// Set subscription to inactive and then allowing a potential
 	// receiving abort. We will remove it from the subscriptions list afterwards.
 	m.subscriptionsMutex.RLock()
-	sub.setInactive()
+	sub.shutdown()
 	m.subscriptionsMutex.RUnlock()
 	// Now we wait until message handling has finished in order to remove it from
 	// the list.
@@ -212,8 +212,6 @@ func (m *SubscriptionManager) CancelAllSubscriptions() {
 			}
 		}(m.subscriptionsByToken[i])
 	}
-	m.subscriptionsByToken = make(map[SubscriptionToken]*subscription)
-	m.subscriptionsByMessageType = make(map[messages.MessageType][]*subscription)
 	m.subscriptionsMutex.Unlock()
 	wg.Wait()
 }
@@ -266,11 +264,11 @@ func SubscribeNotifyForMessageType(messageType messages.MessageType, actor Actor
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case <-newsletter.Receive:
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- struct{}{}:
 				}
@@ -299,7 +297,7 @@ func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterSetDeviceName {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageSetDeviceName
@@ -307,7 +305,7 @@ func SubscribeMessageTypeSetDeviceName(actor Actor) NewsletterSetDeviceName {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -336,7 +334,7 @@ func SubscribeMessageTypeDeleteDevice(actor Actor) NewsletterDeleteDevice {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageDeleteDevice
@@ -344,7 +342,7 @@ func SubscribeMessageTypeDeleteDevice(actor Actor) NewsletterDeleteDevice {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -366,11 +364,11 @@ func SubscribeMessageTypeGetDevices(actor Actor) NotifyingNewsletter {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case _ = <-newsletter.Receive:
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- struct{}{}:
 				}
@@ -399,7 +397,7 @@ func SubscribeMessageTypeRoleAssignments(actor Actor) NewsletterRoleAssignments 
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageRoleAssignments
@@ -407,7 +405,7 @@ func SubscribeMessageTypeRoleAssignments(actor Actor) NewsletterRoleAssignments 
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -436,11 +434,11 @@ func SubscribeMessageTypeAbortMatch(actor Actor) NewsletterAbortMatch {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case <-newsletter.Receive:
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- struct{}{}:
 				}
@@ -469,7 +467,7 @@ func SubscribeMessageTypeReadyState(actor Actor) NewsletterReadyState {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageReadyState
@@ -477,7 +475,7 @@ func SubscribeMessageTypeReadyState(actor Actor) NewsletterReadyState {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -506,7 +504,7 @@ func SubscribeMessageTypePlayerJoin(actor Actor) NewsletterPlayerJoin {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessagePlayerJoin
@@ -514,7 +512,7 @@ func SubscribeMessageTypePlayerJoin(actor Actor) NewsletterPlayerJoin {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -543,7 +541,7 @@ func SubscribeMessageTypePlayerLeave(actor Actor) NewsletterPlayerLeave {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessagePlayerLeave
@@ -551,7 +549,7 @@ func SubscribeMessageTypePlayerLeave(actor Actor) NewsletterPlayerLeave {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -580,7 +578,7 @@ func SubscribeMessageTypeFixtureOffers(actor Actor) NewsletterFixtureOffers {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageFixtureOffers
@@ -588,7 +586,7 @@ func SubscribeMessageTypeFixtureOffers(actor Actor) NewsletterFixtureOffers {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -617,7 +615,7 @@ func SubscribeMessageTypeSetFixtureName(actor Actor) NewsletterSetFixtureName {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageSetFixtureName
@@ -625,7 +623,7 @@ func SubscribeMessageTypeSetFixtureName(actor Actor) NewsletterSetFixtureName {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -653,11 +651,11 @@ func SubscribeMessageTypeGetFixtures(actor Actor) NewsletterGetFixtures {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case <-newsletter.Receive:
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- struct{}{}:
 				}
@@ -686,7 +684,7 @@ func SubscribeMessageTypeDeleteFixture(actor Actor) NewsletterDeleteFixture {
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageDeleteFixture
@@ -694,7 +692,7 @@ func SubscribeMessageTypeDeleteFixture(actor Actor) NewsletterDeleteFixture {
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -722,11 +720,11 @@ func SubscribeMessageTypeGetFixtureStates(actor Actor) NewsletterGetFixtureState
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case <-newsletter.Receive:
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- struct{}{}:
 				}
@@ -755,7 +753,7 @@ func SubscribeMessageTypeSetFixturesEnabled(actor Actor) NewsletterSetFixturesEn
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageSetFixturesEnabled
@@ -763,7 +761,7 @@ func SubscribeMessageTypeSetFixturesEnabled(actor Actor) NewsletterSetFixturesEn
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -792,7 +790,7 @@ func SubscribeMessageTypeSetFixturesLocating(actor Actor) NewsletterSetFixturesL
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageSetFixturesLocating
@@ -800,7 +798,7 @@ func SubscribeMessageTypeSetFixturesLocating(actor Actor) NewsletterSetFixturesL
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -829,7 +827,7 @@ func SubscribeMessageTypeLightSwitchHiLoState(actor Actor) NewsletterLightSwitch
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageLightSwitchHiLoState
@@ -837,7 +835,7 @@ func SubscribeMessageTypeLightSwitchHiLoState(actor Actor) NewsletterLightSwitch
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -866,7 +864,7 @@ func SubscribeMessageTypeLightSwitchOffers(actor Actor) NewsletterLightSwitchOff
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageLightSwitchOffers
@@ -874,7 +872,7 @@ func SubscribeMessageTypeLightSwitchOffers(actor Actor) NewsletterLightSwitchOff
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -903,7 +901,7 @@ func SubscribeMessageTypeUpdateLightSwitch(actor Actor) NewsletterUpdateLightSwi
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageUpdateLightSwitch
@@ -911,7 +909,7 @@ func SubscribeMessageTypeUpdateLightSwitch(actor Actor) NewsletterUpdateLightSwi
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}
@@ -940,7 +938,7 @@ func SubscribeMessageTypeDeleteLightSwitch(actor Actor) NewsletterDeleteLightSwi
 		defer close(cc)
 		for {
 			select {
-			case <-newsletter.Subscription.Ctx.Done():
+			case <-newsletter.Subscription.Lifetime.Done():
 				return
 			case raw := <-newsletter.Receive:
 				var m messages.MessageDeleteLightSwitch
@@ -948,7 +946,7 @@ func SubscribeMessageTypeDeleteLightSwitch(actor Actor) NewsletterDeleteLightSwi
 					continue
 				}
 				select {
-				case <-newsletter.Subscription.Ctx.Done():
+				case <-newsletter.Subscription.Lifetime.Done():
 					return
 				case cc <- m:
 				}

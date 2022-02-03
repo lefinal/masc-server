@@ -271,7 +271,7 @@ func (c *casting) hireWinners() (error, error) {
 	hired := make([]acting.Actor, 0)
 	for castingKey, actors := range c.winners {
 		for _, actor := range actors {
-			if hireError := actor.Hire(""); hireError != nil {
+			if contract, hireError := actor.Hire(""); hireError != nil {
 				// Fire already hired actors.
 				if fireAllErr := acting.FireAllActors(hired); fireAllErr != nil {
 					return nil, errors.Wrap(fireAllErr, "fire all actors because of failed hire after role assignments", nil)

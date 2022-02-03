@@ -139,7 +139,7 @@ func (suite *MockActorTestSuite) TestQuitCancelsNewsletters() {
 	case <-ctx.Done():
 		suite.Fail("timeout while waiting for quit")
 		cancel()
-	case <-newsletter.Subscription.Ctx.Done():
+	case <-newsletter.Subscription.Lifetime.Done():
 		cancel()
 	}
 }
@@ -159,7 +159,7 @@ func (suite *MockActorTestSuite) TestHireWithError() {
 
 func (suite *MockActorTestSuite) TestHireOK() {
 	a := NewMockActor("")
-	err := a.Hire("")
+	_, err := a.Hire("")
 	suite.Assert().Nilf(err, "should not fail but got: %s", errors.Prettify(err))
 	suite.Assert().True(a.IsHired(), "should be hired")
 }

@@ -103,7 +103,7 @@ func (r *actorReception) HandleNewActor(actor acting.Actor, role acting.RoleType
 	}
 	go func(ctx context.Context, actor acting.Actor) {
 		// Hire.
-		err := actor.Hire(fmt.Sprintf("log-monitor-%s", uuid.New().String()))
+		contract, err := actor.Hire(fmt.Sprintf("log-monitor-%s", uuid.New().String()))
 		if err != nil {
 			errors.Log(logging.LogPublishLogger, errors.Wrap(err, "hire actor", nil))
 			return
@@ -115,7 +115,7 @@ func (r *actorReception) HandleNewActor(actor acting.Actor, role acting.RoleType
 		// Listen for quit.
 		select {
 		case <-ctx.Done():
-		case <-actor.Quit():
+		case <-contract.Done():
 		}
 		// Unregister.
 		r.activeLogMonitorsMutex.Lock()

@@ -49,8 +49,6 @@ func (ls *lightSwitchHiLo) run(ctx context.Context, actor acting.Actor) error {
 			ls.handleMessage(m)
 		case <-ctx.Done():
 			return nil
-		case <-actor.Quit():
-			return nil
 		}
 	}
 }

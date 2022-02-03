@@ -43,11 +43,13 @@ func (h *Hub) Run(ctx context.Context) {
 		case c := <-h.unregister:
 			// Unregister client.
 			if _, ok := h.clients[c]; ok {
-				h.clientListener.SayGoodbyeToClient(ctx, c.Client)
+				go func(c *Client) {
+					h.clientListener.SayGoodbyeToClient(ctx, c.Client)
+					// Close the send-channel which leads to stopping the write-pump.
+					close(c.Send)
+				}(c)
 				delete(h.clients, c)
 				logging.WSLogger.Info("client disconnected", zap.String("client_id", c.ID))
-				// Close the send-channel which leads to stopping the write-pump.
-				close(c.Send)
 			}
 		}
 	}

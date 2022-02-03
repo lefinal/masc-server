@@ -119,21 +119,33 @@ type ActorOutgoingMessage struct {
 // ActorIncomingMessage is a message that is received by an Actor.
 type ActorIncomingMessage Message
 
+type Contract struct {
+	context.Context
+	// Name is a human-readable name. It is related to the role and provides a
+	// human-readable description of what the Actor is currently doing.
+	Name   string
+	cancel context.CancelFunc
+	valid  bool
+	// isCancelledDueToDisconnect is used for when the Contract is cancelled because of the actor being disconnected. This
+	isCancelledDueToDisconnect bool
+}
+
+func (c *Contract) Cancel() {
+	c.cancel()
+}
+
 // Actor performs a certain RoleType after being hired and therefore allows sending
 // and receiving messages.
 type Actor interface {
 	// ID return the ID of the actor. This is only used for verbose information.
 	ID() messages.ActorID
-	// Hire hires the actor for the given RoleType. You must call Fire when he is no
-	// longer needed!
-	Hire(displayedName string) error
-	// Name is a human-readable name. It is related to the role and provides a
-	// human-readable description of what the Actor is currently doing.
-	Name() string
+	// Hire hires the actor for the given RoleType. You must call the given
+	// fire-func when no longer needed!
+	Hire(displayedName string) (Contract, error)
 	// IsHired describes whether the actor is currently hired.
 	IsHired() bool
-	// Fire fires the actor. Lol.
-	Fire() error
+	// Fire fires the actor. Lol. We do not care about errors.
+	fire()
 	// Send sends the given message to the actor.
 	Send(message ActorOutgoingMessage) error
 	// SubscribeMessageType subscribes to all messages with the given
@@ -148,50 +160,46 @@ type Actor interface {
 	// be careful to use it in production. In most cases, a SubscriptionManager
 	// handles receiving messages.
 	Receive() <-chan ActorIncomingMessage
-	// Quit returns the channel for when the actor decides to quit. The channel
-	// provides a context.CancelFunc that needs to be called when we are sure that
-	// no more writes are being performed and all pumps can be shut down.
-	Quit() <-chan struct{}
 }
 
 // netActor is the net version of Actor.
 type netActor struct {
 	// id allows identifying the netActor.
 	id messages.ActorID
-	// name is a human-readable description of what the actor is currently
-	// doing.
-	name string
 	// send is the channel for outgoing messages. These will be handled by
 	// netActorDevice.
 	send chan netActorDeviceOutgoingMessage
 	// receiveC is the channel for incoming messages. These will already be routed
 	// by netActorDevice and really belong to this actor.
 	receiveC chan ActorIncomingMessage
-	// isHired describes whether the actor is currently hired.
-	isHired bool
+	// contract holds the Contract for when the actor is currently hired. If not
+	// hired, Contract.valid will be false.
+	contract Contract
 	// role holds the RoleType the actor is playing.
 	role RoleType
-	// quit is the channel that is used for when the actor quits.
-	quit chan struct{}
-	// hireMutex is a mutex for allowing concurrent access to isHired, name
-	// and role.
-	hireMutex sync.RWMutex
+	// contractMutex locks contract.
+	contractMutex sync.RWMutex
 	// subscriptionManager allows easy managing of calls to
 	// Actor.SubscribeMessageType and Actor.Unsubscribe. Manager will be created
 	// when Hire is called.
 	subscriptionManager *SubscriptionManager
+	// isConnected is true when the netActor is connected (send and receiveC are
+	// open and working).
+	isConnected bool
+	// isConnectedMutex locks isConnected.
+	isConnectedMutex sync.RWMutex
 }
 
 func (a *netActor) ID() messages.ActorID {
 	return a.id
 }
 
-func (a *netActor) Hire(displayedName string) error {
-	a.hireMutex.Lock()
-	defer a.hireMutex.Unlock()
+func (a *netActor) Hire(displayedName string) (Contract, error) {
+	a.contractMutex.Lock()
+	defer a.contractMutex.Unlock()
 	// Check if already hired.
-	if a.isHired {
-		return errors.Error{
+	if a.contract.valid {
+		return Contract{}, errors.Error{
 			Code:    errors.ErrInternal,
 			Message: fmt.Sprintf("actor %s is already hired", a.id),
 			Details: errors.Details{"actorID": a.id},
@@ -200,77 +208,98 @@ func (a *netActor) Hire(displayedName string) error {
 	// Create subscription manager.
 	a.subscriptionManager = NewSubscriptionManager()
 	// Notify actor that he was lucky.
-	a.forceSend(ActorOutgoingMessage{
+	ok := a.forceSend(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeYouAreIn,
 		Content: messages.MessageYouAreIn{
 			ActorID: a.id,
 			Role:    messages.Role(a.role),
 		},
 	})
-	a.isHired = true
-	a.name = displayedName
+	if !ok {
+		return Contract{}, errors.NewInternalError("notifying actor failed for being hired failed", nil)
+	}
+	contractLifetime, fire := context.WithCancel(context.Background())
+	a.contract = Contract{
+		Context: contractLifetime,
+		Name:    displayedName,
+		cancel:  fire,
+		valid:   true,
+	}
 	logging.ActingLogger.Debug("actor hired",
 		zap.Any("actor_id", a.id),
 		zap.String("displayed_name", displayedName),
-		zap.String("actor_name", a.name),
+		zap.String("actor_name", a.contract.Name),
 		zap.Any("role", a.role))
-	return nil
+	go func() {
+		<-contractLifetime.Done()
+		a.fire()
+	}()
+	return a.contract, nil
 }
 
 func (a *netActor) Name() string {
-	a.hireMutex.RLock()
-	defer a.hireMutex.RUnlock()
-	return a.name
+	a.contractMutex.RLock()
+	defer a.contractMutex.RUnlock()
+	return a.contract.Name
 }
 
 func (a *netActor) IsHired() bool {
-	defer a.hireMutex.RUnlock()
-	a.hireMutex.RLock()
-	return a.isHired
+	defer a.contractMutex.RUnlock()
+	a.contractMutex.RLock()
+	return a.contract.valid
 }
 
-func (a *netActor) Fire() error {
-	a.hireMutex.Lock()
-	defer a.hireMutex.Unlock()
+func (a *netActor) fire() {
+	defer a.subscriptionManager.CancelAllSubscriptions()
+	a.contractMutex.Lock()
+	defer a.contractMutex.Unlock()
 	// Check if already fired or not even hired.
-	if !a.isHired {
-		return errors.Error{
-			Code:    errors.ErrInternal,
-			Message: fmt.Sprintf("actor %s is not even hired", a.id),
-			Details: errors.Details{"actorID": a.id},
-		}
+	if !a.contract.valid {
+		return
 	}
+	logging.ActingLogger.Debug("firing actor...",
+		zap.Any("actor_id", a.id),
+		zap.Any("actor_role", a.role))
 	// Notify actor.
-	a.forceSend(ActorOutgoingMessage{
+	_ = a.forceSend(ActorOutgoingMessage{
 		MessageType: messages.MessageTypeFired,
 	})
-	a.subscriptionManager.CancelAllSubscriptions()
-	a.isHired = false
-	return nil
+	a.contract.cancel()
+	a.contract = Contract{}
+	return
 }
 
 // forceSend sends the given message without checking if the actor is hired.
 // This used for hiring and firing the actor.
-func (a *netActor) forceSend(message ActorOutgoingMessage) {
+func (a *netActor) forceSend(message ActorOutgoingMessage) bool {
+	a.isConnectedMutex.RLock()
+	defer a.isConnectedMutex.RUnlock()
+	if !a.isConnected {
+		return false
+	}
 	// Pass to actor device.
 	a.send <- netActorDeviceOutgoingMessage{
 		actorID: a.id,
 		message: message,
 	}
+	return true
 }
 
 func (a *netActor) Send(message ActorOutgoingMessage) error {
-	a.hireMutex.RLock()
-	defer a.hireMutex.RUnlock()
+	a.contractMutex.RLock()
+	defer a.contractMutex.RUnlock()
 	// Check if actor is allowed to send this message.
-	if !a.isHired {
+	if !a.contract.valid {
 		return errors.Error{
 			Code:    errors.ErrInternal,
 			Message: "actor must not send when not hired or hiring",
 			Details: errors.Details{"id": a.id, "message": message},
 		}
 	}
-	a.forceSend(message)
+	ok := a.forceSend(message)
+	if !ok {
+		return errors.NewInternalError("could not force send message", nil)
+	}
 	return nil
 }
 
@@ -291,10 +320,6 @@ func (a *netActor) Unsubscribe(subscription *subscription) error {
 
 func (a *netActor) Receive() <-chan ActorIncomingMessage {
 	return a.receiveC
-}
-
-func (a *netActor) Quit() <-chan struct{} {
-	return a.quit
 }
 
 // handleIncomingMessage handles an incoming message, lol.
@@ -365,12 +390,12 @@ func (ad *netActorDevice) boot() ([]actorWithRole, error) {
 	for _, role := range roles {
 		// Create new actor.
 		created := &netActor{
-			id:       messages.ActorID(uuid.New().String()),
-			role:     role,
-			send:     ad.send,
-			receiveC: make(chan ActorIncomingMessage),
-			isHired:  false,
-			quit:     make(chan struct{}),
+			id:          messages.ActorID(uuid.New().String()),
+			role:        role,
+			send:        ad.send,
+			receiveC:    make(chan ActorIncomingMessage),
+			contract:    Contract{},
+			isConnected: true,
 		}
 		// Append to own actor list.
 		ad.actors[created.id] = created
@@ -463,12 +488,16 @@ func (ad *netActorDevice) shutdown() {
 	// Tell each hired actor to quit.
 	ad.actorsMutex.Lock()
 	for _, actor := range ad.actors {
-		if actor.isHired {
-			actor.hireMutex.Lock()
-			actor.isHired = false
-			actor.hireMutex.Unlock()
-			actor.quit <- struct{}{}
+		actor.isConnectedMutex.Lock()
+		actor.isConnected = false
+		actor.isConnectedMutex.Unlock()
+		actor.contractMutex.RLock()
+		if actor.contract.valid {
+			// Assure that the actor is fired because it's easy to forget firing him and
+			// this leads to severe goroutine leaks.
+			actor.contract.cancel()
 		}
+		actor.contractMutex.RUnlock()
 	}
 	ad.actorsMutex.Unlock()
 	ad.shutdownRouter()
@@ -556,7 +585,7 @@ func (a *ProtectedAgency) AvailableActors(role RoleType) []Actor {
 	// Iterate over all devices, then their actors.
 	for _, device := range a.actorDevices {
 		for _, actor := range device.actors {
-			if actor.isHired || actor.role != role {
+			if actor.contract.valid || actor.role != role {
 				continue
 			}
 			availableActors = append(availableActors, actor)
@@ -655,11 +684,8 @@ func NewForbiddenMessageError(messageType messages.MessageType, content json.Raw
 
 // FireAllActors fires all passed actors.
 func FireAllActors(actors []Actor) error {
-	for i, actor := range actors {
-		err := actor.Fire()
-		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("fire actor %d of %d", i, len(actors)), nil)
-		}
+	for _, actor := range actors {
+		actor.fire()
 	}
 	return nil
 }
@@ -677,14 +703,5 @@ func (r *ActorRepresentation) Message() messages.ActorRepresentation {
 	return messages.ActorRepresentation{
 		ID:   r.ID,
 		Name: r.Name,
-	}
-}
-
-// ActorRepresentationFromActor creates an ActorRepresentation from the given
-// Actor.
-func ActorRepresentationFromActor(actor Actor) ActorRepresentation {
-	return ActorRepresentation{
-		ID:   actor.ID(),
-		Name: actor.Name(),
 	}
 }

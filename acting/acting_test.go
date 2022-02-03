@@ -124,7 +124,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingReceive() {
 	for actorID, actor := range suite.actorDevice.actors {
 		wg.Add(1)
 		// Hire actor.
-		err := actor.Hire("")
+		_, err := actor.Hire("")
 		suite.Require().Nilf(err, "hiring actor should not fail but got: %s", errors.Prettify(err))
 		newsletter := actor.SubscribeMessageType(messages.MessageTypeHello)
 		// Expect the actor to receive a message (will be sent right after).
@@ -164,7 +164,7 @@ func (suite *netActorDeviceTestSuite) TestRoutingSend() {
 		go func(actor *netActor) {
 			defer wg.Done()
 			// Hire actor.
-			err = actor.Hire("")
+			_, err = actor.Hire("")
 			suite.Require().Nilf(err, "hire actor should not fail but got: %s", errors.Prettify(err))
 			// Send message to device with actor id set.
 			err = actor.Send(ActorOutgoingMessage{
@@ -444,12 +444,12 @@ func (suite *NetActorTestSuite) SetupTest() {
 	suite.toActor = make(chan ActorIncomingMessage)
 	suite.actorQuits = make(chan struct{})
 	suite.a = &netActor{
-		id:        messages.ActorID(uuid.New().String()),
-		send:      suite.fromActor,
-		receiveC:  suite.toActor,
-		isHired:   false,
-		quit:      suite.actorQuits,
-		hireMutex: sync.RWMutex{},
+		id:            messages.ActorID(uuid.New().String()),
+		send:          suite.fromActor,
+		receiveC:      suite.toActor,
+		contract:      false,
+		quit:          suite.actorQuits,
+		contractMutex: sync.RWMutex{},
 	}
 }
 
@@ -458,8 +458,8 @@ func (suite *NetActorTestSuite) TestID() {
 }
 
 func (suite *NetActorTestSuite) TestHireAlreadyHired() {
-	suite.a.isHired = true
-	err := suite.a.Hire("")
+	suite.a.contract = true
+	_, err := suite.a.Hire("")
 	suite.Assert().NotNil(err, "hire should fail because already hired")
 }
 
@@ -480,15 +480,15 @@ func (suite *NetActorTestSuite) TestHireOK() {
 			suite.Assert().Equal(messages.Role(suite.a.role), cMessageContent.Role, "should have role in message content")
 		}
 	}()
-	err := suite.a.Hire("")
+	_, err := suite.a.Hire("")
 	suite.Assert().Nil(err, "hire should not fail")
 	wg.Wait()
 	suite.Assert().NotNil(suite.a.subscriptionManager, "subscription manager should be created when hiring")
 }
 
 func (suite *NetActorTestSuite) TestFireNotHired() {
-	suite.a.isHired = false
-	err := suite.a.Fire()
+	suite.a.contract = false
+	suite.a.fire()
 	suite.Assert().NotNil(err, "fire should fail because not hired")
 }
 
@@ -498,7 +498,7 @@ func (suite *NetActorTestSuite) TestFireOK() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := suite.a.Hire("")
+		_, err := suite.a.Hire("")
 		suite.Require().Nil(err, "actor hiring should not fail but got: %s", errors.Prettify(err))
 	}()
 	<-suite.fromActor
@@ -514,9 +514,9 @@ func (suite *NetActorTestSuite) TestFireOK() {
 			suite.Assert().Equal(messages.MessageTypeFired, message.message.MessageType)
 		}
 	}()
-	err := suite.a.Fire()
+	suite.a.fire()
 	suite.Assert().Nil(err, "fire should not fail")
-	suite.Assert().False(suite.a.isHired, "should not be hired anymore")
+	suite.Assert().False(suite.a.contract, "should not be hired anymore")
 	wg.Wait()
 }
 

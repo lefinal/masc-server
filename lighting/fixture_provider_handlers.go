@@ -51,23 +51,25 @@ func (dm *FixtureProviderHandlers) HandleNewActor(actor acting.Actor, role actin
 	if role != acting.RoleTypeFixtureProvider {
 		return
 	}
+	handlerLifetime, cancelHandler := context.WithCancel(dm.ctx)
 	actorDM := &fixtureProviderHandler{
-		Actor:   actor,
-		manager: dm.manager,
-		ctx:     dm.ctx,
+		Actor:    actor,
+		manager:  dm.manager,
+		lifetime: handlerLifetime,
 	}
+	defer cancelHandler()
 	// Add to active ones.
 	dm.m.Lock()
 	dm.activeManagers[actorDM] = struct{}{}
 	dm.managerCounter++
 	dm.m.Unlock()
 	// Hire.
-	err := actorDM.Hire(fmt.Sprintf("fixture-provider-%d", dm.managerCounter))
+	contract, err := actorDM.Hire(fmt.Sprintf("fixture-provider-%d", dm.managerCounter))
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
-	<-actorDM.Quit()
+	<-contract.Done()
 	err = actorDM.cleanUp()
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "clean up", nil))
@@ -83,27 +85,26 @@ func (dm *FixtureProviderHandlers) HandleNewActor(actor acting.Actor, role actin
 type fixtureProviderHandler struct {
 	acting.Actor
 	// manager is used for retrieving and managing fixtures.
-	manager Manager
-	ctx     context.Context
+	manager  Manager
+	lifetime context.Context
 }
 
-func (a *fixtureProviderHandler) Hire(displayedName string) error {
+func (a *fixtureProviderHandler) Hire(displayedName string) (acting.Contract, error) {
 	// Hire normally.
-	err := a.Actor.Hire(displayedName)
+	contract, err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
 	// We do not need any message handlers but pass it directly to the manager.
 	go func() {
-		err = a.manager.AcceptFixtureProvider(a.ctx, a.Actor)
+		err = a.manager.AcceptFixtureProvider(a.lifetime, a.Actor)
 		if err != nil {
-			err = errors.Wrap(err, "accept fixture provider", nil)
-			errors.Log(logging.ActingLogger, err)
-			acting.SendOrLogError(a.Actor, acting.ActorErrorMessageFromError(err))
+			acting.LogErrorAndSendOrLog(logging.ActingLogger, a.Actor,
+				errors.Wrap(err, "accept fixture provider", nil))
 			return
 		}
 	}()
-	return nil
+	return contract, nil
 }
 
 // cleanUp cleans up by unregistering from manager.

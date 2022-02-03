@@ -85,12 +85,12 @@ func (dm *FixtureOperatorHandlers) HandleNewActor(actor acting.Actor, role actin
 	dm.managerCounter++
 	dm.m.Unlock()
 	// Hire.
-	err := actorDM.Hire(fmt.Sprintf("fixture-operator-%d", dm.managerCounter))
+	contract, err := actorDM.Hire(fmt.Sprintf("fixture-operator-%d", dm.managerCounter))
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
-	<-actorDM.Quit()
+	<-contract.Done()
 	// Remove from active ones.
 	dm.m.Lock()
 	delete(dm.activeManagers, actorDM)
@@ -106,11 +106,11 @@ type fixtureOperatorHandler struct {
 	ctx     context.Context
 }
 
-func (a *fixtureOperatorHandler) Hire(displayedName string) error {
+func (a *fixtureOperatorHandler) Hire(displayedName string) (acting.Contract, error) {
 	// Hire normally.
-	err := a.Actor.Hire(displayedName)
+	contract, err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
 	// Message handlers.
 	go func() {
@@ -131,7 +131,7 @@ func (a *fixtureOperatorHandler) Hire(displayedName string) error {
 			a.handleSetFixturesLocating(m)
 		}
 	}()
-	return nil
+	return contract, nil
 }
 
 func (a *fixtureOperatorHandler) handleGetFixtureStates() {

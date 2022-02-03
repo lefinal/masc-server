@@ -58,12 +58,12 @@ func (dm *ManagementHandlers) HandleNewActor(actor acting.Actor, role acting.Rol
 	dm.handlerCounter++
 	dm.m.Unlock()
 	// Hire.
-	err := actorDM.Hire(fmt.Sprintf("fixture-manager-%d", dm.handlerCounter))
+	contract, err := actorDM.Hire(fmt.Sprintf("fixture-manager-%d", dm.handlerCounter))
 	if err != nil {
 		errors.Log(logging.AppLogger, errors.Wrap(err, "hire", nil))
 		return
 	}
-	<-actorDM.Quit()
+	<-contract.Done()
 	// Remove from active ones.
 	dm.m.Lock()
 	delete(dm.activeHandlers, actorDM)
@@ -78,11 +78,11 @@ type managementHandler struct {
 	manager Manager
 }
 
-func (a *managementHandler) Hire(displayedName string) error {
+func (a *managementHandler) Hire(displayedName string) (acting.Contract, error) {
 	// Hire normally.
-	err := a.Actor.Hire(displayedName)
+	contract, err := a.Actor.Hire(displayedName)
 	if err != nil {
-		return errors.Wrap(err, "hire actor", nil)
+		return acting.Contract{}, errors.Wrap(err, "hire actor", nil)
 	}
 	// Setup message handlers. We do not need to unsubscribe because this will be
 	// done when the actor is fired. Handle device retrieval.
@@ -104,7 +104,7 @@ func (a *managementHandler) Hire(displayedName string) error {
 			a.handleDeleteFixture(message)
 		}
 	}()
-	return nil
+	return contract, nil
 }
 
 // handleSetFixtureName handles an incoming message with type

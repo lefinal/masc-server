@@ -194,9 +194,9 @@ func (suite *PlayerJoinOfficeTestSuite) TestOKWithoutUserBlameErrors() {
 	suite.playerProvider.SetPlayerKnown("user-0")
 	suite.playerProvider.SetPlayerKnown("user-1")
 	actor0 := acting.NewMockActor("actor-0")
-	_ = actor0.Hire("actor-0")
+	_, _ = actor0.Hire("actor-0")
 	actor1 := acting.NewMockActor("actor-1")
-	_ = actor1.Hire("actor-1")
+	_, _ = actor1.Hire("actor-1")
 
 	actor0Newsletter := actor0.SubscribeOutgoingMessageType(messages.MessageTypePlayerJoinOpen)
 	var wg sync.WaitGroup
@@ -248,7 +248,7 @@ func (suite *PlayerJoinOfficeTestSuite) TestOKWithoutUserBlameErrors() {
 func (suite *PlayerJoinOfficeTestSuite) TestOKWithUserBlameErrors() {
 	suite.playerProvider.SetPlayerKnown("user-0")
 	actor := acting.NewMockActor("actor")
-	_ = actor.Hire("actor")
+	_, _ = actor.Hire("actor")
 
 	actorNewsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypePlayerJoinOpen)
 	go func() {
@@ -275,7 +275,7 @@ func (suite *PlayerJoinOfficeTestSuite) TestOKWithUserBlameErrors() {
 func (suite *PlayerJoinOfficeTestSuite) TestControlMessages() {
 	suite.playerProvider.SetPlayerKnown("user-0")
 	actor := acting.NewMockActor("actor")
-	_ = actor.Hire("actor")
+	_, _ = actor.Hire("actor")
 
 	actorNewsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypePlayerJoinOpen)
 	go func() {
@@ -300,7 +300,7 @@ func (suite *PlayerJoinOfficeTestSuite) TestControlMessages() {
 func (suite *PlayerJoinOfficeTestSuite) TestPlayerLeave() {
 	suite.playerProvider.SetPlayerKnown("improve")
 	actor := acting.NewMockActor("actor")
-	_ = actor.Hire("actor")
+	_, _ = actor.Hire("actor")
 
 	actorNewsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypePlayerJoinOpen)
 	// This is a bit hacky, but I don't know how to handle this. We need to wait
@@ -361,7 +361,7 @@ func (suite *BroadcastPlayerManagementUpdateTestSuite) SetupTest() {
 
 func (suite *BroadcastPlayerManagementUpdateTestSuite) TestUserRetrievalFail() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 
 	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
 		User:      "unknown-user",
@@ -373,7 +373,7 @@ func (suite *BroadcastPlayerManagementUpdateTestSuite) TestUserRetrievalFail() {
 
 func (suite *BroadcastPlayerManagementUpdateTestSuite) TestSendFail() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 	actor.SendErr = nativeerrors.New("sad life")
 
 	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
@@ -384,7 +384,7 @@ func (suite *BroadcastPlayerManagementUpdateTestSuite) TestSendFail() {
 
 func (suite *BroadcastPlayerManagementUpdateTestSuite) TestPlayerJoinedSingleOK() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 	suite.playerProvider.SetPlayerKnown("hello-world")
 
 	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
@@ -399,7 +399,7 @@ func (suite *BroadcastPlayerManagementUpdateTestSuite) TestPlayerJoinedSingleOK(
 
 func (suite *BroadcastPlayerManagementUpdateTestSuite) TestPlayerLeftSingleOK() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 	suite.playerProvider.SetPlayerKnown("hello-world")
 
 	err := BroadcastPlayerManagementUpdate(PlayerManagementUpdate{
@@ -420,7 +420,7 @@ func (suite *BroadcastPlayerManagementUpdateTestSuite) TestMultiple() {
 	actors := make([]acting.Actor, 0, 8)
 	for i := 0; i < 8; i++ {
 		actor := acting.NewMockActor("actor")
-		_ = actor.Hire("actor")
+		_, _ = actor.Hire("actor")
 		newsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypePlayerLeft)
 		actorMessageWaiters.Add(1)
 		go func() {
@@ -456,7 +456,7 @@ type BroadcastReadyStateUpdateTestSuite struct {
 
 func (suite *BroadcastReadyStateUpdateTestSuite) TestSendFail() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 	actor.SendErr = nativeerrors.New("sad life")
 
 	err := BroadcastReadyStateUpdate(ReadyStateUpdate{
@@ -468,7 +468,7 @@ func (suite *BroadcastReadyStateUpdateTestSuite) TestSendFail() {
 
 func (suite *BroadcastReadyStateUpdateTestSuite) TestSingleOK() {
 	actor := acting.NewMockActor("")
-	_ = actor.Hire("")
+	_, _ = actor.Hire("")
 
 	err := BroadcastReadyStateUpdate(ReadyStateUpdate{
 		IsEverybodyReady: true,
@@ -496,7 +496,7 @@ func (suite *BroadcastReadyStateUpdateTestSuite) TestMultiple() {
 	actors := make([]acting.Actor, 0, 8)
 	for i := 0; i < 8; i++ {
 		actor := acting.NewMockActor("actor")
-		_ = actor.Hire("actor")
+		_, _ = actor.Hire("actor")
 		newsletter := actor.SubscribeOutgoingMessageType(messages.MessageTypeReadyStateUpdate)
 		actorMessageWaiters.Add(1)
 		go func() {

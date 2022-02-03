@@ -35,7 +35,7 @@ func (suite *SubscriptionManagerTestSuite) TestSubscribeOK() {
 		received := 0
 		for {
 			select {
-			case <-sub.Ctx.Done():
+			case <-sub.Lifetime.Done():
 				if received != messagesToSend {
 					suite.Failf("incorrect messages received", "should have received %d messages but got: %d", messagesToSend, received)
 				}
@@ -98,7 +98,7 @@ func (suite *SubscriptionManagerTestSuite) TestCancelAllSubscriptions() {
 			select {
 			case <-ctx.Done():
 				suite.Fail("timeout", "timeout while waiting for subscription to be inactive")
-			case <-sub.Ctx.Done():
+			case <-sub.Lifetime.Done():
 				// Yay.
 			}
 		}()
