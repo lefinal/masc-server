@@ -31,6 +31,7 @@ func main() {
 		defer wg.Done()
 		err := a.Boot(appCtx)
 		if err != nil {
+			shutdownApp()
 			log.Fatalln(errors.Wrap(err, "boot", nil))
 		}
 	}()
