@@ -3,12 +3,12 @@ package ws
 import (
 	"context"
 	"github.com/LeFinal/masc-server/client"
-	"github.com/LeFinal/masc-server/logging"
 	"go.uber.org/zap"
 )
 
 // Hub holds all active clients and manages centralized receiving and sending.
 type Hub struct {
+	logger *zap.Logger
 	// clientListener is used for notifying of new clients or unregistered ones.
 	clientListener client.Listener
 	// clients holds all online clients.
@@ -20,8 +20,9 @@ type Hub struct {
 }
 
 // NewHub creates a new Hub. Start it with Hub.Run.
-func NewHub(clientListener client.Listener) *Hub {
+func NewHub(logger *zap.Logger, clientListener client.Listener) *Hub {
 	return &Hub{
+		logger:         logger,
 		clientListener: clientListener,
 		register:       make(chan *Client),
 		unregister:     make(chan *Client),
@@ -38,7 +39,7 @@ func (h *Hub) Run(ctx context.Context) {
 		case c := <-h.register:
 			// Register client.
 			h.clients[c] = struct{}{}
-			logging.WSLogger.Info("client connected", zap.String("client_id", c.ID))
+			h.logger.Info("client connected", zap.String("client_id", c.ID))
 			go h.clientListener.AcceptClient(ctx, c.Client)
 		case c := <-h.unregister:
 			// Unregister client.
@@ -49,7 +50,7 @@ func (h *Hub) Run(ctx context.Context) {
 					close(c.Send)
 				}(c)
 				delete(h.clients, c)
-				logging.WSLogger.Info("client disconnected", zap.String("client_id", c.ID))
+				h.logger.Info("client disconnected", zap.String("client_id", c.ID))
 			}
 		}
 	}

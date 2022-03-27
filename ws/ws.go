@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"github.com/LeFinal/masc-server/client"
-	"github.com/LeFinal/masc-server/logging"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -36,7 +35,7 @@ func HandleWS(hub *Hub, ctx context.Context) http.HandlerFunc {
 			},
 			hub:        hub,
 			connection: conn,
-			logger:     logging.WSLogger.With(zap.String("client_id", clientID)),
+			logger:     hub.logger.With(zap.String("client_id", clientID)),
 		}
 		// Use the client's hub so that the reference from the handler can be dropped.
 		c.hub.register <- c

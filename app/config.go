@@ -12,10 +12,8 @@ type Config struct {
 	Log LogConfig `json:"log"`
 	// DBConn is the connection string for the PostgreSQL database.
 	DBConn string `json:"db_conn"`
-	// WebsocketAddr is the address, the app will listen for connections on.
-	WebsocketAddr string `json:"websocket_addr"`
-	// MQTTAddr is the address where the optional MQTT-server can be found.
-	MQTTAddr nulls.String `json:"mqtt_addr,omitempty"`
+	// MQTTAddr is the address where the MQTT-server can be found.
+	MQTTAddr string `json:"mqtt_addr,omitempty"`
 }
 
 // LogConfig is the configuration to use for logging.
@@ -43,8 +41,8 @@ func ValidateConfig(config Config) error {
 	if config.DBConn == "" {
 		return errors.New("missing db connection")
 	}
-	if config.WebsocketAddr == "" {
-		return errors.New("missing websocket address")
+	if config.MQTTAddr == "" {
+		return errors.New("missing mqtt address")
 	}
 	return nil
 }

@@ -2,16 +2,22 @@ package app
 
 import (
 	"database/sql"
+	"embed"
 	nativeerrors "errors"
 	"fmt"
-	"github.com/LeFinal/masc-server/embedded"
 	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/logging"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"go.uber.org/zap"
+	"io"
+	"sort"
+	"strconv"
+	"strings"
 )
+
+// TODO: Move to migrations
+var dbMigrationLogger *zap.Logger
 
 // defaultMaxDBConnections is the maximum number of database connections that is used when no other one is provided
 // in the Config.
@@ -20,11 +26,11 @@ const defaultMaxDBConnections = 16
 // dbVersion is used for determining the current database version. This is saved in a special table when properly set
 // up. If the version does not exist, one can know that the database needs to be initialized. If it is and the latest
 // version is greater, migrations can be performed.
-type dbVersion string
+type dbVersion int32
 
 // dbVersionZero is used when no database version could be found, and therefore we conclude that it has not been
 // initialized yet.
-const dbVersionZero dbVersion = "0"
+const dbVersionZero dbVersion = 0
 
 // dbMigration is used for performing and checking database migrations. They lie in dbMigrations which is an ordered
 // list of versions with their migrations.
@@ -33,21 +39,55 @@ type dbMigration struct {
 	up      string
 }
 
-// dbMigrations are the sql migrations in an ordered (!) list. The order is used to determine which migrations need to
-// be done when the current database version is not the latest one.
-var dbMigrations = []dbMigration{
-	{
-		version: "1.0",
-		up:      embedded.DBMigration1x0,
-	},
-	{
-		version: "1.1",
-		up:      embedded.DBMigration1x1,
-	},
-	{
-		version: "1.2",
-		up:      embedded.DBMigration1x2,
-	},
+//go:embed db_migrations
+var migrations embed.FS
+
+func getOrderedMigrations() ([]dbMigration, error) {
+	const numberPrefix = 5
+	// Read embedded migrations.
+	files, err := migrations.ReadDir("db_migrations")
+	if err != nil {
+		return nil, errors.NewInternalErrorFromErr(err, "read embedded migrations failed", nil)
+	}
+	// Read file names.
+	fileNames := make([]string, 0, len(files))
+	for _, file := range files {
+		fileNames = append(fileNames, file.Name())
+	}
+	// Sort.
+	sort.Strings(fileNames)
+	dbMigrations := make([]dbMigration, 0, len(files))
+	for _, name := range fileNames {
+		// Read file.
+		up, err := migrations.Open(fmt.Sprintf("db_migrations/%s", name))
+		if err != nil {
+			return nil, errors.NewInternalErrorFromErr(err, "open db migration failed", nil)
+		}
+		upContent, err := io.ReadAll(up)
+		_ = up.Close()
+		if err != nil {
+			return nil, errors.NewInternalErrorFromErr(err, "read db migration failed", errors.Details{
+				"migration": name,
+			})
+		}
+		// Extract migration version number.
+		if len(strings.Split(name, ".sql")[0]) < numberPrefix {
+			return nil, errors.NewInternalError("db migration file name too short", errors.Details{
+				"expect": numberPrefix,
+				"name":   name,
+			})
+		}
+		version, err := strconv.Atoi(name[:numberPrefix])
+		if err != nil {
+			return nil, errors.NewInternalErrorFromErr(err, "db migration file name number prefix not numeric",
+				errors.Details{"name": name})
+		}
+		dbMigrations = append(dbMigrations, dbMigration{
+			version: dbVersion(version),
+			up:      string(upContent),
+		})
+	}
+	return dbMigrations, nil
 }
 
 // connectDB connects to the database with the given connection string and returns the connection pool.
@@ -108,7 +148,7 @@ func performDBMigrations(db *sql.DB) error {
 	if err != nil {
 		return errors.Wrap(err, "retrieve current db version", nil)
 	}
-	logging.AppLogger.Info("extracted current database version",
+	dbMigrationLogger.Info("extracted current database version",
 		zap.Any("db_version", currentVersion))
 	migrationsToDo, err := getDBMigrationsToDo(currentVersion)
 	if err != nil {
@@ -126,7 +166,7 @@ func performDBMigrations(db *sql.DB) error {
 	// Perform migrations.
 	var newVersion dbVersion
 	for i, migration := range migrationsToDo {
-		logging.AppLogger.Info(fmt.Sprintf("performing database migration %d/%d...", i+1, len(migrationsToDo)))
+		dbMigrationLogger.Info(fmt.Sprintf("performing database migration %d/%d...", i+1, len(migrationsToDo)))
 		// Perform migration according to the version.
 		_, err = tx.Exec(migration.up)
 		if err != nil {
@@ -134,7 +174,7 @@ func performDBMigrations(db *sql.DB) error {
 			return errors.NewExecQueryError(err, migration.up, errors.Details{"target_version": migration.version})
 		}
 		newVersion = migration.version
-		logging.AppLogger.Debug("finished database migration step", zap.Any("new_version", newVersion))
+		dbMigrationLogger.Debug("finished database migration step", zap.Any("new_version", newVersion))
 	}
 	err = tx.Commit()
 	if err != nil {
@@ -146,7 +186,7 @@ func performDBMigrations(db *sql.DB) error {
 		return errors.NewDBTxBeginError(err)
 	}
 	// Update database version.
-	logging.AppLogger.Debug("updating database version...")
+	dbMigrationLogger.Debug("updating database version...")
 	var updateDBVersionQuery string
 	if currentVersion == dbVersionZero {
 		updateDBVersionQuery, _, err = goqu.Dialect("postgres").Insert(goqu.T("masc")).Rows(goqu.Record{
@@ -173,13 +213,17 @@ func performDBMigrations(db *sql.DB) error {
 		return errors.NewDBTxCommitError(err)
 	}
 	// All done.
-	logging.AppLogger.Debug("finished database version update")
+	dbMigrationLogger.Debug("finished database version update")
 	return nil
 }
 
 // getDBMigrationsToDo retrieves all database migrations that need to be performed. If the version is dbVersionZero, it
 // will return all migrations. If the version is unknown, an error will be returned.
 func getDBMigrationsToDo(currentVersion dbVersion) ([]dbMigration, error) {
+	dbMigrations, err := getOrderedMigrations()
+	if err != nil {
+		return nil, errors.Wrap(err, "get ordered migrations", nil)
+	}
 	// Check if empty version.
 	if currentVersion == dbVersionZero {
 		return dbMigrations, nil
@@ -233,9 +277,15 @@ func retrieveCurrentDBVersion(db *sql.DB) (dbVersion, error) {
 				return dbVersionZero, nil
 			}
 		}
-		return "", errors.Wrap(err, "retrieve key val from db", nil)
+		return 0, errors.Wrap(err, "retrieve key val from db", nil)
 	}
-	return dbVersion(versionStr), nil
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		return 0, errors.NewInternalErrorFromErr(err, "retrieved current db version not numeric", errors.Details{
+			"was": versionStr,
+		})
+	}
+	return dbVersion(version), nil
 }
 
 // retrieveKeyValFromDB retrieves the value for the given key from the given database.
@@ -267,7 +317,7 @@ func retrieveKeyValFromDB(db *sql.DB, key string) (string, error) {
 func rollbackTx(tx *sql.Tx, reason string) {
 	err := tx.Rollback()
 	if err != nil {
-		errors.Log(logging.DBLogger, errors.Error{
+		errors.Log(dbMigrationLogger, errors.Error{
 			Code:    errors.ErrInternal,
 			Message: "rollback tx",
 			Err:     err,

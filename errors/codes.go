@@ -10,6 +10,5 @@ const (
 	ErrFatal             Code = "fatal"
 	ErrNotFound          Code = "not-found"
 	ErrInternal          Code = "internal"
-	ErrSadLife           Code = "sad-life"
 	ErrUnexpected        Code = "unexpected"
 )

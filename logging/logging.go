@@ -9,68 +9,6 @@ import (
 
 const topicField = "logger_type"
 
-// Loggers.
-var (
-	// AppLogger is the main app.App logger.
-	AppLogger *zap.Logger
-	// CommunicationFailLogger is the logger for failed communication.
-	CommunicationFailLogger *zap.Logger
-	// DBLogger is used for stuff regarding the database connection.
-	DBLogger *zap.Logger
-	// GamesLogger is the logger for package games.
-	GamesLogger *zap.Logger
-	// GatekeepingLogger is the logger for gatekeeping.
-	GatekeepingLogger *zap.Logger
-	// MASCMessageLogger is used for all incoming and outgoing MASC messages.
-	MASCMessageLogger *zap.Logger
-	// ActingLogger is the logger for acting.
-	ActingLogger *zap.Logger
-	// SubscriptionManagerLogger is used in acting package for managing
-	// subscriptions.
-	SubscriptionManagerLogger *zap.Logger
-	// LightingLogger is used for all stuff regarding lighting.
-	LightingLogger *zap.Logger
-	// LightSwitchLogger is used for all stuff regarding light switches.
-	LightSwitchLogger *zap.Logger
-	// LogPublishLogger is used for stuff regarding publishing logs.
-	LogPublishLogger *zap.Logger
-	// NoPublishLogger is for internal stuff and does NOT call the infoLogHook.
-	NoPublishLogger *zap.Logger
-	// WebServerLogger is used for all stuff regarding web servers.
-	WebServerLogger *zap.Logger
-	// WSLogger is used for all stuff regarding websocket connections.
-	WSLogger *zap.Logger
-	// MQTTLogger is the logger for all MQTT stuff.
-	MQTTLogger *zap.Logger
-	// MQTTMessageLogger is the logger for incoming and outgoing MQTT messages.
-	MQTTMessageLogger *zap.Logger
-	// SystemDebugStats is the logger for logging periodic stack traces in
-	// order to get debug information regarding deadlocks.
-	SystemDebugStats *zap.Logger
-)
-
-// ApplyToGlobalLoggers initializes the global loggers with the given
-// zap.Logger.
-func ApplyToGlobalLoggers(logger *zap.Logger) {
-	ActingLogger = logger.Named("acting")
-	AppLogger = logger.Named("app")
-	CommunicationFailLogger = logger.Named("communication-fail")
-	DBLogger = logger.Named("db")
-	GamesLogger = logger.Named("games")
-	GatekeepingLogger = logger.Named("gatekeeping")
-	NoPublishLogger = logger.Named("logging-internal").With(zap.Bool("no_publish", true))
-	LightingLogger = logger.Named("lighting")
-	LightSwitchLogger = logger.Named("light-switches")
-	LogPublishLogger = logger.Named("log-publish")
-	MASCMessageLogger = logger.Named("masc-message")
-	SubscriptionManagerLogger = logger.Named("subscription-manager")
-	WebServerLogger = logger.Named("web-server")
-	WSLogger = logger.Named("ws")
-	MQTTLogger = logger.Named("mqtt")
-	MQTTMessageLogger = logger.Named("mqtt-message")
-	SystemDebugStats = logger.Named("system-debug-stats").With(zap.Bool("no_publish", true))
-}
-
 type LogEntry struct {
 	// Time is the timestamp the log entry was created.
 	Time time.Time `json:"time"`

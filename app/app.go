@@ -2,52 +2,27 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"github.com/LeFinal/masc-server/acting"
-	"github.com/LeFinal/masc-server/device_management"
 	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/gatekeeping"
-	"github.com/LeFinal/masc-server/lighting"
-	"github.com/LeFinal/masc-server/lightswitch"
 	"github.com/LeFinal/masc-server/logging"
-	"github.com/LeFinal/masc-server/logpublish"
-	"github.com/LeFinal/masc-server/mqttbridge"
-	"github.com/LeFinal/masc-server/stores"
-	"github.com/LeFinal/masc-server/web_server"
-	"github.com/LeFinal/masc-server/ws"
+	"github.com/LeFinal/masc-server/portal"
+	"github.com/LeFinal/masc-server/store"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
-	"runtime"
 	"sync"
-	"time"
 )
 
 // App is a complete MASC server instance.
 type App struct {
 	// mall provides persistence.
-	mall *stores.Mall
+	mall *store.Mall
 	// config is the main config used for the App.
 	config Config
-	// webServer is used for http requests and websocket connection.
-	webServer *web_server.WebServer
-	// wsHub is the hub for websocket connections.
-	wsHub *ws.Hub
-	// gatekeeper handles new connections and device management.
-	gatekeeper *gatekeeping.NetGatekeeper
-	// agency does the acting.Actor management.
-	agency *acting.ProtectedAgency
-	// lightingManager is the manager for fixture operation, handling, etc.
-	lightingManager *lighting.StoredManager
-	// lightSwitchManager is the manager for light switches.
-	lightSwitchManager lightswitch.Manager
-	// mqttBridge is used for connecting to a MQTT-server.
-	mqttBridge mqttbridge.Bridge
-	// mainHandlers holds general actor handlers like device management or fixture
-	// manager.
-	mainHandlers mainHandlers
-	publishLog   <-chan logging.LogEntry
+	// portal is used for connecting to the MQTT-server.
+	portal     portal.Base
+	logger     *zap.Logger
+	publishLog <-chan logging.LogEntry
 }
 
 func NewApp(config Config) *App {
@@ -68,9 +43,10 @@ func (app *App) Boot(ctx context.Context) error {
 		}
 	}
 	// Setup logger.
-	logger, publishLog := app.setupLogging(ctx, app.config.Log)
+	logger, publishLog := setupLogger(ctx, app.config.Log)
+	app.logger = logger
 	app.publishLog = publishLog
-	logging.ApplyToGlobalLoggers(logger)
+	dbMigrationLogger = logger.Named("db-migration")
 	defer func(loggerToSync *zap.Logger) {
 		_ = logger.Sync()
 	}(logger)
@@ -78,117 +54,72 @@ func (app *App) Boot(ctx context.Context) error {
 	err = app.boot(ctx)
 	if err != nil {
 		err = errors.Wrap(err, "boot", nil)
-		errors.Log(logging.AppLogger, err)
+		errors.Log(app.logger, err)
 		return err
 	}
 	return nil
 }
 
 func (app *App) boot(ctx context.Context) error {
+	var wg sync.WaitGroup
 	appCtx, shutdown := context.WithCancel(context.Background())
 	defer shutdown()
-	logging.AppLogger.Warn("booting up")
+	app.logger.Info("booting up")
 	// Connect database.
-	logging.AppLogger.Debug("connecting to database")
+	app.logger.Debug("connecting to database")
 	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
 		return errors.Wrap(err, "connect database", nil)
 	} else {
-		app.mall = stores.NewMall(db)
+		app.mall = store.NewMall(app.logger.Named("store"), db)
 	}
-	logging.AppLogger.Debug("database ready")
-	logging.AppLogger.Debug("setting up...")
-	// Create gatekeeper.
-	app.gatekeeper = gatekeeping.NewNetGatekeeper(app.mall)
-	// Create websocket hub.
-	app.wsHub = ws.NewHub(app.gatekeeper)
-	// Create agency.
-	app.agency = acting.NewProtectedAgency(app.gatekeeper)
-	// Create lighting manager.
-	app.lightingManager = lighting.NewStoredManager(app.mall)
-	if err := app.lightingManager.LoadKnownFixtures(); err != nil {
-		return errors.Wrap(err, "load known fixtures for lighting manager", nil)
+	app.logger.Debug("database ready")
+	app.logger.Debug("setting up...")
+	// Create portal.
+	var err error
+	app.portal, err = portal.NewBase(app.logger.Named("portal"), portal.Config{MQTTAddr: app.config.MQTTAddr})
+	if err != nil {
+		return errors.Wrap(err, "new portal base", nil)
 	}
-	// Create light switch manager.
-	app.lightSwitchManager = lightswitch.NewManager(app.mall, app.lightingManager)
-	// Create MQTT bridge if address is provided.
-	if app.config.MQTTAddr.Valid {
-		app.mqttBridge = mqttbridge.NewBridge(mqttbridge.Config{MQTTAddr: app.config.MQTTAddr.String})
-	}
-	// Create web server.
-	if webServer, err := web_server.NewWebServer(web_server.Config{
-		ServeAddr:    app.config.WebsocketAddr,
-		WriteTimeout: 1024,
-		ReadTimeout:  1024,
-	}); err != nil {
-		return errors.Wrap(err, "create web server", nil)
-	} else {
-		app.webServer = webServer
-	}
-	// Create main handlers.
-	app.mainHandlers = mainHandlers{
-		deviceManagement:  device_management.NewDeviceManagementHandlers(app.agency, app.gatekeeper),
-		fixtureManagement: lighting.NewManagementHandlers(app.agency, app.lightingManager),
-		fixtureProviders:  lighting.NewFixtureProviderHandlers(app.agency, app.lightingManager),
-		fixtureOperators:  lighting.NewFixtureOperatorHandlers(app.agency, app.lightingManager),
-	}
-	logging.AppLogger.Debug("setup completed. booting...")
-	// Boot everything.
-	if err := app.gatekeeper.WakeUpAndProtect(app.agency); err != nil {
-		return errors.Wrap(err, "wake up gatekeeper and protect", nil)
-	}
-	go app.lightingManager.Run(appCtx)
-	go lightswitch.RunActorReception(appCtx, app.agency, app.lightSwitchManager)
-	go logpublish.RunActorReception(appCtx, app.agency, app.publishLog)
-	go app.mainHandlers.Run(appCtx)
-	go app.wsHub.Run(appCtx)
-	if app.mqttBridge != nil {
-		go func() {
-			if err := app.mqttBridge.Run(appCtx, app.mall, app.gatekeeper); err != nil {
-				errors.Log(logging.AppLogger, errors.Wrap(err, "run mqtt bridge", nil))
-			}
-		}()
-	}
-	if err := app.agency.Open(); err != nil {
-		return errors.Wrap(err, "open agency", nil)
-	}
-	app.webServer.PopulateRoutes(app.wsHub, appCtx)
+	app.logger.Debug("setup completed. booting...")
+	portalLifetime, closePortal := context.WithCancel(context.Background())
+	defer closePortal()
+	// Open portal.
+	wg.Add(1)
 	go func() {
-		err := app.webServer.Run(appCtx)
+		defer wg.Done()
+		defer closePortal()
+		err := app.portal.Open(portalLifetime)
 		if err != nil {
-			errors.Log(logging.AppLogger, errors.Wrap(err, "run web server", nil))
+			errors.Log(app.logger, errors.Wrap(err, "open portal", nil))
+			shutdown()
 			return
 		}
 	}()
-	// Setup periodic stack log if desired.
-	if app.config.Log.SystemDebugStatsInterval.Valid {
-		interval := time.Duration(app.config.Log.SystemDebugStatsInterval.Int) * time.Minute
-		logging.SystemDebugStats.Debug(fmt.Sprintf("logging system state every %gs", interval.Seconds()))
-		go logSystemDebugStats(appCtx, interval, logging.SystemDebugStats)
+	// Create services and run them.
+	services, err := createServices(app.config, app.logger, app.mall)
+	if err != nil {
+		return errors.Wrap(err, "create services", nil)
 	}
-	logging.AppLogger.Warn("completed issuing boot commands")
+	servicesLifetime, shutdownServices := context.WithCancel(appCtx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer closePortal()
+		if err := services.run(servicesLifetime); err != nil {
+			errors.Log(app.logger, errors.Wrap(err, "run services", nil))
+			return
+		}
+	}()
+	app.logger.Info("completed issuing boot commands")
 	// Wait for exit.
 	<-ctx.Done()
-	logging.AppLogger.Warn("shutting down")
-	if err := app.gatekeeper.Retire(); err != nil {
-		return errors.Wrap(err, "retire gatekeeper", nil)
-	}
-	if err := app.agency.Close(); err != nil {
-		return errors.Wrap(err, "close agency", nil)
-	}
+	app.logger.Warn("shutting down")
+	shutdownServices()
+	wg.Wait()
 	return nil
 }
 
-// mainHandlers includes main actor handlers.
-type mainHandlers struct {
-	deviceManagement  *device_management.DeviceManagementHandlers
-	fixtureManagement *lighting.ManagementHandlers
-	fixtureProviders  *lighting.FixtureProviderHandlers
-	fixtureOperators  *lighting.FixtureOperatorHandlers
-	// wg waits for all running handlers.
-	wg sync.WaitGroup
-}
-
-func (app *App) setupLogging(ctx context.Context, config LogConfig) (*zap.Logger, <-chan logging.LogEntry) {
+func setupLogger(ctx context.Context, config LogConfig) (*zap.Logger, <-chan logging.LogEntry) {
 	encConfig := zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -252,48 +183,4 @@ func (app *App) setupLogging(ctx context.Context, config LogConfig) (*zap.Logger
 	// Combine.
 	logger := zap.New(zapcore.NewTee(cores...))
 	return logger, publishLog
-}
-
-func (mh *mainHandlers) Run(ctx context.Context) {
-	go mh.deviceManagement.Run(ctx)
-	// We run the operators first because they need to provide the context for
-	// update handlers.
-	go mh.fixtureOperators.Run(ctx)
-	go mh.fixtureManagement.Run(ctx)
-	go mh.fixtureProviders.Run(ctx)
-}
-
-// logSystemDebugStats logs the current system state like memory stats, current
-// stack, etc. to the given zap.Logger in the given interval.
-func logSystemDebugStats(ctx context.Context, interval time.Duration, logger *zap.Logger) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(interval):
-			// Num CPU.
-			numCPU := runtime.NumCPU()
-			// Num goroutines.
-			numGoroutine := runtime.NumGoroutine()
-			// Memory usage.
-			var memStats runtime.MemStats
-			runtime.ReadMemStats(&memStats)
-			memoryUsageMB := memStats.Sys / 1000 / 1000
-			// Get current stack.
-			buf := make([]byte, 1<<16)
-			stackSize := runtime.Stack(buf, true)
-			// Log it.
-			logger.Debug(fmt.Sprintf(`
-----------BEGIN OF DEBUG SYSTEM STATS-----------
-       Num CPU: %d
-Num goroutines: %d
- Memory in use: %dMB
-
-----------BEGIN OF STACK----------
-%s
-----------END OF STACK------------
-----------END OF DEBUG SYSTEM STATS-------------
-`, numCPU, numGoroutine, memoryUsageMB, string(buf[0:stackSize])))
-		}
-	}
 }

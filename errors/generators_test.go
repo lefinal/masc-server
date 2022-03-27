@@ -23,7 +23,6 @@ func TestNewResourceNotFoundError(t *testing.T) {
 			},
 			want: Error{
 				Code:    ErrNotFound,
-				Kind:    KindResourceNotFound,
 				Err:     nil,
 				Message: "hello world",
 				Details: nil,
@@ -37,7 +36,6 @@ func TestNewResourceNotFoundError(t *testing.T) {
 			},
 			want: Error{
 				Code:    ErrNotFound,
-				Kind:    KindResourceNotFound,
 				Err:     nil,
 				Message: "hello world",
 				Details: Details{"hello": "world"},

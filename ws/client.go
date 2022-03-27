@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"github.com/LeFinal/masc-server/client"
-	"github.com/LeFinal/masc-server/logging"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"time"
@@ -100,7 +99,7 @@ func (c *Client) writePump() {
 			if !ok {
 				err := c.connection.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
-					logging.WSLogger.Debug("write close message failed", zap.Error(err))
+					c.logger.Debug("write close message failed", zap.Error(err))
 					return
 				}
 				return

@@ -55,7 +55,6 @@ func TestCast(t *testing.T) {
 			},
 			want: Error{
 				Code:    ErrUnexpected,
-				Kind:    KindUnexpected,
 				Err:     nil,
 				Message: "unknown operation",
 				Details: make(Details),
@@ -69,7 +68,6 @@ func TestCast(t *testing.T) {
 			},
 			want: Error{
 				Code:    ErrUnexpected,
-				Kind:    KindUnexpected,
 				Err:     errors.New("i am an error"),
 				Message: "unknown operation",
 				Details: make(Details),
@@ -134,7 +132,6 @@ func TestFromErr(t *testing.T) {
 	type args struct {
 		message string
 		code    Code
-		kind    Kind
 		err     error
 	}
 	tests := []struct {
@@ -147,7 +144,6 @@ func TestFromErr(t *testing.T) {
 			args: args{
 				message: "i am the message",
 				code:    ErrProtocolViolation,
-				kind:    KindMissingID,
 				err:     errors.New("i am the error"),
 			},
 			want: errors.New("i am the message: i am the error"),
