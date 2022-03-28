@@ -1,4 +1,4 @@
-module github.com/LeFinal/masc-server
+module github.com/lefinal/masc-server
 
 go 1.18
 

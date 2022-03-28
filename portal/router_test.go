@@ -2,8 +2,8 @@ package portal
 
 import (
 	"context"
-	"github.com/LeFinal/masc-server/event"
 	"github.com/eclipse/paho.golang/paho"
+	"github.com/lefinal/masc-server/event"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"

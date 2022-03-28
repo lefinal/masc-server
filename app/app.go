@@ -2,10 +2,10 @@ package app
 
 import (
 	"context"
-	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/logging"
-	"github.com/LeFinal/masc-server/portal"
-	"github.com/LeFinal/masc-server/store"
+	"github.com/lefinal/masc-server/errors"
+	"github.com/lefinal/masc-server/logging"
+	"github.com/lefinal/masc-server/portal"
+	"github.com/lefinal/masc-server/store"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

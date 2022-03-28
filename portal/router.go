@@ -2,9 +2,9 @@ package portal
 
 import (
 	"context"
-	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/event"
 	"github.com/eclipse/paho.golang/paho"
+	"github.com/lefinal/masc-server/errors"
+	"github.com/lefinal/masc-server/event"
 	"go.uber.org/zap"
 	"sync"
 )

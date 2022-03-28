@@ -3,8 +3,8 @@
 package event
 
 import (
-	"github.com/LeFinal/masc-server/errors"
 	"github.com/eclipse/paho.golang/paho"
+	"github.com/lefinal/masc-server/errors"
 )
 
 // Standalone events.

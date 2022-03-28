@@ -2,10 +2,10 @@ package app
 
 import (
 	"context"
-	"github.com/LeFinal/masc-server/debugstats"
-	"github.com/LeFinal/masc-server/errors"
-	"github.com/LeFinal/masc-server/service"
-	"github.com/LeFinal/masc-server/store"
+	"github.com/lefinal/masc-server/debugstats"
+	"github.com/lefinal/masc-server/errors"
+	"github.com/lefinal/masc-server/service"
+	"github.com/lefinal/masc-server/store"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"time"

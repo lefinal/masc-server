@@ -2,7 +2,7 @@ package ws
 
 import (
 	"context"
-	"github.com/LeFinal/masc-server/client"
+	"github.com/lefinal/masc-server/client"
 	"go.uber.org/zap"
 )
 

@@ -3,8 +3,8 @@ package ws
 import (
 	"bytes"
 	"context"
-	"github.com/LeFinal/masc-server/client"
 	"github.com/gorilla/websocket"
+	"github.com/lefinal/masc-server/client"
 	"go.uber.org/zap"
 	"time"
 )

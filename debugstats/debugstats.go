@@ -3,7 +3,7 @@ package debugstats
 import (
 	"context"
 	"fmt"
-	"github.com/LeFinal/masc-server/service"
+	"github.com/lefinal/masc-server/service"
 	"go.uber.org/zap"
 	"runtime"
 	"time"

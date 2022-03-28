@@ -3,8 +3,8 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"github.com/LeFinal/masc-server/errors"
 	"github.com/doug-martin/goqu/v9"
+	"github.com/lefinal/masc-server/errors"
 	"go.uber.org/zap"
 )
 

@@ -2,7 +2,7 @@ package util
 
 import (
 	"encoding/json"
-	"github.com/LeFinal/masc-server/errors"
+	"github.com/lefinal/masc-server/errors"
 )
 
 // EncodeAsJSON serves as a wrapper for the standard encoding and error stuff.
