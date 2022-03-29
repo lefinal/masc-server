@@ -13,7 +13,10 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
+
+var timeout = 3 * time.Second
 
 func TestNewsletter_Unsubscribe(t *testing.T) {
 	var wg sync.WaitGroup
@@ -30,39 +33,14 @@ func TestNewsletter_Unsubscribe(t *testing.T) {
 	assert.Equal(t, context.Canceled, timeout.Err(), "should not time out")
 }
 
-// portalStub mocks Portal.
-type portalStub struct {
-	mock.Mock
-	// logger is the logger to use when calling Logger. If not set, this will always
-	// default to a nop logger.
-	logger *zap.Logger
-}
-
-func (s *portalStub) Subscribe(ctx context.Context, topic Topic) *Newsletter[any] {
-	var newsletter *Newsletter[any]
-	newsletter, _ = s.Called(ctx, topic).Get(0).(*Newsletter[any])
-	return newsletter
-}
-
-func (s *portalStub) Publish(ctx context.Context, topic Topic, payload interface{}) {
-	s.Called(ctx, topic, payload)
-}
-
-func (s *portalStub) Logger() *zap.Logger {
-	if s.logger == nil {
-		return zap.New(zapcore.NewNopCore())
-	}
-	return s.logger
-}
-
 // subscribeSuite tests Subscribe.
 type subscribeSuite struct {
 	suite.Suite
-	portal *portalStub
+	portal *Stub
 }
 
 func (suite *subscribeSuite) SetupTest() {
-	suite.portal = &portalStub{}
+	suite.portal = &Stub{}
 }
 
 // TestParse assures that parsing into the wanted type does work as expected.
@@ -90,6 +68,8 @@ func (suite *subscribeSuite) TestParse() {
 		defer wg.Done()
 		select {
 		case <-timeout.Done():
+			suite.Fail("timeout", "published result should be picked up within timeout")
+			return
 		case fromPortal <- event.Event[any]{
 			Publish: &paho.Publish{
 				Payload: []byte(`{"a": 123, "b":  true}`),
@@ -103,6 +83,8 @@ func (suite *subscribeSuite) TestParse() {
 		defer wg.Done()
 		select {
 		case <-timeout.Done():
+			suite.Fail("timeout", "newsletter should be received within timeout")
+			return
 		case got := <-newsletter.Receive:
 			suite.Equal(myStruct{
 				A: 123,
@@ -117,6 +99,7 @@ func (suite *subscribeSuite) TestParse() {
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 // TestAutoClose makes sure that the Newsletter.Receive channel from the
@@ -142,6 +125,7 @@ func (suite *subscribeSuite) TestAutoClose() {
 		for {
 			select {
 			case <-timeout.Done():
+				suite.Fail("timeout", "newsletter should be received within timeout")
 				return
 			case _, more := <-newsletter.Receive:
 				suite.False(more, "should read no values from channel")
@@ -163,6 +147,7 @@ func (suite *subscribeSuite) TestAutoClose() {
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 func TestSubscribe(t *testing.T) {
@@ -171,33 +156,61 @@ func TestSubscribe(t *testing.T) {
 
 func TestPortal_Subscribe(t *testing.T) {
 	var wg sync.WaitGroup
-	mqttRouter := &mqttRouterStub{}
+	mqttKiosk := &mqttKioskStub{}
+	mqttInboundRouter := &mqttInboundRouterStub{}
 	portal := &portal{
-		logger:    zap.New(zapcore.NewNopCore()),
-		router:    newRouter(zap.New(zapcore.NewNopCore()), mqttRouter),
+		logger: zap.New(zapcore.NewNopCore()),
+		router: newPortalGateway(zap.New(zapcore.NewNopCore()), &portalGatewayMQTTBridge{
+			logger:        zap.New(zapcore.NewNopCore()),
+			kiosk:         mqttKiosk,
+			inboundRouter: mqttInboundRouter,
+		}),
 		publisher: nil,
 	}
 	handlerToRun := make(chan paho.MessageHandler)
 	timeout, cancel := context.WithTimeout(context.Background(), timeout)
-	mqttRouter.On("RegisterHandler", "cats", mock.Anything).Run(func(args mock.Arguments) {
-		select {
-		case <-timeout.Done():
-		case handlerToRun <- args.Get(1).(paho.MessageHandler):
-		}
-	})
+	mqttKiosk.On("Subscribe", mock.Anything, mock.Anything).Return(nil, nil)
+	wg.Add(1) // Wait until unsubscribed.
+	mqttKiosk.On("Unsubscribe", mock.Anything, mock.Anything).Return(nil, nil).
+		Run(func(_ mock.Arguments) {
+			// Await unregister call.
+			wg.Done()
+		}).Once()
+	defer mqttKiosk.AssertExpectations(t)
 	wg.Add(1)
-	mqttRouter.On("UnregisterHandler", "cats").Run(func(_ mock.Arguments) {
-		// Await unregister call.
-		wg.Done()
+	mqttInboundRouter.On("RegisterHandler", "cats", mock.Anything).Run(func(args mock.Arguments) {
+		go func() {
+			defer wg.Done()
+			select {
+			case <-timeout.Done():
+				assert.Fail(t, "timeout", "registered handler should be picked up within timeout")
+				return
+			case handlerToRun <- args.Get(1).(paho.MessageHandler):
+			}
+		}()
 	})
-	defer mqttRouter.AssertExpectations(t)
+	mqttInboundRouter.On("UnregisterHandler", "cats")
+	defer mqttInboundRouter.AssertExpectations(t)
 	toPublish := &paho.Publish{}
+	// We need this subscribed blocker because handler registration happens before
+	// the actual subscription is added to the handler. Therefore, we call the
+	// handler too early when the subscription is not even introduced to the handler
+	// yet.
+	subscribedBlocker := make(chan struct{})
 	// Await handler for testing message forwarding.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		select {
 		case <-timeout.Done():
+			assert.Fail(t, "subscribed blocker should unblock within timeout")
+			return
+		case <-subscribedBlocker:
+		}
+		select {
+		case <-timeout.Done():
+			assert.Fail(t, "handler to run should be received within timeout")
+			return
 		case handler := <-handlerToRun:
 			handler(toPublish)
 		}
@@ -207,8 +220,10 @@ func TestPortal_Subscribe(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		newsletter := portal.Subscribe(timeout, "cats")
+		close(subscribedBlocker)
 		select {
 		case <-timeout.Done():
+			assert.Fail(t, "newsletter should be received within timeout")
 			return
 		case got := <-newsletter.Receive:
 			assert.Equal(t, toPublish, got.Publish, "should match expected publish")
@@ -223,6 +238,7 @@ func TestPortal_Subscribe(t *testing.T) {
 	}()
 	<-timeout.Done()
 	assert.Equal(t, context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 // publisherStub mocks publisher.
@@ -231,7 +247,7 @@ type publisherStub struct {
 }
 
 func (s *publisherStub) Publish(ctx context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
-	args := s.Called(ctx, publisherStub{})
+	args := s.Called(ctx, publish)
 	var res *paho.PublishResponse
 	res, _ = args.Get(0).(*paho.PublishResponse)
 	return res, args.Error(1)

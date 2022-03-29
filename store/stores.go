@@ -2,8 +2,8 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
 	"github.com/doug-martin/goqu/v9"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/lefinal/masc-server/errors"
 	"go.uber.org/zap"
 )
@@ -12,29 +12,18 @@ import (
 type Mall struct {
 	logger *zap.Logger
 	// db is the actual database to perform operations in.
-	db *sql.DB
+	db *pgxpool.Pool
 	// dialect is the SQL dialect for building queries.
 	dialect goqu.DialectWrapper
 }
 
 // NewMall creates a new Mall using the given database. It uses the PostgreSQL
 // dialect for queries.
-func NewMall(logger *zap.Logger, db *sql.DB) *Mall {
+func NewMall(logger *zap.Logger, db *pgxpool.Pool) *Mall {
 	return &Mall{
 		logger:  logger,
 		db:      db,
 		dialect: goqu.Dialect("postgres"),
-	}
-}
-
-func (m *Mall) closeRows(rows *sql.Rows) {
-	err := rows.Close()
-	if err != nil {
-		errors.Log(m.logger, errors.Error{
-			Code:    errors.ErrInternal,
-			Err:     err,
-			Message: "close rows",
-		})
 	}
 }
 
@@ -52,61 +41,6 @@ func extractAffectedRows(result sql.Result) (int, error) {
 		}
 	}
 	return int(rowsAffected), nil
-}
-
-// assureNRowsAffected assures that the given amount of rows are affected in the
-// sql.Result. If this operation is not supported, an errors.ErrFatal error with
-// kind errors.KindRowsAffectedNotSupported is returned. Otherwise, if the
-// affected row count does not match the expected one, an errors.ErrInternal
-// with kind errors.KindWrongRowsAffected is returned.
-func assureNRowsAffected(result sql.Result, n int) error {
-	rowsAffected, err := extractAffectedRows(result)
-	if err != nil {
-		return errors.Wrap(err, "extract affected rows", nil)
-	}
-	if rowsAffected != n {
-		return errors.Error{
-			Code:    errors.ErrInternal,
-			Message: fmt.Sprintf("expected %d affected rows but only got %d", n, rowsAffected),
-			Details: errors.Details{
-				"expectedAffectedRows": n,
-				"actualAffectedRows":   rowsAffected,
-			},
-		}
-	}
-	return nil
-}
-
-// assureOneRowAffectedForNotFound makes sure that exact one row for the given
-// sql.Result is affected. If getting the affected rows is not possible, an
-// errors.ErrFatal error is returned. If the affected rows do not equal 1, an
-// errors.ErrNotFound error is returned with the given details.
-func assureOneRowAffectedForNotFound(result sql.Result, notFoundMessage string, id interface{}, q string) error {
-	rowsAffected, err := extractAffectedRows(result)
-	if err != nil {
-		return errors.Wrap(err, "extract affected rows", nil)
-	}
-	if rowsAffected != 1 {
-		return errors.NewResourceNotFoundError(notFoundMessage, errors.Details{
-			"entity_id":     id,
-			"query":         q,
-			"rows_affected": rowsAffected,
-		})
-	}
-	return nil
-}
-
-// extractIDFromResult extracts the id from the given sql.Rows. There should be
-// exactly one row with one column which value will be returned. Warning: The
-// error being returned is NO application error! Use errors.NewExecQueryError.
-func extractIDFromResult(result *sql.Row) (int, error) {
-	id := -1
-	err := result.Scan(&id)
-	// TODO: What happens for insert failure like violated constraints? Where do we catch that error for ErrBadRequest?
-	if err != nil {
-		return -1, err
-	}
-	return id, nil
 }
 
 // rollbackTx rolls back the given sql.Tx. The encapsulation is needed because

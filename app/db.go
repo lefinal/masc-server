@@ -1,12 +1,13 @@
 package app
 
 import (
-	"database/sql"
+	"context"
 	"embed"
 	nativeerrors "errors"
 	"fmt"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/lefinal/masc-server/errors"
 	"go.uber.org/zap"
@@ -18,10 +19,6 @@ import (
 
 // TODO: Move to migrations
 var dbMigrationLogger *zap.Logger
-
-// defaultMaxDBConnections is the maximum number of database connections that is used when no other one is provided
-// in the Config.
-const defaultMaxDBConnections = 16
 
 // dbVersion is used for determining the current database version. This is saved in a special table when properly set
 // up. If the version does not exist, one can know that the database needs to be initialized. If it is and the latest
@@ -43,7 +40,7 @@ type dbMigration struct {
 var migrations embed.FS
 
 func getOrderedMigrations() ([]dbMigration, error) {
-	const numberPrefix = 5
+	const numberPrefix = 4
 	// Read embedded migrations.
 	files, err := migrations.ReadDir("db_migrations")
 	if err != nil {
@@ -91,8 +88,8 @@ func getOrderedMigrations() ([]dbMigration, error) {
 }
 
 // connectDB connects to the database with the given connection string and returns the connection pool.
-func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
-	dbPool, err := sql.Open("pgx", connectionStr)
+func connectDB(ctx context.Context, connectionStr string) (*pgxpool.Pool, error) {
+	dbPool, err := pgxpool.Connect(ctx, connectionStr)
 	if err != nil {
 		return nil, errors.Error{
 			Code:    errors.ErrFatal,
@@ -101,14 +98,13 @@ func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
 			Details: errors.Details{"connectionStr": connectionStr},
 		}
 	}
-	dbPool.SetMaxOpenConns(maxDBConnections)
 	// Perform test query.
-	err = testDBConnection(dbPool)
+	err = testDBConnection(ctx, dbPool)
 	if err != nil {
 		return nil, errors.Wrap(err, "test db connection", nil)
 	}
 	// Perform db migrations.
-	err = performDBMigrations(dbPool)
+	err = performDBMigrations(ctx, dbPool)
 	if err != nil {
 		return nil, errors.Wrap(err, "perform db migrations", nil)
 	}
@@ -116,14 +112,14 @@ func connectDB(connectionStr string, maxDBConnections int) (*sql.DB, error) {
 }
 
 // testDBConnection tests the database connection by simply querying 1.
-func testDBConnection(db *sql.DB) error {
+func testDBConnection(ctx context.Context, db *pgxpool.Pool) error {
 	// Build test query.
 	q, _, err := goqu.Select(goqu.V(1)).ToSQL()
 	if err != nil {
-		return errors.NewQueryToSQLError(err, errors.Details{})
+		return errors.NewInternalErrorFromErr(err, "query to sql", nil)
 	}
 	// Query database.
-	result := db.QueryRow(q)
+	result := db.QueryRow(ctx, q)
 	var got int
 	err = result.Scan(&got)
 	if err != nil {
@@ -143,8 +139,8 @@ func testDBConnection(db *sql.DB) error {
 }
 
 // performDBMigrations performs all needed database migrations according to the (un)set database version.
-func performDBMigrations(db *sql.DB) error {
-	currentVersion, err := retrieveCurrentDBVersion(db)
+func performDBMigrations(ctx context.Context, db *pgxpool.Pool) error {
+	currentVersion, err := retrieveCurrentDBVersion(ctx, db)
 	if err != nil {
 		return errors.Wrap(err, "retrieve current db version", nil)
 	}
@@ -159,29 +155,33 @@ func performDBMigrations(db *sql.DB) error {
 		return nil
 	}
 	// Begin tx for avoiding database destruction if something fails.
-	tx, err := db.Begin()
+	txCtx, cancelTx := context.WithCancel(ctx)
+	defer cancelTx()
+	tx, err := db.Begin(txCtx)
 	if err != nil {
 		return errors.NewDBTxBeginError(err)
 	}
 	// Perform migrations.
 	var newVersion dbVersion
 	for i, migration := range migrationsToDo {
-		dbMigrationLogger.Info(fmt.Sprintf("performing database migration %d/%d...", i+1, len(migrationsToDo)))
+		dbMigrationLogger.Info(fmt.Sprintf("performing database migration %d/%d for updating to version %v...", i+1, len(migrationsToDo), migration.version))
 		// Perform migration according to the version.
-		_, err = tx.Exec(migration.up)
+		_, err = tx.Exec(ctx, migration.up)
 		if err != nil {
-			rollbackTx(tx, "database migration failed")
-			return errors.NewExecQueryError(err, migration.up, errors.Details{"target_version": migration.version})
+			return errors.Wrap(errors.NewExecQueryError(err, "exec query", migration.up),
+				"perform db migration", errors.Details{"target_version": migration.version})
 		}
 		newVersion = migration.version
 		dbMigrationLogger.Debug("finished database migration step", zap.Any("new_version", newVersion))
 	}
-	err = tx.Commit()
+	err = tx.Commit(ctx)
 	if err != nil {
 		return errors.NewDBTxCommitError(err)
 	}
 	// New tx for database version update.
-	tx, err = db.Begin()
+	txCtx, cancelTx = context.WithCancel(ctx)
+	defer cancelTx()
+	tx, err = db.Begin(txCtx)
 	if err != nil {
 		return errors.NewDBTxBeginError(err)
 	}
@@ -199,16 +199,15 @@ func performDBMigrations(db *sql.DB) error {
 			Where(goqu.C("key").Eq("db-version")).ToSQL()
 	}
 	if err != nil {
-		rollbackTx(tx, "update database version query to sql failed")
+
 		return nil
 	}
-	_, err = tx.Exec(updateDBVersionQuery)
+	_, err = tx.Exec(ctx, updateDBVersionQuery)
 	if err != nil {
-		rollbackTx(tx, "update database version failed")
 		return nil
 	}
 	// Commit tx.
-	err = tx.Commit()
+	err = tx.Commit(ctx)
 	if err != nil {
 		return errors.NewDBTxCommitError(err)
 	}
@@ -263,8 +262,8 @@ func getDBMigrationsToDo(currentVersion dbVersion) ([]dbMigration, error) {
 
 // retrieveCurrentDBVersion retrieves the current dbVersion from the given database. If no version could be found,
 // dbVersionZero will be returned.
-func retrieveCurrentDBVersion(db *sql.DB) (dbVersion, error) {
-	versionStr, err := retrieveKeyValFromDB(db, "db-version")
+func retrieveCurrentDBVersion(ctx context.Context, db *pgxpool.Pool) (dbVersion, error) {
+	versionStr, err := retrieveKeyValFromDB(ctx, db, "db-version")
 	if err != nil {
 		if e, ok := errors.Cast(err); ok {
 			if e.Code == errors.ErrNotFound {
@@ -289,17 +288,17 @@ func retrieveCurrentDBVersion(db *sql.DB) (dbVersion, error) {
 }
 
 // retrieveKeyValFromDB retrieves the value for the given key from the given database.
-func retrieveKeyValFromDB(db *sql.DB, key string) (string, error) {
+func retrieveKeyValFromDB(ctx context.Context, db *pgxpool.Pool, key string) (string, error) {
 	// Build query.
 	q, _, err := goqu.Dialect("postgres").From(goqu.T("masc")).
 		Select(goqu.C("value")).
 		Where(goqu.C("key").Eq(key)).ToSQL()
 	if err != nil {
-		return "", errors.NewQueryToSQLError(err, errors.Details{"key": key})
+		return "", errors.NewInternalErrorFromErr(err, "query to sql", nil)
 	}
 	// Exec query and scan value.
 	var value string
-	err = db.QueryRow(q).Scan(&value)
+	err = db.QueryRow(ctx, q).Scan(&value)
 	if err != nil {
 		// Check if error is because relation does not exist as then it's a not-found error.
 		var pgErr *pgconn.PgError
@@ -310,18 +309,4 @@ func retrieveKeyValFromDB(db *sql.DB, key string) (string, error) {
 	}
 	// Done.
 	return value, nil
-}
-
-// rollbackTx rolls back the given sql.Tx. The encapsulation is needed because rolling back might return an error which
-// does not need to be returned but definitely logged with the original reason the rollback was performed.
-func rollbackTx(tx *sql.Tx, reason string) {
-	err := tx.Rollback()
-	if err != nil {
-		errors.Log(dbMigrationLogger, errors.Error{
-			Code:    errors.ErrInternal,
-			Message: "rollback tx",
-			Err:     err,
-			Details: errors.Details{"rollbackReason": reason},
-		})
-	}
 }

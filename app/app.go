@@ -67,7 +67,7 @@ func (app *App) boot(ctx context.Context) error {
 	app.logger.Info("booting up")
 	// Connect database.
 	app.logger.Debug("connecting to database")
-	if db, err := connectDB(app.config.DBConn, defaultMaxDBConnections); err != nil {
+	if db, err := connectDB(ctx, app.config.DBConn); err != nil {
 		return errors.Wrap(err, "connect database", nil)
 	} else {
 		app.mall = store.NewMall(app.logger.Named("store"), db)
@@ -81,22 +81,26 @@ func (app *App) boot(ctx context.Context) error {
 		return errors.Wrap(err, "new portal base", nil)
 	}
 	app.logger.Debug("setup completed. booting...")
-	portalLifetime, closePortal := context.WithCancel(context.Background())
-	defer closePortal()
 	// Open portal.
 	wg.Add(1)
+	portalOpened := make(chan struct{})
 	go func() {
 		defer wg.Done()
-		defer closePortal()
-		err := app.portal.Open(portalLifetime)
+		err := app.portal.Open(appCtx, portalOpened)
 		if err != nil {
 			errors.Log(app.logger, errors.Wrap(err, "open portal", nil))
 			shutdown()
 			return
 		}
 	}()
+	// Await portal opened.
+	select {
+	case <-ctx.Done():
+		return errors.NewContextAbortedError("wait for portal opened")
+	case <-portalOpened:
+	}
 	// Create services and run them.
-	services, err := createServices(app.config, app.logger, app.mall)
+	services, err := createServices(app.config, app.logger, app.portal, app.mall)
 	if err != nil {
 		return errors.Wrap(err, "create services", nil)
 	}
@@ -104,11 +108,12 @@ func (app *App) boot(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer closePortal()
-		if err := services.run(servicesLifetime); err != nil {
+		defer shutdown()
+		if err := services.run(app.logger.Named("service-runner"), servicesLifetime); err != nil {
 			errors.Log(app.logger, errors.Wrap(err, "run services", nil))
 			return
 		}
+		app.logger.Info("service-runner finished")
 	}()
 	app.logger.Info("completed issuing boot commands")
 	// Wait for exit.

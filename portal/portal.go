@@ -14,7 +14,6 @@ import (
 )
 
 const mqttClientID = "masc-server"
-const baseTopic = "lefinal/masc"
 const mqttKeepAlive = 8
 
 const mqttQOS = 0
@@ -49,7 +48,7 @@ type publisher interface {
 // Base, you only need to Open the Base and then use portals via NewPortal.
 type Base interface {
 	// Open the connection. Stays opened until the given context.Context is done.
-	Open(ctx context.Context) error
+	Open(ctx context.Context, opened chan struct{}) error
 	// NewPortal creates a new Portal that uses the connection from the Base.
 	NewPortal(name string) Portal
 }
@@ -59,15 +58,18 @@ type basePortal struct {
 	config Config
 	// brokerURL is the URL of the MQTT broker.
 	brokerURL *url.URL
+	// pahoMQTTRouter is the paho.Router for accepting subscribed messages.
+	pahoMQTTRouter paho.Router
 	// router is responsible for registering subscription requests as well as
 	// multiplexing and forwarding messages.
-	router *router
+	router *portalGateway
 	// publisher is used for publishing MQTT messages.
 	publisher publisher
 }
 
 type Portal interface {
-	// Subscribe returns a Newsletter for the given Topic.
+	// Subscribe returns a Newsletter for the given Topic. The Newsletter.Receive
+	// channel must be closed when the portal is closed.
 	Subscribe(ctx context.Context, topic Topic) *Newsletter[any]
 	// Publish the given payload to the Topic. It will catch any errors during
 	// publishing and log them using the Logger.
@@ -84,24 +86,40 @@ func NewBase(logger *zap.Logger, config Config) (Base, error) {
 	if err != nil {
 		return nil, errors.NewInternalErrorFromErr(err, "invalid mqtt addr", errors.Details{"was": config.MQTTAddr})
 	}
+	pahoMQTTRouter := paho.NewStandardRouter()
 	return &basePortal{
-		logger:    logger,
-		config:    config,
-		brokerURL: brokerURL,
+		logger:         logger,
+		config:         config,
+		brokerURL:      brokerURL,
+		pahoMQTTRouter: pahoMQTTRouter,
 	}, nil
 }
 
 // Open the base portal and keep the connection to the MQTT server until the
-// given context.Context is done.
-func (p *basePortal) Open(ctx context.Context) error {
+// given context.Context is done. When the connection is up, the given channel
+// will receive.
+func (p *basePortal) Open(ctx context.Context, opened chan struct{}) error {
 	// Establish MQTT connection.
-	mqttRouter := paho.NewStandardRouter()
-	p.router = newRouter(p.logger, mqttRouter)
-	conn, err := autopaho.NewConnection(ctx, p.genClientConfig(mqttRouter))
+	conn, err := autopaho.NewConnection(ctx, p.genClientConfig(p.pahoMQTTRouter))
 	if err != nil {
 		return errors.NewInternalErrorFromErr(err, "create mqtt server connection failed", nil)
 	}
 	p.publisher = conn
+	// Await connection open in order to notify that the connection, publisher, etc.
+	// are now available.
+	err = conn.AwaitConnection(ctx)
+	if err != nil {
+		return errors.NewInternalErrorFromErr(err, "await mqtt connection", nil)
+	}
+	p.router = newPortalGateway(p.logger.Named("gateway"), &portalGatewayMQTTBridge{
+		logger:        p.logger.Named("gateway-mqtt-bridge"),
+		kiosk:         conn,
+		inboundRouter: p.pahoMQTTRouter,
+	})
+	select {
+	case <-ctx.Done():
+	case opened <- struct{}{}:
+	}
 	// Wait until we are done.
 	<-ctx.Done()
 	// Shutdown MQTT connection.
@@ -158,14 +176,17 @@ func (p *basePortal) genClientConfig(router paho.Router) autopaho.ClientConfig {
 // events.
 func (p *basePortal) NewPortal(name string) Portal {
 	return &portal{
-		logger: p.logger.Named(name),
-		router: p.router,
+		logger:    p.logger.Named(name),
+		router:    p.router,
+		publisher: p.publisher,
 	}
 }
 
 // Subscribe to the given Portal for the Topic. The returned Newsletter contains
 // an already unmarshalled payload. Messages that fail to unmarshal, are
 // dropped. However, the error is logged to Portal.Logger.
+//
+// Warning: Remember to use EmptyEvent
 func Subscribe[payloadT any](ctx context.Context, portal Portal, topic Topic) *Newsletter[payloadT] {
 	rawSub := portal.Subscribe(ctx, topic)
 	receiveParsed := make(chan event.Event[payloadT])
@@ -204,7 +225,7 @@ func Subscribe[payloadT any](ctx context.Context, portal Portal, topic Topic) *N
 type portal struct {
 	logger *zap.Logger
 	// router is used for subscribing to MQTT topics via Subscribe.
-	router *router
+	router *portalGateway
 	// publisher is used for publishing MQTT messages via Publish.
 	publisher publisher
 }
@@ -212,8 +233,7 @@ type portal struct {
 // Subscribe for the given Topic using the portal's router.
 func (p *portal) Subscribe(ctx context.Context, topic Topic) *Newsletter[any] {
 	subLifetime, cancelSub := context.WithCancel(ctx)
-	forward := make(chan event.Event[any])
-	p.router.subscribe(subLifetime, topic, forward)
+	forward := p.router.subscribe(subLifetime, topic)
 	return &Newsletter[any]{
 		unregisterFn: cancelSub,
 		Receive:      forward,

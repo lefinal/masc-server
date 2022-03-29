@@ -15,6 +15,9 @@ type Event[T any] struct {
 	Payload T
 }
 
+// EmptyEvent is needed when no content is expected.
+type EmptyEvent struct{}
+
 // ErrorEventPayload is used with MessageTypeError for errors that need to be sent to devices.
 type ErrorEventPayload struct {
 	// Code is the error code from errors.Error.

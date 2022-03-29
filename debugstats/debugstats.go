@@ -30,6 +30,7 @@ func NewService(logger *zap.Logger, config Config) (service.Service, error) {
 
 func (s *debugStatsService) Run(ctx context.Context) error {
 	if !s.config.IsEnabled {
+		s.logger.Debug("debug stats not enabled")
 		return nil
 	}
 	s.logger.Debug(fmt.Sprintf("logging system state every %gs", s.config.Interval.Seconds()))

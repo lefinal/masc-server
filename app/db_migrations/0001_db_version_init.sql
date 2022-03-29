@@ -10,3 +10,8 @@ create table masc
 
 create unique index masc_key_uindex
     on masc (key);
+
+-- Set initial database version.
+
+insert into masc(key, value)
+values ('db-version', '1');

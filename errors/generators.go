@@ -3,6 +3,7 @@ package errors
 import (
 	"database/sql"
 	nativeerrors "errors"
+	"fmt"
 	"github.com/jackc/pgconn"
 	"strings"
 )
@@ -46,46 +47,6 @@ func NewContextAbortedError(currentOperation string) error {
 	}
 }
 
-// NewInvalidConfigRequestError returns a new ErrBadRequest error and the given
-// message.
-func NewInvalidConfigRequestError(message string) error {
-	return Error{
-		Code:    ErrBadRequest,
-		Message: message,
-	}
-}
-
-func NewJSONError(err error, operation string, blameUser bool) error {
-	e := Error{
-		Err:     err,
-		Message: operation,
-	}
-	if blameUser {
-		e.Code = ErrBadRequest
-	} else {
-		e.Code = ErrInternal
-	}
-	return e
-}
-
-// NewmatchAlreadyStartedError create
-func NewMatchAlreadyStartedError() error {
-	return Error{
-		Code:    ErrInternal,
-		Message: "match already started",
-	}
-}
-
-// NewQueryToSQLError creates a new ErrInternal error.
-func NewQueryToSQLError(err error, details Details) error {
-	return Error{
-		Code:    ErrInternal,
-		Err:     err,
-		Message: "query to sql",
-		Details: details,
-	}
-}
-
 // NewScanSingleDBRowError returns the correct error for scanning a single row
 // from QueryRow. If the error is because of no rows, an ErrNotFound error is
 // returned with the given message. Otherwise, an ErrInternal error is returned.
@@ -97,17 +58,17 @@ func NewScanSingleDBRowError(err error, notFoundMessage string, query string) er
 			Message: notFoundMessage,
 		}
 	}
-	return NewScanDBRowError(err, query)
+	return NewScanDBRowError(err, "scan row", query)
 }
 
 // NewScanDBRowError returns an ErrInternal error. If you are using this to scan
 // a row from QueryRow, then use NewScanSingleDBRowError for generating an
 // ErrNotFound error if necessary.
-func NewScanDBRowError(err error, query string) error {
+func NewScanDBRowError(err error, message string, query string) error {
 	return Error{
 		Code:    ErrInternal,
 		Err:     err,
-		Message: "scan db row",
+		Message: message,
 		Details: Details{"query": query},
 	}
 }
@@ -115,10 +76,8 @@ func NewScanDBRowError(err error, query string) error {
 // NewExecQueryError creates a new ErrBadRequest error if the error is a constraint violation or data exception.
 // Otherwise, an ErrInternal error is created. The query will be added to the details as well as the additional ones.
 // Error codes taken from https://en.wikipedia.org/wiki/SQLSTATE.
-func NewExecQueryError(err error, query string, details Details) error {
-	if details == nil {
-		details = Details{}
-	}
+func NewExecQueryError(err error, message string, query string) error {
+	details := Details{}
 	details["query"] = query
 	// Check if error is postgres error.
 	var pgErr *pgconn.PgError
@@ -130,7 +89,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 		if strings.HasPrefix(pgErr.Code, "23") {
 			return Error{
 				Code:    ErrBadRequest,
-				Message: "exec db query: constraint violation",
+				Message: fmt.Sprintf("%s: constraint violation", message),
 				Err:     err,
 				Details: details,
 			}
@@ -138,7 +97,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 		if strings.HasPrefix(pgErr.Code, "22") {
 			return Error{
 				Code:    ErrBadRequest,
-				Message: "exec db query: data exception",
+				Message: fmt.Sprintf("%s: data exception", message),
 				Err:     err,
 				Details: details,
 			}
@@ -147,7 +106,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 		if strings.HasPrefix(pgErr.Code, "42") {
 			return Error{
 				Code:    ErrInternal,
-				Message: "exec db query: syntax error",
+				Message: fmt.Sprintf("%s: syntax error", message),
 				Err:     err,
 				Details: details,
 			}
@@ -155,7 +114,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 		// Otherwise, probably internal error.
 		return Error{
 			Code:    ErrInternal,
-			Message: "exec db query",
+			Message: message,
 			Err:     err,
 			Details: details,
 		}
@@ -163,7 +122,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 	if nativeerrors.Is(err, sql.ErrTxDone) {
 		return Error{
 			Code:    ErrInternal,
-			Message: "exec db query",
+			Message: fmt.Sprintf("%s: tx done", message),
 			Err:     err,
 			Details: details,
 		}
@@ -171,7 +130,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 	if nativeerrors.Is(err, sql.ErrConnDone) {
 		return Error{
 			Code:    ErrFatal,
-			Message: "connection done",
+			Message: fmt.Sprintf("%s: connection done", message),
 			Err:     err,
 			Details: details,
 		}
@@ -179,7 +138,7 @@ func NewExecQueryError(err error, query string, details Details) error {
 	// Any other internal error.
 	return Error{
 		Code:    ErrInternal,
-		Message: "exec db query",
+		Message: message,
 		Err:     err,
 		Details: details,
 	}

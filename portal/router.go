@@ -9,10 +9,52 @@ import (
 	"sync"
 )
 
-// mqttRouter abstracts paho.Router with only stuff that is needed for router.
-type mqttRouter interface {
+// mqttKiosk allows ACTUAL subscribing and unsubscribing to MQTT topics. It is
+// an abstraction of autopaho.ConnectionManager for usage in portalGateway.
+type mqttKiosk interface {
+	Subscribe(ctx context.Context, s *paho.Subscribe) (*paho.Suback, error)
+	Unsubscribe(ctx context.Context, u *paho.Unsubscribe) (*paho.Unsuback, error)
+}
+
+// mqttInboundRouter abstracts paho.Router with only stuff that is needed for
+// portalGateway.
+type mqttInboundRouter interface {
 	RegisterHandler(topic string, handler paho.MessageHandler)
 	UnregisterHandler(topic string)
+}
+
+// portalGatewayMQTTBridge acts as an mqttInboundRouter, but also performs
+// actual MQTT subscriptions using mqttKiosk when registering handlers with the
+// set inboundRouter.
+type portalGatewayMQTTBridge struct {
+	logger        *zap.Logger
+	kiosk         mqttKiosk
+	inboundRouter mqttInboundRouter
+}
+
+// RegisterHandler subscribes
+func (b *portalGatewayMQTTBridge) RegisterHandler(topic string, handler paho.MessageHandler) {
+	_, err := b.kiosk.Subscribe(context.Background(), &paho.Subscribe{
+		Subscriptions: map[string]paho.SubscribeOptions{
+			topic: {QoS: mqttQOS},
+		},
+	})
+	if err != nil {
+		errors.Log(b.logger, errors.Wrap(err, "subscribe with kiosk", nil))
+		return
+	}
+	b.inboundRouter.RegisterHandler(topic, handler)
+}
+
+func (b *portalGatewayMQTTBridge) UnregisterHandler(topic string) {
+	b.inboundRouter.UnregisterHandler(topic)
+	_, err := b.kiosk.Unsubscribe(context.Background(), &paho.Unsubscribe{
+		Topics: []string{topic},
+	})
+	if err != nil {
+		errors.Log(b.logger, errors.Wrap(err, "unsubscribe with kiosk", nil))
+		return
+	}
 }
 
 // subscription is a container for the lifetime context.Context and the channel
@@ -48,25 +90,25 @@ func (handler *registeredHandler) Handler() paho.MessageHandler {
 				}
 			}(sub)
 		}
-		handler.subscriptionsMutex.RUnlock()
 		allForwarded.Wait()
+		handler.subscriptionsMutex.RUnlock()
 	}
 }
 
-// router is used for multiplexing MQTT subscriptions and forwarding received
+// portalGateway is used for multiplexing MQTT subscriptions and forwarding received
 // messages according to them.
-type router struct {
+type portalGateway struct {
 	logger *zap.Logger
-	// mqtt is the actual router that performs the matching.
-	mqtt mqttRouter
+	// mqtt is the actual portalGateway that performs the matching.
+	mqtt *portalGatewayMQTTBridge
 	// registeredHandlers holds all handlers by subscribed topics.
 	registeredHandlers map[Topic]*registeredHandler
 	// registeredHandlersMutex locks registeredHandlers.
 	registeredHandlersMutex sync.Mutex
 }
 
-func newRouter(logger *zap.Logger, mqtt mqttRouter) *router {
-	return &router{
+func newPortalGateway(logger *zap.Logger, mqtt *portalGatewayMQTTBridge) *portalGateway {
+	return &portalGateway{
 		logger:             logger,
 		mqtt:               mqtt,
 		registeredHandlers: make(map[Topic]*registeredHandler),
@@ -74,8 +116,8 @@ func newRouter(logger *zap.Logger, mqtt mqttRouter) *router {
 }
 
 // subscribe for the given Topic and forward messages to the given channel until
-// the context.Context is done.
-func (router *router) subscribe(lifetime context.Context, topic Topic, forward chan<- event.Event[any]) {
+// the context.Context is done. After that, the channel will be closed!
+func (router *portalGateway) subscribe(lifetime context.Context, topic Topic) <-chan event.Event[any] {
 	router.registeredHandlersMutex.Lock()
 	defer router.registeredHandlersMutex.Unlock()
 	// Check if already existing.
@@ -88,6 +130,7 @@ func (router *router) subscribe(lifetime context.Context, topic Topic, forward c
 		router.logger.Debug("subscribed to topic", zap.Any("topic", topic))
 	}
 	// Add subscription.
+	forward := make(chan event.Event[any])
 	sub := &subscription{
 		lifetime: lifetime,
 		forward:  forward,
@@ -99,11 +142,15 @@ func (router *router) subscribe(lifetime context.Context, topic Topic, forward c
 	go func() {
 		<-lifetime.Done()
 		router.unsubscribe(topic, sub)
+		handlerRef.subscriptionsMutex.Lock()
+		close(forward)
+		handlerRef.subscriptionsMutex.Unlock()
 	}()
+	return forward
 }
 
-// unsubscribe the given subscription for the Topic. Only router should call this!
-func (router *router) unsubscribe(topic Topic, sub *subscription) {
+// unsubscribe the given subscription for the Topic. Only portalGateway should call this!
+func (router *portalGateway) unsubscribe(topic Topic, sub *subscription) {
 	router.registeredHandlersMutex.Lock()
 	defer router.registeredHandlersMutex.Unlock()
 	// Get handler.

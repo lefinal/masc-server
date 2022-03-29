@@ -12,53 +12,82 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-	"time"
 )
 
-var timeout = 3 * time.Second
-
-// mqttRouterStub mocks mqttRouter.
-type mqttRouterStub struct {
+// mqttKioskStub mocks mqttKiosk.
+type mqttKioskStub struct {
 	mock.Mock
 }
 
-func (s *mqttRouterStub) RegisterHandler(topic string, handler paho.MessageHandler) {
+func (stub *mqttKioskStub) Subscribe(ctx context.Context, s *paho.Subscribe) (*paho.Suback, error) {
+	args := stub.Called(ctx, s)
+	var subAck *paho.Suback
+	subAck, _ = args.Get(0).(*paho.Suback)
+	return subAck, args.Error(1)
+}
+
+func (stub *mqttKioskStub) Unsubscribe(ctx context.Context, u *paho.Unsubscribe) (*paho.Unsuback, error) {
+	args := stub.Called(ctx, u)
+	var unSubAck *paho.Unsuback
+	unSubAck, _ = args.Get(0).(*paho.Unsuback)
+	return unSubAck, args.Error(1)
+}
+
+// mqttInboundRouterStub mocks mqttInboundRouter.
+type mqttInboundRouterStub struct {
+	mock.Mock
+}
+
+func (s *mqttInboundRouterStub) RegisterHandler(topic string, handler paho.MessageHandler) {
 	s.Called(topic, handler)
 }
 
-func (s *mqttRouterStub) UnregisterHandler(topic string) {
+func (s *mqttInboundRouterStub) UnregisterHandler(topic string) {
 	s.Called(topic)
 }
 
 func TestRouter_new(t *testing.T) {
-	router := newRouter(zap.New(zapcore.NewNopCore()), &mqttRouterStub{})
+	router := newPortalGateway(zap.New(zapcore.NewNopCore()), &portalGatewayMQTTBridge{
+		logger:        zap.New(zapcore.NewNopCore()),
+		kiosk:         &mqttKioskStub{},
+		inboundRouter: &mqttInboundRouterStub{},
+	})
 	assert.NotNil(t, router.registeredHandlers, "should have initialized handlers")
 }
 
-// routerSubscribe tests router.subscribe.
+// routerSubscribe tests portalGateway.subscribe.
 type routerSubscribe struct {
 	suite.Suite
-	router     *router
-	mqttRouter *mqttRouterStub
+	router            *portalGateway
+	mqttKiosk         *mqttKioskStub
+	mqttInboundRouter *mqttInboundRouterStub
 }
 
 func (suite *routerSubscribe) SetupTest() {
-	suite.mqttRouter = &mqttRouterStub{}
-	suite.router = newRouter(zap.New(zapcore.NewNopCore()), suite.mqttRouter)
+	suite.mqttKiosk = &mqttKioskStub{}
+	suite.mqttInboundRouter = &mqttInboundRouterStub{}
+	suite.router = newPortalGateway(zap.New(zapcore.NewNopCore()), &portalGatewayMQTTBridge{
+		logger:        zap.New(zapcore.NewNopCore()),
+		kiosk:         suite.mqttKiosk,
+		inboundRouter: suite.mqttInboundRouter,
+	})
 }
 
 // TestNoSubs expects the router to create a handler and register in the MQTT
 // router.
 func (suite *routerSubscribe) TestNoSubs() {
 	unregisterTimeout, cancelUnregisterTimeout := context.WithTimeout(context.Background(), timeout)
-	suite.mqttRouter.On("RegisterHandler", "cats", mock.Anything).Once()
-	suite.mqttRouter.On("UnregisterHandler", "cats").Run(func(_ mock.Arguments) {
+	suite.mqttKiosk.On("Subscribe", mock.Anything, mock.Anything).Return(nil, nil)
+	suite.mqttKiosk.On("Unsubscribe", mock.Anything, mock.Anything).Return(nil, nil).Run(func(_ mock.Arguments) {
 		cancelUnregisterTimeout()
 	}).Once()
-	defer suite.mqttRouter.AssertExpectations(suite.T())
+	defer suite.mqttKiosk.AssertExpectations(suite.T())
+	suite.mqttInboundRouter.On("RegisterHandler", "cats", mock.Anything).Once()
+	suite.mqttInboundRouter.On("UnregisterHandler", "cats").Once()
+	defer suite.mqttInboundRouter.AssertExpectations(suite.T())
 	// Subscribe.
 	lifetime, cancel := context.WithCancel(context.Background())
-	suite.router.subscribe(lifetime, "cats", make(chan event.Event[any]))
+	_ = suite.router.subscribe(lifetime, "cats")
 	// Check if everything ok.
 	suite.Require().Contains(suite.router.registeredHandlers, Topic("cats"), "should have created handler for the topic")
 	handler := suite.router.registeredHandlers["cats"]
@@ -82,7 +111,7 @@ func (suite *routerSubscribe) TestHandlerAlreadyRegistered() {
 			initialSubscription: {},
 		},
 	}
-	suite.mqttRouter.On("RegisterHandler").Run(func(_ mock.Arguments) {
+	suite.mqttInboundRouter.On("RegisterHandler").Run(func(_ mock.Arguments) {
 		suite.Fail("should not call register")
 	})
 	// Subscribe another one.
@@ -91,25 +120,29 @@ func (suite *routerSubscribe) TestHandlerAlreadyRegistered() {
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		suite.router.subscribe(timeout, "cats", nil)
+		suite.router.subscribe(timeout, "cats")
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 // TestLifetimeDone assures that after the passed context to subscribe is done,
 // unsubscribe is called.
 func (suite *routerSubscribe) TestLifetimeDone() {
 	timeout, cancel := context.WithTimeout(context.Background(), timeout)
-	suite.mqttRouter.On("RegisterHandler", "cats", mock.Anything)
-	suite.mqttRouter.On("UnregisterHandler", "cats").Run(func(_ mock.Arguments) {
-		cancel()
-	})
-	defer suite.mqttRouter.AssertExpectations(suite.T())
+	suite.mqttKiosk.On("Subscribe", mock.Anything, mock.Anything).Return(nil, nil)
+	suite.mqttKiosk.On("Unsubscribe", mock.Anything, mock.Anything).Return(nil, nil).
+		Run(func(_ mock.Arguments) {
+			cancel()
+		})
+	defer suite.mqttKiosk.AssertExpectations(suite.T())
+	suite.mqttInboundRouter.On("RegisterHandler", "cats", mock.Anything)
+	suite.mqttInboundRouter.On("UnregisterHandler", "cats")
+	defer suite.mqttInboundRouter.AssertExpectations(suite.T())
 	// Subscribe.
-	c := make(chan event.Event[any])
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
-	suite.router.subscribe(lifetime, "cats", c)
+	suite.router.subscribe(lifetime, "cats")
 	cancelLifetime()
 	// Expect unregister to have been called.
 	<-timeout.Done()
@@ -120,27 +153,33 @@ func TestRouter_subscribe(t *testing.T) {
 	suite.Run(t, new(routerSubscribe))
 }
 
-// routerUnsubscribe tests router.unsubscribe.
+// routerUnsubscribe tests portalGateway.unsubscribe.
 type routerUnsubscribe struct {
 	suite.Suite
-	router     *router
-	mqttRouter *mqttRouterStub
+	router            *portalGateway
+	mqttKiosk         *mqttKioskStub
+	mqttInboundRouter *mqttInboundRouterStub
 }
 
 func (suite *routerUnsubscribe) SetupTest() {
-	suite.mqttRouter = &mqttRouterStub{}
-	suite.router = newRouter(zap.New(zapcore.NewNopCore()), suite.mqttRouter)
+	suite.mqttKiosk = &mqttKioskStub{}
+	suite.mqttInboundRouter = &mqttInboundRouterStub{}
+	suite.router = newPortalGateway(zap.New(zapcore.NewNopCore()), &portalGatewayMQTTBridge{
+		logger:        zap.New(zapcore.NewNopCore()),
+		kiosk:         suite.mqttKiosk,
+		inboundRouter: suite.mqttInboundRouter,
+	})
 }
 
 func (suite *routerUnsubscribe) TestUnknownTopic() {
-	defer suite.mqttRouter.AssertExpectations(suite.T())
+	defer suite.mqttInboundRouter.AssertExpectations(suite.T())
 	suite.NotPanics(func() {
 		suite.router.unsubscribe("unknown", nil)
 	}, "should not fail")
 }
 
 func (suite *routerUnsubscribe) TestUnsubscribeWithSubscriptionsLeft() {
-	defer suite.mqttRouter.AssertExpectations(suite.T())
+	defer suite.mqttInboundRouter.AssertExpectations(suite.T())
 	subToUnsubscribe := &subscription{
 		lifetime: nil,
 		forward:  nil,
@@ -200,6 +239,8 @@ func (suite *registeredHandlerHandlerSuite) TestSingleSub() {
 		defer wg.Done()
 		select {
 		case <-timeout.Done():
+			suite.Fail("timeout", "should receive from sub within timeout")
+			return
 		case <-subReceive:
 		}
 	}()
@@ -210,6 +251,7 @@ func (suite *registeredHandlerHandlerSuite) TestSingleSub() {
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 func (suite *registeredHandlerHandlerSuite) TestMultipleSubs() {
@@ -237,7 +279,7 @@ func (suite *registeredHandlerHandlerSuite) TestMultipleSubs() {
 		for i := 0; i < subCount; i++ {
 			select {
 			case <-timeout.Done():
-				suite.Fail("expected more")
+				suite.Fail("timeout", "should receive all within timeout")
 				return
 			case <-subsReceive:
 			}
@@ -250,6 +292,7 @@ func (suite *registeredHandlerHandlerSuite) TestMultipleSubs() {
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 // TestUnsubscribeDuringForward assures that forwarding is cancelled if the
@@ -283,6 +326,7 @@ func (suite *registeredHandlerHandlerSuite) TestUnsubscribeDuringForward() {
 	}()
 	<-timeout.Done()
 	suite.Equal(context.Canceled, timeout.Err(), "should not time out")
+	wg.Wait()
 }
 
 func TestRegisteredHandler_Handler(t *testing.T) {
