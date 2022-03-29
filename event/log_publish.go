@@ -2,9 +2,8 @@ package event
 
 import "time"
 
-// NextLogEntriesEventPayloadEntry is used in
-// NextLogEntriesEventPayload.Entries.
-type NextLogEntriesEventPayloadEntry struct {
+// NextLogEntryEvent is used to publish log entries.
+type NextLogEntryEvent struct {
 	// Time is the timestamp the log entry was created.
 	Time time.Time `json:"time"`
 	// Message is the log entry message.
@@ -15,9 +14,4 @@ type NextLogEntriesEventPayloadEntry struct {
 	LoggerName string `json:"logger_name"`
 	// Fields are the set fields for the log entry.
 	Fields map[string]interface{} `json:"fields"`
-}
-
-// NextLogEntriesEventPayload is the payload for NextLogEntriesEvent.
-type NextLogEntriesEventPayload struct {
-	Entries []NextLogEntriesEventPayloadEntry `json:"entries"`
 }

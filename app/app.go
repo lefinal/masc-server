@@ -101,7 +101,7 @@ func (app *App) boot(ctx context.Context) error {
 	case <-portalOpened:
 	}
 	// Create services and run them.
-	services, err := createServices(app.config, app.logger, app.portal, app.mall)
+	services, err := createServices(app.config, app.logger, app.portal, app.mall, app.publishLog)
 	if err != nil {
 		return errors.Wrap(err, "create services", nil)
 	}

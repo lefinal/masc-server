@@ -6,6 +6,8 @@ import (
 	"github.com/lefinal/masc-server/debugstatssvc"
 	"github.com/lefinal/masc-server/devicesvc"
 	"github.com/lefinal/masc-server/errors"
+	"github.com/lefinal/masc-server/logging"
+	"github.com/lefinal/masc-server/logpublishsvc"
 	"github.com/lefinal/masc-server/portal"
 	"github.com/lefinal/masc-server/service"
 	"github.com/lefinal/masc-server/store"
@@ -16,7 +18,8 @@ import (
 
 type services map[string]service.Service
 
-func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base, mall *store.Mall) (services, error) {
+func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base, mall *store.Mall,
+	logEntriesIn <-chan logging.LogEntry) (services, error) {
 	services := make(services)
 	// Debug stats service.
 	s, err := debugstatssvc.NewService(logger.Named("debug-stats"), debugstatssvc.Config{
@@ -28,7 +31,9 @@ func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base
 	}
 	services["debug-stats"] = s
 	// Device service.
-	services["device"] = devicesvc.NewDeviceService(logger, portalBase.NewPortal("device-service"), mall)
+	services["device"] = devicesvc.NewDeviceService(logger.Named("device"), portalBase.NewPortal("device-service"), mall)
+	// Log publishing service.
+	services["log-publish"] = logpublishsvc.New(logger.Named("log-publish"), portalBase.NewPortal("log-publish"), logEntriesIn)
 	return services, nil
 }
 
