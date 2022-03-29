@@ -191,7 +191,6 @@ func (suite *deviceServiceSuite) TestHandleDeviceOnlineEvent() {
 		Return(portal.NewSelfClosingReceivingMockNewsletter(runCtx, deviceOnlineReceive)).Once()
 	suite.portalStub.On("Subscribe", mock.Anything, mock.Anything).
 		Return(portal.NewSelfClosingMockNewsletter(runCtx))
-	suite.portalStub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Once()
 	expectedCalls.Add(1)
 	suite.storeStub.On("RegisterDevice", mock.Anything, "<device-id>", "<device-type>").
 		Return(store.Device{
@@ -208,6 +207,7 @@ func (suite *deviceServiceSuite) TestHandleDeviceOnlineEvent() {
 		LastSeen:   time.UnixMicro(42),
 		Name:       nulls.NewString("<device-name>"),
 	}).Run(func(_ mock.Arguments) { expectedCalls.Done() }).Once()
+	suite.portalStub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Once()
 	defer suite.storeStub.AssertExpectations(suite.T())
 	defer suite.portalStub.AssertExpectations(suite.T())
 	// Handle.
@@ -309,12 +309,12 @@ func (suite *deviceServiceSuite) TestHandleReportOnlineEvent() {
 		Return(portal.NewSelfClosingReceivingMockNewsletter(runCtx, reportReceive)).Once()
 	suite.portalStub.On("Subscribe", mock.Anything, mock.Anything).
 		Return(portal.NewSelfClosingMockNewsletter(runCtx))
-	suite.portalStub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Once()
 	expectedCalls.Add(1)
 	suite.portalStub.On("Publish", mock.Anything, topicDeviceOnline, event.DeviceOnlineEvent{
 		DeviceID:   deviceID,
 		DeviceType: "masc-server",
 	}).Run(func(_ mock.Arguments) { expectedCalls.Done() }).Once()
+	suite.portalStub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Once()
 	defer suite.storeStub.AssertExpectations(suite.T())
 	defer suite.portalStub.AssertExpectations(suite.T())
 	// Handle.
