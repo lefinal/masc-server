@@ -84,5 +84,8 @@ jobs:
       - name: Install Deps
         run: make dep
 
+      - name: Install revive
+        run: go install github.com/mgechev/revive@latest
+
       - name: Lint
         run: make lint

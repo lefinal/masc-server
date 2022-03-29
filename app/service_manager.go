@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/lefinal/masc-server/debugstats"
+	"github.com/lefinal/masc-server/debugstatssvc"
 	"github.com/lefinal/masc-server/devicesvc"
 	"github.com/lefinal/masc-server/errors"
 	"github.com/lefinal/masc-server/portal"
@@ -19,7 +19,7 @@ type services map[string]service.Service
 func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base, mall *store.Mall) (services, error) {
 	services := make(services)
 	// Debug stats service.
-	s, err := debugstats.NewService(logger.Named("debug-stats"), debugstats.Config{
+	s, err := debugstatssvc.NewService(logger.Named("debug-stats"), debugstatssvc.Config{
 		IsEnabled: appConfig.Log.SystemDebugStatsInterval.Valid && appConfig.Log.SystemDebugStatsInterval.Int > 0,
 		Interval:  time.Duration(appConfig.Log.SystemDebugStatsInterval.Int) * time.Minute,
 	})
@@ -32,7 +32,7 @@ func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base
 	return services, nil
 }
 
-func (s services) run(logger *zap.Logger, ctx context.Context) error {
+func (s services) run(ctx context.Context, logger *zap.Logger) error {
 	wg, lifetime := errgroup.WithContext(ctx)
 	// Run each.
 	for name, serviceToRun := range s {

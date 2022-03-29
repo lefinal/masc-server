@@ -25,6 +25,8 @@ type App struct {
 	publishLog <-chan logging.LogEntry
 }
 
+// NewApp returns a new App with the given Config that can be booted using
+// App.Boot.
 func NewApp(config Config) *App {
 	return &App{
 		config: config,
@@ -67,15 +69,14 @@ func (app *App) boot(ctx context.Context) error {
 	app.logger.Info("booting up")
 	// Connect database.
 	app.logger.Debug("connecting to database")
-	if db, err := connectDB(ctx, app.config.DBConn); err != nil {
+	db, err := connectDB(ctx, app.config.DBConn)
+	if err != nil {
 		return errors.Wrap(err, "connect database", nil)
-	} else {
-		app.mall = store.NewMall(app.logger.Named("store"), db)
 	}
+	app.mall = store.NewMall(app.logger.Named("store"), db)
 	app.logger.Debug("database ready")
 	app.logger.Debug("setting up...")
 	// Create portal.
-	var err error
 	app.portal, err = portal.NewBase(app.logger.Named("portal"), portal.Config{MQTTAddr: app.config.MQTTAddr})
 	if err != nil {
 		return errors.Wrap(err, "new portal base", nil)
@@ -109,7 +110,7 @@ func (app *App) boot(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		defer shutdown()
-		if err := services.run(app.logger.Named("service-runner"), servicesLifetime); err != nil {
+		if err := services.run(servicesLifetime, app.logger.Named("service-runner")); err != nil {
 			errors.Log(app.logger, errors.Wrap(err, "run services", nil))
 			return
 		}

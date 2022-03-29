@@ -19,16 +19,20 @@ type Stub struct {
 	logger *zap.Logger
 }
 
+// Subscribe to the given Topic. Calls mock.Mock.
 func (s *Stub) Subscribe(ctx context.Context, topic Topic) *Newsletter[any] {
 	var newsletter *Newsletter[any]
 	newsletter = s.Called(ctx, topic).Get(0).(*Newsletter[any])
 	return newsletter
 }
 
+// Publish the given serializable payload to a topic. Calls mock.Mock.
 func (s *Stub) Publish(ctx context.Context, topic Topic, payload interface{}) {
 	s.Called(ctx, topic, payload)
 }
 
+// Logger returns the logger set for the Stub. If not set, a nop-logger will be
+// returned.
 func (s *Stub) Logger() *zap.Logger {
 	if s.logger == nil {
 		return zap.New(zapcore.NewNopCore())

@@ -67,6 +67,7 @@ type basePortal struct {
 	publisher publisher
 }
 
+// Portal allows communication to outer space.
 type Portal interface {
 	// Subscribe returns a Newsletter for the given Topic. The Newsletter.Receive
 	// channel must be closed when the portal is closed.

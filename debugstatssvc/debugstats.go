@@ -1,4 +1,4 @@
-package debugstats
+package debugstatssvc
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// Config is the configuration in order to create a new service using
+// NewService.
 type Config struct {
 	// IsEnabled describes whether periodic debug stats logging is desired.
 	IsEnabled bool
@@ -21,6 +23,8 @@ type debugStatsService struct {
 	config Config
 }
 
+// NewService creates a new debug stats service with the given logger and
+// Config.
 func NewService(logger *zap.Logger, config Config) (service.Service, error) {
 	return &debugStatsService{
 		logger: logger,

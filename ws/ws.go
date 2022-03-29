@@ -12,7 +12,7 @@ import (
 
 // HandleWS handles websocket requests. The passed context is used in order to
 // stop all remaining read-pumps.
-func HandleWS(hub *Hub, ctx context.Context) http.HandlerFunc {
+func HandleWS(ctx context.Context, hub *Hub) http.HandlerFunc {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true

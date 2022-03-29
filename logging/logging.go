@@ -9,6 +9,7 @@ import (
 
 const topicField = "logger_type"
 
+// LogEntry is a container for logs that can be handled by other components.
 type LogEntry struct {
 	// Time is the timestamp the log entry was created.
 	Time time.Time `json:"time"`

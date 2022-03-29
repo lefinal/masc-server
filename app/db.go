@@ -8,7 +8,6 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/lefinal/masc-server/errors"
 	"go.uber.org/zap"
 	"io"

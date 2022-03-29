@@ -10,8 +10,12 @@ import (
 // Standalone events.
 const ()
 
+// Event is a container for a parsed paho.Publish payload.
 type Event[T any] struct {
+	// Publish is the raw publish event.
 	Publish *paho.Publish
+	// Payload is the parsed payload of Publish when used with appropriate
+	// subscribers that perform unmarshalling.
 	Payload T
 }
 

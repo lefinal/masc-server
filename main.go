@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/lefinal/masc-server/app"
 	"github.com/lefinal/masc-server/errors"
 	"io/ioutil"
