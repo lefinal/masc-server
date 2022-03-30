@@ -3,20 +3,20 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/lefinal/masc-server/debugstatssvc"
-	"github.com/lefinal/masc-server/devicesvc"
 	"github.com/lefinal/masc-server/errors"
 	"github.com/lefinal/masc-server/logging"
-	"github.com/lefinal/masc-server/logpublishsvc"
 	"github.com/lefinal/masc-server/portal"
-	"github.com/lefinal/masc-server/service"
+	services2 "github.com/lefinal/masc-server/services"
+	"github.com/lefinal/masc-server/services/debugstatssvc"
+	"github.com/lefinal/masc-server/services/devicesvc"
+	"github.com/lefinal/masc-server/services/logpublishsvc"
 	"github.com/lefinal/masc-server/store"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"time"
 )
 
-type services map[string]service.Service
+type services map[string]services2.Service
 
 func createServices(appConfig Config, logger *zap.Logger, portalBase portal.Base, mall *store.Mall,
 	logEntriesIn <-chan logging.LogEntry) (services, error) {

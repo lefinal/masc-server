@@ -3,7 +3,7 @@ package debugstatssvc
 import (
 	"context"
 	"fmt"
-	"github.com/lefinal/masc-server/service"
+	"github.com/lefinal/masc-server/services"
 	"go.uber.org/zap"
 	"runtime"
 	"time"
@@ -25,7 +25,7 @@ type debugStatsService struct {
 
 // NewService creates a new debug stats service with the given logger and
 // Config.
-func NewService(logger *zap.Logger, config Config) (service.Service, error) {
+func NewService(logger *zap.Logger, config Config) (services.Service, error) {
 	return &debugStatsService{
 		logger: logger,
 		config: config,

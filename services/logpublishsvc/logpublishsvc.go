@@ -5,7 +5,7 @@ import (
 	"github.com/lefinal/masc-server/event"
 	"github.com/lefinal/masc-server/logging"
 	"github.com/lefinal/masc-server/portal"
-	"github.com/lefinal/masc-server/service"
+	"github.com/lefinal/masc-server/services"
 	"go.uber.org/zap"
 	"time"
 )
@@ -27,7 +27,7 @@ type logPublishService struct {
 
 // New creates a new log publish service that can be run. The given
 // logging.LogEntry channel is the channel log entries will be read from.
-func New(logger *zap.Logger, portal portal.Portal, logEntriesIn <-chan logging.LogEntry) service.Service {
+func New(logger *zap.Logger, portal portal.Portal, logEntriesIn <-chan logging.LogEntry) services.Service {
 	return &logPublishService{
 		logger:       logger,
 		portal:       portal,

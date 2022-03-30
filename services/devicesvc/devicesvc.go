@@ -5,7 +5,7 @@ import (
 	"github.com/lefinal/masc-server/errors"
 	"github.com/lefinal/masc-server/event"
 	"github.com/lefinal/masc-server/portal"
-	"github.com/lefinal/masc-server/service"
+	"github.com/lefinal/masc-server/services"
 	"github.com/lefinal/masc-server/store"
 	"go.uber.org/zap"
 	"sync"
@@ -51,7 +51,7 @@ type deviceService struct {
 }
 
 // NewDeviceService creates a new service.Service ready to run.
-func NewDeviceService(logger *zap.Logger, portal portal.Portal, store Store) service.Service {
+func NewDeviceService(logger *zap.Logger, portal portal.Portal, store Store) services.Service {
 	return &deviceService{
 		logger: logger,
 		portal: portal,
