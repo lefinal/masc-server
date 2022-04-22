@@ -16,6 +16,9 @@ race: dep ## Run data race detector
 msan: dep ## Run memory sanitizer
 	CC=clang CXX=clang++ go test -msan -short ./...
 
+coverhtml: ## Generate global code coverage report in HTML
+	go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+
 dep: ## Get the dependencies
 	go get -v -d ./...
 

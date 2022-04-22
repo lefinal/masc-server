@@ -89,3 +89,29 @@ jobs:
 
       - name: Lint
         run: make lint
+
+  code_coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Install Deps
+        run: make dep
+
+      - name: Create Code Coverage
+        run: make coverhtml
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS
+          fail_ci_if_error: true
+          files: ./coverage.txt
+          flags: unittests
+          verbose: true
